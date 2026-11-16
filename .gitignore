@@ -1,0 +1,16 @@
+.DS_Store
+.build/
+.swiftpm/
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+.env
+.env.*
+!.env.example
+*.p12
+*.mobileprovision
+*.key
+*.log
+references/checkouts/
+Munie.xcodeproj/

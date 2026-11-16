@@ -31,7 +31,7 @@ Release notes should state what works, what changed and known limits in supporte
 
 ## Configuration
 
-Hosted jobs explicitly select Xcode 26.2 on `macos-15` for a consistent toolchain. Update the image/toolchain together after reviewing the [runner inventory](https://github.com/actions/runner-images/blob/main/images/macos/macos-15-Readme.md) and [Apple upload requirements](https://developer.apple.com/news/upcoming-requirements/). Local checks were run with the locally installed toolchain; see project status.
+Hosted jobs explicitly select Xcode 26.2 on `macos-26` for a consistent toolchain. Update the image/toolchain together after reviewing the [runner inventory](https://github.com/actions/runner-images/blob/main/images/macos/macos-26-arm64-Readme.md) and [Apple upload requirements](https://developer.apple.com/news/upcoming-requirements/). Local checks were run with the locally installed toolchain; see project status.
 
 The `testflight` environment needs these secrets:
 

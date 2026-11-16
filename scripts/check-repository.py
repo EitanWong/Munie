@@ -67,6 +67,8 @@ def main():
     subprocess.run([sys.executable, str(ROOT / 'scripts/sync-references.py'), '--list'], check=True)
     subprocess.run([sys.executable, '-B', '-m', 'unittest', 'discover', '-s',
                     str(ROOT / 'references/tests'), '-v'], check=True)
+    subprocess.run([sys.executable, '-B', '-m', 'unittest', 'discover', '-s',
+                    str(ROOT / 'scripts/tests'), '-v'], check=True)
     workflows = [str(path) for path in (ROOT / '.github/workflows').glob('*.yml')]
     subprocess.run(['ruby', '-ryaml', '-e',
                     'ARGV.each { |p| YAML.load_file(p) }; puts "Workflow YAML parsed"',

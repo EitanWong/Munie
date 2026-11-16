@@ -18,6 +18,7 @@ review snapshots, not claims that upstream software is safe or production ready.
 | Mimi Remote | Alternative remote SwiftUI client | Evaluate only; GPLv3 plus limited store permission |
 | RayBridge | Small glasses → iPhone → Mac prototype | Evaluate only; no root license found, no source reuse |
 | XcodeGen | Generate native Xcode project | Build tool; version is controlled by project tooling |
+| actionlint | Validate GitHub Actions syntax, expressions and action inputs | Adopted build tool; pinned 1.7.12 release and archive checksums |
 
 No third-party product source is copied into `apps/` or `packages/`. The initial
 runtime uses Apple frameworks only. Root-license review does not cover all

@@ -432,6 +432,22 @@
           }
         }
       }
+    },
+    "Apple TV may remove saved captures to free storage.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple TV may remove saved captures to free storage."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple TV 可能会移除已保存的记录以释放存储空间。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

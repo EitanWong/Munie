@@ -2,6 +2,8 @@
 
 [简体中文](#简体中文) · [Manifest](manifest.json) · [Reuse decisions](reuse-decisions.md)
 
+Apple platform and HIG documentation is indexed in the [official guidance register](apple-platform-guidance.md). Load it through the [task index](../docs/agent/README.md) when needed.
+
 All external research inputs live here. `manifest.json` records exact upstream
 commits, root-license snapshots, relevant source paths and primary URLs. Pins were
 verified on 2026-11-17 using GitHub repository, commit and contents APIs. They are

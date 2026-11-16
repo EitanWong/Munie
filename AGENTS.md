@@ -1,5 +1,13 @@
 # Munie engineering contract
 
+## Start here — load details only when needed
+
+1. Read [current status](docs/project-status.md), then the task table in the [Agent index](docs/agent/README.md). Open only the documents and source files relevant to the task.
+2. For app/configuration work, follow [Apple engineering](docs/standards/apple-engineering.md); for UI work also follow [HIG guidance](docs/standards/human-interface.md) and the relevant [platform acceptance row](docs/standards/platform-acceptance.md).
+3. Treat [Apple/Swift official sources](references/apple-platform-guidance.md) as the reference for platform facts. Recheck the specific source for new or changed APIs; local guidance is a project interpretation, not Apple certification.
+
+## Engineering rules
+
 - Work in `dev`; release changes reach `main` through reviewed pull requests.
 - Use `feat_<module>_<purpose>` branches in sibling worktrees; never place worktrees in the repository.
 - Research official docs and mature open-source components before adding a capability. Record decisions and licenses in `references/`.
@@ -8,6 +16,7 @@
 - Use Swift 6 concurrency, descriptive naming, small focused APIs, explicit errors and dependency injection. Extract packages only for real shared behavior.
 - Add meaningful tests for new behavior and regressions. Run relevant package tests, formatting, repository checks and iOS build before integration.
 - Localize all user-facing UI in English and Simplified Chinese. Keep README translations aligned.
+- Share domain logic across Apple platforms; adapt UI to each platform's input, navigation and lifecycle. Build every affected destination; record device/HIG acceptance separately from compilation.
 - Never claim simulated agent output as real work. Model remote state explicitly when implemented. Keep credentials out of source and mobile relay payloads.
 - Recording is opt-in; do not implement always-on capture by default. Preserve user control over retained data.
 - Use subagents for independent modules with disjoint file ownership; review their changes before integration.

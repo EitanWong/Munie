@@ -11,10 +11,5 @@ xcrun swift-format lint --strict --recursive apps packages/MunieCore/Sources \
 swift test --package-path packages/MunieCore --enable-code-coverage
 swift test --enable-code-coverage
 swift run --package-path packages/MunieCore MunieCoreSmoke
-xcodebuild -project Munie.xcodeproj -scheme Munie -configuration Debug \
-  -destination 'generic/platform=iOS Simulator' -derivedDataPath build/DerivedData \
-  CODE_SIGNING_ALLOWED=NO build-for-testing > build/ios-build.log 2>&1 || {
-  tail -80 build/ios-build.log
-  exit 1
-}
-printf 'Quality checks passed; iOS app and test bundles compiled. Log: build/ios-build.log\n'
+./scripts/build-apple-platforms.sh
+printf 'Quality checks passed; all Apple platform apps and iOS test bundles compiled.\n'

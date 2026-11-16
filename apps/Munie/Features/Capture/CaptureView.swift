@@ -19,9 +19,11 @@ struct CaptureView: View {
             }
           }
           .tag(record.id)
-          .swipeActions {
-            Button("Delete", role: .destructive) { pendingDeletion = record }
-          }
+          #if !os(tvOS)
+            .swipeActions {
+              Button("Delete", role: .destructive) { pendingDeletion = record }
+            }
+          #endif
         }
       }
       .overlay {
@@ -59,7 +61,10 @@ struct CaptureView: View {
           VStack(alignment: .leading, spacing: 16) {
             Text(record.createdAt, format: .dateTime)
               .font(.caption).foregroundStyle(.secondary)
-            Text(record.text).textSelection(.enabled)
+            Text(record.text)
+              #if !os(tvOS)
+                .textSelection(.enabled)
+              #endif
               .accessibilityIdentifier("captureDetail")
           }
           .frame(maxWidth: 680, alignment: .leading)
@@ -120,13 +125,24 @@ private struct CaptureComposer: View {
     NavigationStack {
       VStack(alignment: .leading, spacing: 12) {
         Text("What is on your mind?").font(.headline)
-        TextEditor(text: $model.draft)
-          .disabled(model.isBusy)
-          .focused($isFocused)
-          .accessibilityLabel("Capture text")
-          .accessibilityIdentifier("captureText")
+        #if os(tvOS)
+          TextField("Capture text", text: $model.draft)
+            .disabled(model.isBusy)
+            .focused($isFocused)
+            .accessibilityIdentifier("captureText")
+        #else
+          TextEditor(text: $model.draft)
+            .disabled(model.isBusy)
+            .focused($isFocused)
+            .accessibilityLabel("Capture text")
+            .accessibilityIdentifier("captureText")
+        #endif
         Text("Saved locally on this device.")
           .font(.caption).foregroundStyle(.secondary)
+        #if os(tvOS)
+          Text("Apple TV may remove saved captures to free storage.")
+            .font(.caption).foregroundStyle(.secondary)
+        #endif
         if model.draft.count > FileCaptureStore.maximumTextLength {
           Text("Keep each capture within 10,000 characters.")
             .font(.caption).foregroundStyle(.red)
@@ -134,7 +150,9 @@ private struct CaptureComposer: View {
       }
       .padding()
       .navigationTitle("New capture")
-      .navigationBarTitleDisplayMode(.inline)
+      #if os(iOS) || os(visionOS)
+        .navigationBarTitleDisplayMode(.inline)
+      #endif
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Close") { dismiss() }.disabled(model.isBusy)

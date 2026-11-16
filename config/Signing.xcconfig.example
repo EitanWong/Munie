@@ -1,0 +1,4 @@
+// Bootstrap copies this to ignored Signing.xcconfig for personal device development.
+// Replace the placeholder bundle identifier and enter your own Apple signing team.
+PRODUCT_BUNDLE_IDENTIFIER = app.munie.ios
+DEVELOPMENT_TEAM =

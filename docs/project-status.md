@@ -9,7 +9,7 @@ Updated: 2026-11-17. Stage: engineering foundation / 工程基础。
 | iPhone / iPad | SwiftUI local text capture, list/search, detail and confirmed deletion | Simulator UI, accessibility and real-device acceptance |
 | Reusable core | Swift 6 model, validation and atomic versioned file storage | Personal data lifecycle and scale review before beta |
 | Localization | 27 UI strings in English and Simplified Chinese; bilingual README | Both languages, Dynamic Type and VoiceOver on devices |
-| Engineering | `main`, `dev`, four `feat_` worktrees; generated Xcode project; CI/CD workflows | First hosted run; real-device acceptance |
+| Engineering | `main`, `dev`, module `feat_` worktrees; generated Xcode project; CI/CD workflows | First hosted run; real-device acceptance |
 | Remote AI / Mac | Architecture and research only | Authenticated cellular → Mac task, replay and cancellation |
 | Voice / Watch / glasses | Research only | Native entry, permissions, hardware and distribution validation |
 

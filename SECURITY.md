@@ -18,4 +18,4 @@ Do not use this early build as the only copy of important information. Never com
 
 ## Reporting
 
-A public security contact and disclosure policy have not been established. During personal development, use a private channel to the repository owner. Do not open a public issue containing credentials or user content. Before invited beta, establish a monitored private reporting path and a response owner; record it here.
+Use [GitHub private vulnerability reporting](https://github.com/EitanWong/Munie/security/advisories/new) for security issues. The repository owner is the initial response owner; there is no response-time guarantee during personal development. Do not open a public issue containing credentials or user content. Before invited beta, verify this private path and establish a monitored user support channel.

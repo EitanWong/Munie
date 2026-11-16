@@ -6,7 +6,9 @@ Feature PRs target `dev`; release PRs target `main`. Require successful validati
 
 Configured workflows: `ci.yml` has `quality` and `ios-tests` jobs. `release.yml` is manually dispatched on `main`; it validates before signed archiving and TestFlight delivery through `scripts/release.sh`. Distribution requires the protected `testflight` environment, approval and configured signing/API secrets.
 
-After a GitHub repository is selected and connected:
+The public [GitHub repository](https://github.com/EitanWong/Munie) is connected. `main` protection requires both CI jobs, a PR, resolved conversations and current checks, with administrator enforcement; a solo developer can merge without a second reviewer. The `testflight` environment requires owner approval and permits protected branches; the workflow additionally allows only `main`.
+
+Maintain these controls:
 
 1. Run CI on `dev`, `main` and PRs, then make the actual stable check names required in branch rules.
 2. Block direct pushes and force pushes to `main`; require a PR, resolved review conversations and current checks. Apply comparable integration rules to `dev` as appropriate for a solo project.

@@ -2,7 +2,7 @@
 
 Your personal AI companion, close at hand.
 
-[简体中文](README.zh-Hans.md) · [Documentation](docs/README.md) · [Project status](docs/project-status.md)
+[GitHub](https://github.com/EitanWong/Munie) · [简体中文](README.zh-Hans.md) · [Documentation](docs/README.md) · [Project status](docs/project-status.md)
 
 Munie is an Apple-native frontend for capturing a thought, finding it later, and eventually handing work to an interchangeable AI execution service. The first foundation focuses on reliable local text capture on iPhone and iPad. Remote execution, voice, Apple Watch, and Ray-Ban Meta integration are future milestones; they are not active capabilities.
 

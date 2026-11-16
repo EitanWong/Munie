@@ -1,6 +1,6 @@
 # Harness 集成与原生能力
 
-本页是执行框架集成的唯一规范入口；产品目标以[需求](../requirements.md)为准，信任、任务状态和恢复规则复用[远程 Agent 决策](../decisions/remote-agent-foundation.md)。当前完成设计、协议范围清单、离线工具及无模型本机握手研究；没有产品远程 adapter，也没有实现下列原生能力。
+本页是执行框架集成的唯一规范入口；产品目标以[需求](../requirements.md)为准，信任、任务状态和恢复规则复用[远程 Agent 决策](../decisions/remote-agent-foundation.md)。当前完成设计、协议范围清单、离线工具、本机握手与确定性 provider 驱动的原生生命周期研究；没有产品远程 adapter，也没有实现下列产品原生能力。
 
 ## 开放边界与首发完整性
 
@@ -58,6 +58,8 @@ CI 无需安装 Codex；运行 `python3 scripts/catalog-codex.py --validate-cata
 ## 完整原生支持的通过条件
 
 实施前先按[测试入口](../testing.md#opt-in-local-codex-protocol-experiment)运行固定版本、系统隔离的 no-turn 探针，读取[协议研究](../../references/codex-protocol-research.md)。握手及不存在任务的拒绝只说明这些协议边界；不得据此把清单状态改为已实现，或声称真实审批、取消与恢复通过。
+
+其后的 native lifecycle 夹具验证真实 app-server 状态、单次命令审批及优雅重启后的已知 thread 读取/继续；模型内容来自合成 provider。它仍不能证明真实模型、执行中子进程取消、未知提交/崩溃恢复或手机访问，也不改变清单的 `unimplemented` 状态。审批回复必须核对本次 `availableDecisions`、实际动作及原 request/thread/turn/item；终态、恢复方式与测试范围不得被统一成一个“通过”。
 
 以下按能力组织验收，机器清单仍保留全部原始方法，不能用这个摘要替代逐项范围。
 

@@ -56,3 +56,21 @@ This macOS-only research command requires the saved Codex 0.162.1 schema and an 
 The RPC sequence is fixed: pre-initialize nonexistent interrupt, initialize, initialized notification, duplicate initialize, invalid interrupt parameters, unknown method and nonexistent turn interrupt. No thread creation/resume, model turn, tool, approval, listener or real cancellation runs. Each response has a 10-second deadline, the transport has a 60-second deadline, lines are limited to 64 KiB and each output stream to 512 KiB. Initialization and the bounded shutdown both validate messages; unexpected server requests/notifications fail without a response. Cleanup closes stdin, escalates TERM/KILL and confirms process-group disappearance. This is a diagnostic transport, not a reusable production adapter.
 
 The mode-600 `build/codex-protocol-probe.json` records the binary/runner/schema hashes, revision and dirty flag, sanitized checks, bounded stream hashes/counts and cleanup. It excludes raw server errors, paths, user agent, host/installation identifiers and stderr. Before starting any child, it atomically replaces an earlier result with a failed/starting report; an interrupted attempt cannot retain the older pass. This does not promise crash-durable storage or concurrent runs sharing one output path. Offline fake-peer regressions run in ordinary repository checks without Codex, credentials or model/network access; they cannot establish upstream behavior. Real observations and their limits are recorded in [project status](project-status.md), with field and network evidence in [protocol research](../references/codex-protocol-research.md).
+
+### Native lifecycle with a synthetic provider
+
+For actual app-server state transitions without a real model/account, reuse the same pinned native binary and schema bundles:
+
+```sh
+python3 scripts/probe-codex-turns.py --codex "$CODEX_NATIVE" \
+  --schema-dir build/codex-schema-experimental \
+  --default-schema-dir build/codex-schema-stable
+```
+
+The model is a deterministic, loopback-only Responses API fixture. Codex runs actual threads, turns, a fixed temporary-file command and persistence; assistant text/token counts come from the fixture. No credentials, external model/network, personal projects, app-server listener or product adapter are involved. The outer sandbox adds only outbound access to that one temporary localhost port. The same six denial guards still run; all tool children inherit the outer restrictions even after a fixture approval.
+
+The fixed sequence completes text, cancels a bound command approval with no file creation, accepts a fresh bound approval and observes the actual file/command exit, interrupts a turn waiting for provider data, then gracefully stops Codex. A new process reads four matching turn IDs/terminals with metadata-only `thread/read` plus full `thread/turns/list`, resumes the original thread with explicit read-only/on-request permissions, and completes a fifth turn. It does not test real model quality/authentication, running-shell cancellation, pending approval replay, crashes, uncertain submission, mobile transport or device behavior.
+
+Provider HTTP bodies are capped at 256 KiB, each socket operation at two seconds, each RPC/event wait at ten seconds, each native transport at sixty seconds, native events at 300 and streams at the no-turn limits. Only six provider requests/connections are expected; retries, unknown requests/events, cross-target approvals and duplicate terminal events fail. The temporary fixture has a random endpoint, no authentication/cookie input, no raw request logging, no persistent approval grants and bounded shutdown that interrupts active socket reads. These are diagnostic resource ceilings, not product performance claims.
+
+The private atomic `build/codex-turn-probe.json` uses the same failed/starting invalidation. It records synthetic thread/turn IDs, observed states and sanitized event types, runner/transport/binary/schema hashes, stream counts/hashes and both process cleanups. It omits raw paths, provider request bodies, host/account metadata and stderr. Ordinary CI runs only local fake-peer/provider regressions; the native opt-in command must be rerun after runner changes and its provenance checked separately.

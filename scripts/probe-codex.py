@@ -286,7 +286,7 @@ def expect_error(frame, prefix):
     return {'code': error['code'], 'messagePrefix': prefix}
 
 
-def experiment(binary, schema_dir, default_dir, catalog_path, report):
+def validate_inputs(binary, schema_dir, default_dir, catalog_path, report):
     report['phase'] = 'preflight'
     require(sys.platform == 'darwin', 'This opt-in experiment requires macOS sandbox-exec')
     require(binary.is_absolute() and binary.is_file() and os.access(binary, os.X_OK),
@@ -310,6 +310,10 @@ def experiment(binary, schema_dir, default_dir, catalog_path, report):
         cwd=Path(__file__).resolve().parent.parent, text=True).strip())
     report['runnerSHA256'] = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     report['host'] = {'system': platform.system(), 'architecture': platform.machine()}
+
+
+def experiment(binary, schema_dir, default_dir, catalog_path, report):
+    validate_inputs(binary, schema_dir, default_dir, catalog_path, report)
     with tempfile.TemporaryDirectory(prefix='munie-codex-probe-') as temporary:
         root = Path(temporary).resolve()
         fixture, protected = root / 'fixture', root / 'protected'

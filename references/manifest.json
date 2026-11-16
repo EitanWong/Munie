@@ -333,6 +333,58 @@
       ],
       "shallow_checkout_default": false,
       "version": "2.46.0"
+    },
+    {
+      "name": "actionlint",
+      "repository": "rhysd/actionlint",
+      "url": "https://github.com/rhysd/actionlint.git",
+      "commit": "914e7df21a07ef503a81201c76d2b11c789d3fca",
+      "version": "1.7.12",
+      "verified_on": "2026-11-17",
+      "upstream_commit_date": "2026-03-30T17:47:17Z",
+      "role": "Static validation of GitHub Actions workflow syntax, expressions and action inputs",
+      "decision": "build-tool",
+      "license": {
+        "id": "MIT",
+        "snapshot": "licenses/actionlint.txt",
+        "source_path": "LICENSE.txt",
+        "scope": "Build-time tooling only; retained upstream copyright and permission text."
+      },
+      "sources": [
+        {
+          "path": "LICENSE.txt",
+          "url": "https://github.com/rhysd/actionlint/blob/914e7df21a07ef503a81201c76d2b11c789d3fca/LICENSE.txt",
+          "bytes": 1067,
+          "sha256": "03a26b06d224380a02bf100e05fff3b2dfc71b14d4e2fa685ec9963a87563c22"
+        },
+        {
+          "path": "README.md",
+          "url": "https://github.com/rhysd/actionlint/blob/914e7df21a07ef503a81201c76d2b11c789d3fca/README.md",
+          "bytes": 8243,
+          "sha256": "d78bc61d23ab010aef426ac6c2985d137a0c1309d87c54d1c80ee9587cadc9e3"
+        },
+        {
+          "path": "docs/checks.md",
+          "url": "https://github.com/rhysd/actionlint/blob/914e7df21a07ef503a81201c76d2b11c789d3fca/docs/checks.md",
+          "bytes": 129765,
+          "sha256": "569344b90aebd15681f0605a985a95cd7ee2dea0be73d1958c6884d295ce62b3"
+        }
+      ],
+      "release": {
+        "url": "https://github.com/rhysd/actionlint/releases/tag/v1.7.12",
+        "checksums_url": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_checksums.txt",
+        "artifacts": [
+          {
+            "name": "actionlint_1.7.12_darwin_arm64.tar.gz",
+            "sha256": "aba9ced2dee8d27fecca3dc7feb1a7f9a52caefa1eb46f3271ea66b6e0e6953f"
+          },
+          {
+            "name": "actionlint_1.7.12_darwin_amd64.tar.gz",
+            "sha256": "5b44c3bc2255115c9b69e30efc0fecdf498fdb63c5d58e17084fd5f16324c644"
+          }
+        ]
+      },
+      "shallow_checkout_default": false
     }
   ],
   "official_documents": [
@@ -363,6 +415,10 @@
     {
       "title": "XcodeGen release 2.46.0",
       "url": "https://github.com/yonaskolb/XcodeGen/releases/tag/2.46.0"
+    },
+    {
+      "title": "actionlint release 1.7.12",
+      "url": "https://github.com/rhysd/actionlint/releases/tag/v1.7.12"
     }
   ]
 }

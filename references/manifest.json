@@ -1,0 +1,368 @@
+{
+  "schema_version": 1,
+  "verified_on": "2026-11-17",
+  "policy": "References are research inputs, not runtime dependencies. No third-party product source has been copied into Munie. Pins are review snapshots, not automatic upgrade targets.",
+  "repositories": [
+    {
+      "name": "omi",
+      "repository": "BasedHardware/omi",
+      "url": "https://github.com/BasedHardware/omi.git",
+      "commit": "4634185a4063fc750d2de32c5b5d36f01bee45c4",
+      "verified_on": "2026-11-17",
+      "upstream_commit_date": "2026-11-16T17:47:05Z",
+      "role": "Personal memory lifecycle and user data controls",
+      "decision": "reference-only",
+      "license": {
+        "id": "MIT",
+        "snapshot": "licenses/omi.txt",
+        "scope": "Root license only; inspect dependency, asset and SDK terms before reuse."
+      },
+      "sources": [
+        {
+          "path": "LICENSE",
+          "url": "https://github.com/BasedHardware/omi/blob/4634185a4063fc750d2de32c5b5d36f01bee45c4/LICENSE",
+          "bytes": 1084,
+          "sha256": "7efdcd0fc0d7598a4771f4fa0d1a62d5ed1fcb7bf4d0c4384ca37a1420389efd"
+        },
+        {
+          "path": "README.md",
+          "url": "https://github.com/BasedHardware/omi/blob/4634185a4063fc750d2de32c5b5d36f01bee45c4/README.md",
+          "bytes": 9101,
+          "sha256": "2d00fd3de57cf85f160380a890b4bd3de48d46d94552ad072562701de284da36"
+        },
+        {
+          "path": "app/README.md",
+          "url": "https://github.com/BasedHardware/omi/blob/4634185a4063fc750d2de32c5b5d36f01bee45c4/app/README.md",
+          "bytes": 7857,
+          "sha256": "b32ab2918cbe4482df432e9d4a2dd4a7383552edad4cdc3333320eee27c57ac7"
+        }
+      ],
+      "shallow_checkout_default": false
+    },
+    {
+      "name": "remodex",
+      "repository": "Emanuele-web04/remodex",
+      "url": "https://github.com/Emanuele-web04/remodex.git",
+      "commit": "c06dcb16a7059603a41e26a2cb4a81b6d4b5514d",
+      "verified_on": "2026-11-17",
+      "upstream_commit_date": "2026-11-03T09:19:50Z",
+      "role": "Optional remote Mac/Codex adapter, reconnect and push patterns",
+      "decision": "reference-only",
+      "license": {
+        "id": "Apache-2.0",
+        "snapshot": "licenses/remodex.txt",
+        "scope": "Root license only; inspect dependency, asset and SDK terms before reuse."
+      },
+      "sources": [
+        {
+          "path": "LICENSE",
+          "url": "https://github.com/Emanuele-web04/remodex/blob/c06dcb16a7059603a41e26a2cb4a81b6d4b5514d/LICENSE",
+          "bytes": 10338,
+          "sha256": "0b29f8cd089e60610dc1cb4d380919eae28a566b9d97ac30dbcfb37951882c5a"
+        },
+        {
+          "path": "README.md",
+          "url": "https://github.com/Emanuele-web04/remodex/blob/c06dcb16a7059603a41e26a2cb4a81b6d4b5514d/README.md",
+          "bytes": 30940,
+          "sha256": "aa463c35250f3be48b72d4f4a41c8f8a06663995325e3a81600f82ea69c5a3b9"
+        },
+        {
+          "path": "SELF_HOSTING_MODEL.md",
+          "url": "https://github.com/Emanuele-web04/remodex/blob/c06dcb16a7059603a41e26a2cb4a81b6d4b5514d/SELF_HOSTING_MODEL.md",
+          "bytes": 3444,
+          "sha256": "6d805c49e98333fa0921a3fe31059379ab83ef4637a821b45e10e7135d322a9a"
+        },
+        {
+          "path": "Docs/self-hosting.md",
+          "url": "https://github.com/Emanuele-web04/remodex/blob/c06dcb16a7059603a41e26a2cb4a81b6d4b5514d/Docs/self-hosting.md",
+          "bytes": 8342,
+          "sha256": "3438fd75dd28892a4643e3b71d075a9d8348048951d7c7187c9ba9dc4d0ff6cf"
+        },
+        {
+          "path": "CodexMobile/CodexMobile/Services/CodexService+Notifications.swift",
+          "url": "https://github.com/Emanuele-web04/remodex/blob/c06dcb16a7059603a41e26a2cb4a81b6d4b5514d/CodexMobile/CodexMobile/Services/CodexService+Notifications.swift",
+          "bytes": 29999,
+          "sha256": "73ee8b45ae27df4c965e02f336dbec884fd2e5146158768d0b97964fd3d17cc2"
+        }
+      ],
+      "shallow_checkout_default": true
+    },
+    {
+      "name": "chums",
+      "repository": "lcoutodemos/chums",
+      "url": "https://github.com/lcoutodemos/chums.git",
+      "commit": "6821bd6e1aa3d3fb41ca77bd0cc4de0dbbb8097a",
+      "verified_on": "2026-11-17",
+      "upstream_commit_date": "2026-10-13T07:21:43Z",
+      "role": "Native watchOS entry points, hub and approval flows",
+      "decision": "reference-only",
+      "license": {
+        "id": "Apache-2.0",
+        "snapshot": "licenses/chums.txt",
+        "scope": "Root license only; inspect dependency, asset and SDK terms before reuse."
+      },
+      "sources": [
+        {
+          "path": "LICENSE",
+          "url": "https://github.com/lcoutodemos/chums/blob/6821bd6e1aa3d3fb41ca77bd0cc4de0dbbb8097a/LICENSE",
+          "bytes": 11358,
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "path": "README.md",
+          "url": "https://github.com/lcoutodemos/chums/blob/6821bd6e1aa3d3fb41ca77bd0cc4de0dbbb8097a/README.md",
+          "bytes": 14558,
+          "sha256": "b91def112421fba05ff20fb11c9d8651148118a4ab37f8ce4ccd5fffa2ee3283"
+        },
+        {
+          "path": "docs/architecture.md",
+          "url": "https://github.com/lcoutodemos/chums/blob/6821bd6e1aa3d3fb41ca77bd0cc4de0dbbb8097a/docs/architecture.md",
+          "bytes": 17449,
+          "sha256": "189848ce3818cbf911e1ddaeb0d23f8e202694b66984d955d94d56e515db4e42"
+        },
+        {
+          "path": "docs/other-agents.md",
+          "url": "https://github.com/lcoutodemos/chums/blob/6821bd6e1aa3d3fb41ca77bd0cc4de0dbbb8097a/docs/other-agents.md",
+          "bytes": 17731,
+          "sha256": "4f8c422e491d608a25868e894d4a1906850acc0e9770b0b2fd14bb69b23a5533"
+        },
+        {
+          "path": "app/ChumsWatch/HubClient.swift",
+          "url": "https://github.com/lcoutodemos/chums/blob/6821bd6e1aa3d3fb41ca77bd0cc4de0dbbb8097a/app/ChumsWatch/HubClient.swift",
+          "bytes": 23237,
+          "sha256": "2d5e0937cd659ea84b8c4d86dda9f178d5957bbcf29e8593da595fe56beabc30"
+        }
+      ],
+      "shallow_checkout_default": true
+    },
+    {
+      "name": "openvision",
+      "repository": "rayl15/OpenVision",
+      "url": "https://github.com/rayl15/OpenVision.git",
+      "commit": "1d5d9203a36f76040947425a603eba57757eac75",
+      "verified_on": "2026-11-17",
+      "upstream_commit_date": "2026-10-04T20:48:50Z",
+      "role": "SwiftUI Ray-Ban Meta camera and audio integration reference",
+      "decision": "reference-only",
+      "license": {
+        "id": "MIT",
+        "snapshot": "licenses/openvision.txt",
+        "scope": "Root license only; inspect dependency, asset and SDK terms before reuse."
+      },
+      "sources": [
+        {
+          "path": "LICENSE",
+          "url": "https://github.com/rayl15/OpenVision/blob/1d5d9203a36f76040947425a603eba57757eac75/LICENSE",
+          "bytes": 1080,
+          "sha256": "51ccf8b12833b6f432d619ff65ae1dcc8fd4564357f32ecb2aabbba0cedb5160"
+        },
+        {
+          "path": "README.md",
+          "url": "https://github.com/rayl15/OpenVision/blob/1d5d9203a36f76040947425a603eba57757eac75/README.md",
+          "bytes": 30296,
+          "sha256": "7ce9fb24abdb3ec7fce00eaf4933668b6ebf31acbad926ba00cde75af4f86b15"
+        }
+      ],
+      "shallow_checkout_default": true
+    },
+    {
+      "name": "meta-wearables-dat-ios",
+      "repository": "meta/meta-wearables-dat-ios",
+      "url": "https://github.com/meta/meta-wearables-dat-ios.git",
+      "commit": "bbae597cd1c748cd29b9375a1624a8d75b1c9e14",
+      "verified_on": "2026-11-17",
+      "upstream_commit_date": "2026-10-09T18:23:13Z",
+      "role": "Official Ray-Ban Meta SDK; terms and experimental feature constraints",
+      "decision": "evaluation-only",
+      "license": {
+        "id": "LicenseRef-Meta-Wearables-Developer-Terms",
+        "snapshot": "licenses/meta-wearables-dat-ios.txt",
+        "scope": "Root license only; inspect dependency, asset and SDK terms before reuse."
+      },
+      "sources": [
+        {
+          "path": "LICENSE",
+          "url": "https://github.com/meta/meta-wearables-dat-ios/blob/bbae597cd1c748cd29b9375a1624a8d75b1c9e14/LICENSE",
+          "bytes": 255,
+          "sha256": "80f43d18e6cddc805fe86e70fd1e24fec505cf74616bdcbd04ab9f02d76d53ea"
+        },
+        {
+          "path": "README.md",
+          "url": "https://github.com/meta/meta-wearables-dat-ios/blob/bbae597cd1c748cd29b9375a1624a8d75b1c9e14/README.md",
+          "bytes": 9096,
+          "sha256": "cdd725ebc461b6d3a6e4a19350fc9de42f104c46a8c706754d5a082e472363ad"
+        },
+        {
+          "path": "plugins/mwdat-ios/skills/voice-invocations/SKILL.md",
+          "url": "https://github.com/meta/meta-wearables-dat-ios/blob/bbae597cd1c748cd29b9375a1624a8d75b1c9e14/plugins/mwdat-ios/skills/voice-invocations/SKILL.md",
+          "bytes": 2521,
+          "sha256": "d2a9013ab0a04480205b87ac60eeab8664640705832c8a02b96b2674ed9178b4"
+        },
+        {
+          "path": "plugins/mwdat-ios/skills/speech/SKILL.md",
+          "url": "https://github.com/meta/meta-wearables-dat-ios/blob/bbae597cd1c748cd29b9375a1624a8d75b1c9e14/plugins/mwdat-ios/skills/speech/SKILL.md",
+          "bytes": 2248,
+          "sha256": "be5bface03f42ce4a851730acfc7452e35dba93bbfa1b508f1de236283d017c1"
+        }
+      ],
+      "shallow_checkout_default": false
+    },
+    {
+      "name": "happy",
+      "repository": "slopus/happy",
+      "url": "https://github.com/slopus/happy.git",
+      "commit": "6f97e432b2960a1f8cb4973117bd060666034655",
+      "verified_on": "2026-11-17",
+      "upstream_commit_date": "2026-11-16T14:21:17Z",
+      "role": "Multiple harnesses, remote sessions and relay architecture",
+      "decision": "reference-only",
+      "license": {
+        "id": "MIT",
+        "snapshot": "licenses/happy.txt",
+        "scope": "Root license only; inspect dependency, asset and SDK terms before reuse."
+      },
+      "sources": [
+        {
+          "path": "LICENSE",
+          "url": "https://github.com/slopus/happy/blob/6f97e432b2960a1f8cb4973117bd060666034655/LICENSE",
+          "bytes": 1081,
+          "sha256": "e251d0448ef3ce023c20ebac9b90a7d8642b1434825838247d6e457668eb3e00"
+        },
+        {
+          "path": "README.md",
+          "url": "https://github.com/slopus/happy/blob/6f97e432b2960a1f8cb4973117bd060666034655/README.md",
+          "bytes": 4719,
+          "sha256": "9b8e9a41438374e7ed9e625c02e67ab74f46bebc1e085fc9938f480e6f02db09"
+        },
+        {
+          "path": "packages/happy-ios/README.md",
+          "url": "https://github.com/slopus/happy/blob/6f97e432b2960a1f8cb4973117bd060666034655/packages/happy-ios/README.md",
+          "bytes": 3202,
+          "sha256": "2bff8969a16aa793b0516bf2041a46d8fd0c3753664f892c017e35f02b6b98c3"
+        }
+      ],
+      "shallow_checkout_default": false
+    },
+    {
+      "name": "mimi-remote",
+      "repository": "gaixianggeng/mimi-remote",
+      "url": "https://github.com/gaixianggeng/mimi-remote.git",
+      "commit": "87ee3cf202c68e7390304a26f09d64c2c1073aff",
+      "verified_on": "2026-11-17",
+      "upstream_commit_date": "2026-11-16T16:14:37Z",
+      "role": "Alternative SwiftUI remote frontend; license decision required",
+      "decision": "evaluation-only",
+      "license": {
+        "id": "GPL-3.0-with-App-Store-exception (custom text; review required)",
+        "snapshot": "licenses/mimi-remote.txt",
+        "scope": "Root license only; inspect dependency, asset and SDK terms before reuse."
+      },
+      "sources": [
+        {
+          "path": "LICENSE",
+          "url": "https://github.com/gaixianggeng/mimi-remote/blob/87ee3cf202c68e7390304a26f09d64c2c1073aff/LICENSE",
+          "bytes": 35747,
+          "sha256": "4b72ddfc2b4934562043fb2cd81e1aaed6ad8d32e4b45948e2f8e21dfe5e575c"
+        },
+        {
+          "path": "README.md",
+          "url": "https://github.com/gaixianggeng/mimi-remote/blob/87ee3cf202c68e7390304a26f09d64c2c1073aff/README.md",
+          "bytes": 12741,
+          "sha256": "53121735ac349aed39c179bce7806d0e1d4d1bb7c197ca8474037b025f4ba704"
+        }
+      ],
+      "shallow_checkout_default": false
+    },
+    {
+      "name": "raybridge",
+      "repository": "soothslayer/RayBridge",
+      "url": "https://github.com/soothslayer/RayBridge.git",
+      "commit": "167ed20d5f0789b18074429436cf34620cf26ced",
+      "verified_on": "2026-11-17",
+      "upstream_commit_date": "2026-09-23T21:24:21Z",
+      "role": "Small glasses to iPhone/Mac prototype; copying prohibited pending license grant",
+      "decision": "evaluation-only",
+      "license": {
+        "id": "unconfirmed",
+        "snapshot": null,
+        "scope": "Root license only; inspect dependency, asset and SDK terms before reuse."
+      },
+      "sources": [
+        {
+          "path": "README.md",
+          "url": "https://github.com/soothslayer/RayBridge/blob/167ed20d5f0789b18074429436cf34620cf26ced/README.md",
+          "bytes": 27857,
+          "sha256": "a10e373a1a1c246c8616f211eb0ee68c4162969cc06260250f43792a07fb3644"
+        }
+      ],
+      "shallow_checkout_default": false
+    },
+    {
+      "name": "xcodegen",
+      "repository": "yonaskolb/XcodeGen",
+      "url": "https://github.com/yonaskolb/XcodeGen.git",
+      "commit": "8445e778451c7e44237b90281bde622d764b0084",
+      "verified_on": "2026-11-17",
+      "upstream_commit_date": "2026-07-16T06:26:01Z",
+      "role": "Generate reproducible native Xcode project from project.yml",
+      "decision": "build-tool",
+      "license": {
+        "id": "MIT",
+        "snapshot": "licenses/xcodegen.txt",
+        "scope": "Root license only; inspect dependency, asset and SDK terms before reuse."
+      },
+      "sources": [
+        {
+          "path": "LICENSE",
+          "url": "https://github.com/yonaskolb/XcodeGen/blob/8445e778451c7e44237b90281bde622d764b0084/LICENSE",
+          "bytes": 1067,
+          "sha256": "1e210fcab168d549f41a7495d11a7092836bc38c742baa5e21c0883cd0f1d1a1"
+        },
+        {
+          "path": "README.md",
+          "url": "https://github.com/yonaskolb/XcodeGen/blob/8445e778451c7e44237b90281bde622d764b0084/README.md",
+          "bytes": 8194,
+          "sha256": "3fad7f0b7e624278769607c3ffd4de865f4fa194422cda85c2ac1fa2df9533aa"
+        },
+        {
+          "path": "Docs/ProjectSpec.md",
+          "url": "https://github.com/yonaskolb/XcodeGen/blob/8445e778451c7e44237b90281bde622d764b0084/Docs/ProjectSpec.md",
+          "bytes": 70032,
+          "sha256": "7258c25bffbbb88f0619b33b8cc5204f08066e117dc5a700c6aef22bf28ec176"
+        }
+      ],
+      "shallow_checkout_default": false,
+      "version": "2.46.0"
+    }
+  ],
+  "official_documents": [
+    {
+      "title": "App Intents",
+      "url": "https://developer.apple.com/documentation/appintents"
+    },
+    {
+      "title": "Watch Connectivity transfers",
+      "url": "https://developer.apple.com/documentation/watchconnectivity/transferring-data-with-watch-connectivity"
+    },
+    {
+      "title": "SpeechTranscriber",
+      "url": "https://developer.apple.com/documentation/speech/speechtranscriber"
+    },
+    {
+      "title": "App Store Review Guidelines",
+      "url": "https://developer.apple.com/app-store/review/guidelines/"
+    },
+    {
+      "title": "Swift Testing",
+      "url": "https://developer.apple.com/documentation/testing"
+    },
+    {
+      "title": "Swift Package Manager",
+      "url": "https://www.swift.org/documentation/package-manager/"
+    },
+    {
+      "title": "XcodeGen release 2.46.0",
+      "url": "https://github.com/yonaskolb/XcodeGen/releases/tag/2.46.0"
+    }
+  ]
+}

@@ -2,7 +2,7 @@
 
 ## Flow
 
-Feature PRs target `dev`; release PRs target `main`. Require successful validation and review before merging. Local initialization establishes branches and workflow configuration; it does not activate remote checks or protect a branch.
+Feature PRs target `dev`; release PRs target `main`. Require successful validation and review before merging. The public repository has active branch protection and a verified hosted build/test pipeline.
 
 Configured workflows: `ci.yml` has one `quality` job with separate source/build and iOS test steps. `release.yml` is manually dispatched on `main`; it validates before signed archiving and TestFlight delivery through `scripts/release.sh`. Distribution requires the protected `testflight` environment, approval and configured signing/API secrets.
 

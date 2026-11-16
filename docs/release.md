@@ -4,9 +4,9 @@
 
 Feature PRs target `dev`; release PRs target `main`. Require successful validation and review before merging. Local initialization establishes branches and workflow configuration; it does not activate remote checks or protect a branch.
 
-Configured workflows: `ci.yml` has `quality` and `ios-tests` jobs. `release.yml` is manually dispatched on `main`; it validates before signed archiving and TestFlight delivery through `scripts/release.sh`. Distribution requires the protected `testflight` environment, approval and configured signing/API secrets.
+Configured workflows: `ci.yml` has one `quality` job with separate source/build and iOS test steps. `release.yml` is manually dispatched on `main`; it validates before signed archiving and TestFlight delivery through `scripts/release.sh`. Distribution requires the protected `testflight` environment, approval and configured signing/API secrets.
 
-The public [GitHub repository](https://github.com/EitanWong/Munie) is connected. `main` protection requires both CI jobs, a PR, resolved conversations and current checks, with administrator enforcement; a solo developer can merge without a second reviewer. The `testflight` environment requires owner approval and permits protected branches; the workflow additionally allows only `main`.
+The public [GitHub repository](https://github.com/EitanWong/Munie) is connected. `main` protection requires the complete `Quality, build and tests` check, a PR, resolved conversations and current checks, with administrator enforcement; a solo developer can merge without a second reviewer. The `testflight` environment requires owner approval and permits protected branches; the workflow additionally allows only `main`.
 
 Maintain these controls:
 

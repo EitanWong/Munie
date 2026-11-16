@@ -1,6 +1,6 @@
 # Codex F1 协议与认证路径研究
 
-核对日期：2026-11-17；关联 R01/R02/R06/R07/R08/R09/R16。本文记录官方接口、固定版本 schema 和网络候选的证据；设计决定及信任边界唯一维护在[远程执行决策](../docs/decisions/remote-agent-foundation.md)，运行结果统一见[项目状态](../docs/project-status.md)。没有配置网络、账号、端口转发或付费服务，没有执行模型任务或真机/蜂窝测试；文档核对不是 F1/F2 通过。
+核对日期：2026-11-17；关联 R01/R02/R06/R07/R08/R09/R16。本文记录官方接口、固定版本 schema 和网络候选的证据；设计决定及信任边界唯一维护在[远程执行决策](../docs/decisions/remote-agent-foundation.md)，运行结果统一见[项目状态](../docs/project-status.md)。已执行隔离 stdio 与本机确定性 provider 驱动的原生生命周期实验；没有配置远程网络、账号、端口转发或付费服务，没有使用真实模型或执行真机/蜂窝测试。研究及本机夹具不是 F1/F2 通过。
 
 ## 本机版本与协议证据
 
@@ -17,6 +17,24 @@
 [官方初始化](https://learn.chatgpt.com/docs/app-server#initialization)要求每连接一次 `initialize` → `initialized`；未初始化和重复初始化有独立错误。stdio stdout 只消费协议、stderr 单独有界收集；断连后的新连接重新握手，不能把 RPC response 当 turn 结束。`/readyz`/`healthz` 仅为 listener 健康信息，不证明模型已登录、特定项目被授权或任务可执行。
 
 [配置参考](https://learn.chatgpt.com/docs/config-file/config-reference)与[高级配置](https://learn.chatgpt.com/docs/config-file/config-advanced)区分用户、系统及受信项目配置；独立 `CODEX_HOME` 不是完整隔离，仍须控制环境、项目资源、系统配置与可读凭据。当前在线文档称 `approval_policy="untrusted"` 已退役，而 0.162.1 schema 仍列此枚举；固定 binary、schema、在线文档的差异必须显式记录，不能用较新的网页推断旧 binary 已删除字段，也不能因枚举存在就选用该策略。
+
+## 确定性 provider 与原生生命周期
+
+官方 tag `rust-v0.162.1` 的 annotated tag 指向提交 `092d3acd6bec3e3a14bdc7e7a2810ab628ab759d`，通过 GitHub ref/tag API 核对。其[本机 Responses fixture](https://github.com/openai/codex/blob/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs/app-server-test-client/src/loopback_responses_server.rs)及[工具响应测试辅助](https://github.com/openai/codex/blob/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs/app-server/tests/common/responses.rs)证明用固定 SSE 数据隔离模型的测试路径可行。本项目独立编写 Python 测试工具，只参考协议形状，未复制 Rust 实现或加入依赖。上游[根许可证](https://github.com/openai/codex/blob/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/LICENSE)为 Apache-2.0；核对文件 10,926 bytes，SHA-256 `d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc`，不据此推断其他 SDK/模型许可。
+
+新[生命周期探针](../scripts/probe-codex-turns.py)运行真实 native app-server、真实线程/turn/工具与持久化；模型端只返回固定合成内容。隔离限制沿用 no-turn 探针，仅对一个临时 loopback provider 端口放行 outbound；Codex 本身仍不能监听、访问其他端口/外部网络、读取个人目录/Keychain，或写入 fixture 外。`on-request/read-only` 下，`exec_command` 显式请求 escalation 后才出现反向审批；即使批准，子进程仍继承外层 OS 限制。
+
+实际观察：
+
+- `turn/start` 回应 `inProgress`，之后匹配 thread/turn 的 `turn/completed` 才提供终态；固定文本 turn 为 `completed`。
+- 审批带原始 request/thread/turn/item、实际 command/cwd 与 `availableDecisions`。本机返回 accept、policy amendment、cancel；不能因 schema 包含 decline 就假定本次菜单提供它。探针仅单次回复 accept 或 cancel，绝不采用 session/persistent grant。
+- cancel 拒绝使 turn 为 `interrupted`，标记文件未产生；accept 后真实 `/usr/bin/touch` 创建 fixture 文件、command item 为 `completed` / exit 0，随后合成 assistant item 和 turn 完成。两条审批均观察到匹配 `serverRequest/resolved`。
+- 原生 turn 在等待 fixture provider 数据时接受 `turn/interrupt`，并最终为 `interrupted`。这证明等待模型响应时的中断，**没有验证运行中 shell/后台子进程的取消**。
+- 旧进程优雅关闭，新进程重新初始化后读回四个 thread 的原 turn ID 和终态，再显式 `thread/resume` 重申 `on-request/read-only`，原 thread 新一轮合成 turn 成功。它不是崩溃恢复、未知提交去重或 pending approval 重放的证据。
+
+恢复设计还需保留固定源码的边界：[尚未首条消息的 thread](https://github.com/openai/codex/blob/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs/app-server/tests/suite/v2/thread_resume.rs#L445)可能没有 materialized rollout；[并发 writer](https://github.com/openai/codex/blob/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs/app-server/tests/suite/v2/thread_resume.rs#L323)被拒绝；[恢复权限](https://github.com/openai/codex/blob/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs/app-server/tests/suite/v2/thread_resume.rs#L1051)可能来自历史，不能假定修改全局默认即可覆盖。上述三点为源码研究，尚未逐项运行负向实验。
+
+本轮通过 metadata-only `thread/read` 加 `thread/turns/list(itemsView:"full")` 读取持久历史。直接 `thread/read(includeTurns:true)` 在运行时触发 deprecation notice；full/summary/notLoaded 及 `thread/items/list` 支持须按实际 history backing store 判断，不能把空摘要解释为丢失，或将某个 Unsupported 分支泛化为全版本不支持。参见[固定历史测试](https://github.com/openai/codex/blob/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs/app-server/tests/suite/v2/thread_read.rs#L457)。
 
 ## 第一条远程路径比较
 
@@ -42,7 +60,7 @@
 
 1. 固定 binary/schema；先用临时合成项目、独立状态目录、精简环境和可验证的操作系统限制做 no-turn stdio 探针。记录握手元数据、错误请求、有界脱敏 stdout/stderr 证据与退出状态；这一步不能证明模型、审批、取消或网络可用。可执行命令与隔离/清理契约见[测试](../docs/testing.md#opt-in-local-codex-protocol-experiment)。
 2. 用离线故障夹具验证 gateway 项目授权、双设备审批、撤销、去重、事件缺口及未知提交窗口；夹具输出必须标为模拟，不能算真实 Codex 行为。
-3. 在合成项目中单独运行真实 turn，验证事件、审批拒绝/允许、取消及恢复；该任务先明确模型/网络和费用范围。固定 thread/turn、输入、权限和终态证据，不从 no-turn 结果推导。
+3. 本机确定性 provider 的原生生命周期子集已运行；接着在合成项目中补真实模型、执行中工具取消、断连/崩溃和 pending approval 恢复。先明确模型/网络和费用范围，固定 thread/turn、输入、权限和终态证据，不从合成模型推断真实模型可用。
 4. 对选定的首个认证通道做 iPhone 蜂窝→清醒 Mac 测试：拒绝未知/已撤销设备、限制项目、切网恢复、响应丢失、不确定提交核对；记录 transport、直连/中继、耗时、状态与失败。
 5. 在 Watch 真机验证 HTTPS 独立路径、后台/通知与语音短交互，再决定是否需要公网 relay。每项失败有下一动作，未经验证不扩大可用性声明。
 

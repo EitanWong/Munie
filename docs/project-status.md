@@ -8,8 +8,8 @@ Updated: 2026-11-17. Stage: engineering foundation / 工程基础。
 |---|---|---|
 | iPhone / iPad | SwiftUI local text capture, list/search, detail and confirmed deletion | Simulator UI, accessibility and real-device acceptance |
 | Reusable core | Swift 6 model, validation and atomic versioned file storage | Personal data lifecycle and scale review before beta |
-| Localization | 29 UI strings in English and Simplified Chinese; bilingual README | Both languages, Dynamic Type and VoiceOver on devices |
-| Engineering | `main`, `dev`, four `feat_` worktrees; generated Xcode project; CI/CD workflows | First hosted run and remote protection verification |
+| Localization | 27 UI strings in English and Simplified Chinese; bilingual README | Both languages, Dynamic Type and VoiceOver on devices |
+| Engineering | `main`, `dev`, module `feat_` worktrees; generated Xcode project; CI/CD workflows | First hosted run; real-device acceptance |
 | Remote AI / Mac | Architecture and research only | Authenticated cellular → Mac task, replay and cancellation |
 | Voice / Watch / glasses | Research only | Native entry, permissions, hardware and distribution validation |
 
@@ -29,7 +29,7 @@ Local environment: Xcode 27.2 (27B52), Swift 6.4.2, macOS arm64; iOS Simulator S
 | Generic iOS | `build-for-testing` succeeded for app, app unit and UI test bundles, both simulator architectures |
 | iOS simulator execution | Attempted; exit 1 with `No available iPhone simulator`. Runtime installation required; UI tests have not run locally |
 | Real device / cellular / Watch / Ray-Ban Meta | Not executed |
-| GitHub | Public `EitanWong/Munie` selected by owner; provisioning and hosted checks in progress |
+| GitHub | Public [EitanWong/Munie](https://github.com/EitanWong/Munie) created; main default/protected; [foundation PR #1](https://github.com/EitanWong/Munie/pull/1); hosted source/build checks passed; first combined simulator run stalled and was cancelled. Explicit test timeouts and newest-runtime selection added; rerun required |
 | Signed delivery | Not executed; Apple identity, profile/certificate/API secrets and protected TestFlight environment required |
 
 Core source line coverage: `FileCaptureStore.swift` 85/86 (98.8%), `CaptureRecord.swift` 5/5. Host presentation model: 71/77 (92.2%). These are separate test runs, not whole-app or UI coverage. Raw logs/results belong in ignored `build/` and hosted artifacts.

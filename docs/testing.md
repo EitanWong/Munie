@@ -20,7 +20,7 @@ swift run --package-path packages/MunieCore MunieCoreSmoke
 ./scripts/test-ios.sh
 ```
 
-`check.sh` runs static/repository/localization checks, core and host presentation tests with coverage, actionlint, the core smoke executable and a generic iOS build including app unit and UI test bundles. `test-ios.sh` runs app unit tests and UI smoke tests on an available iPhone simulator. Use `IOS_TEST_DESTINATION` to select an explicit destination.
+`check.sh` runs static/repository/localization checks, core and host presentation tests with coverage, actionlint, the core smoke executable and a generic iOS build including app unit and UI test bundles. `test-ios.sh` runs app unit tests and UI smoke tests on the newest available iPhone runtime compatible with the selected Xcode SDK, with explicit per-test time limits (120s default, 180s maximum). Simulator boot has a 240-second limit; the CI simulator step has a 15-minute upper limit. Four fixture tests cover runtime/device selection. Use `IOS_TEST_DESTINATION` to select an explicit destination.
 
 Do not report a build as a UI test, or a simulator run as hardware validation. The integrator records actual outcomes in [project status](project-status.md), with tool versions and environment limits. Hosted workflows need an observed run after a GitHub remote is connected.
 

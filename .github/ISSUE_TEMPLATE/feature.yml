@@ -1,0 +1,17 @@
+name: Product hypothesis / 产品假设
+description: Describe a concrete problem and how to validate a solution.
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Situation and current workaround / 场景与现有做法
+      description: Describe a recent example, its frequency and the cost of the existing approach.
+    validations:
+      required: true
+  - type: textarea
+    id: experiment
+    attributes:
+      label: Smallest experiment / 最小验证
+      description: What observable result would support or disprove the idea? Include a time/cost cap.
+    validations:
+      required: true

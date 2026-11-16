@@ -4,9 +4,11 @@
 
 Feature PRs target `dev`; release PRs target `main`. Require successful validation and review before merging. Local initialization establishes branches and workflow configuration; it does not activate remote checks or protect a branch.
 
-Configured workflows: `ci.yml` has `quality` and `ios-tests` jobs. `release.yml` is manually dispatched on `main`; it validates before signed archiving and TestFlight delivery through `scripts/release.sh`. Distribution requires the protected `testflight` environment, approval and configured signing/API secrets.
+Configured workflows: `ci.yml` has one `quality` job with separate source/build and iOS test steps. `release.yml` is manually dispatched on `main`; it validates before signed archiving and TestFlight delivery through `scripts/release.sh`. Distribution requires the protected `testflight` environment, approval and configured signing/API secrets.
 
-After a GitHub repository is selected and connected:
+The public [GitHub repository](https://github.com/EitanWong/Munie) is connected. `main` protection requires the complete `Quality, build and tests` check, a PR, resolved conversations and current checks, with administrator enforcement; a solo developer can merge without a second reviewer. The `testflight` environment requires owner approval and permits protected branches; the workflow additionally allows only `main`.
+
+Maintain these controls:
 
 1. Run CI on `dev`, `main` and PRs, then make the actual stable check names required in branch rules.
 2. Block direct pushes and force pushes to `main`; require a PR, resolved review conversations and current checks. Apply comparable integration rules to `dev` as appropriate for a solo project.
@@ -29,7 +31,7 @@ Release notes should state what works, what changed and known limits in supporte
 
 ## Configuration
 
-Hosted jobs explicitly select Xcode 26.2 on `macos-15` for a consistent toolchain. Update the image/toolchain together after reviewing the [runner inventory](https://github.com/actions/runner-images/blob/main/images/macos/macos-15-Readme.md) and [Apple upload requirements](https://developer.apple.com/news/upcoming-requirements/). Local checks were run with the locally installed toolchain; see project status.
+Hosted jobs explicitly select Xcode 26.2 on `macos-26` for a consistent toolchain. Update the image/toolchain together after reviewing the [runner inventory](https://github.com/actions/runner-images/blob/main/images/macos/macos-26-arm64-Readme.md) and [Apple upload requirements](https://developer.apple.com/news/upcoming-requirements/). Local checks were run with the locally installed toolchain; see project status.
 
 The `testflight` environment needs these secrets:
 

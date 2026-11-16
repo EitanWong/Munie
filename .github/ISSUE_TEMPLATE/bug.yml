@@ -1,0 +1,22 @@
+name: Bug report / 缺陷报告
+description: Report reproducible behavior without personal data.
+body:
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and observed behavior / 预期与实际结果
+      description: Include reproducible steps and synthetic input. Use private vulnerability reporting for security issues.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment / 环境
+      placeholder: App commit/version, device, OS, language
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence / 证据
+      description: Redacted logs or screenshots. Never include personal captures, tokens or signing credentials.

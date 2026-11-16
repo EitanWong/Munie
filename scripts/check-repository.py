@@ -7,6 +7,7 @@ import plistlib
 import re
 import subprocess
 import sys
+import struct
 from urllib.parse import unquote
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -44,6 +45,12 @@ def main():
         plistlib.loads(file.read_bytes())
     for file in (ROOT / 'apps').rglob('Contents.json'):
         json.loads(file.read_text())
+    icon = ROOT / 'apps/ios/Munie/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png'
+    png = icon.read_bytes()
+    require(png[:8] == b'\x89PNG\r\n\x1a\n', 'App icon must be PNG')
+    width, height, depth, color_type = struct.unpack('>IIBB', png[16:26])
+    require((width, height, depth, color_type) == (1024, 1024, 8, 2),
+            'App icon must be a 1024px opaque RGB PNG')
     for file in (ROOT / 'scripts').glob('*.sh'):
         subprocess.run(['bash', '-n', str(file)], check=True)
         require(file.stat().st_mode & 0o111, f'Script is not executable: {file.name}')
@@ -60,6 +67,8 @@ def main():
     subprocess.run([sys.executable, str(ROOT / 'scripts/sync-references.py'), '--list'], check=True)
     subprocess.run([sys.executable, '-B', '-m', 'unittest', 'discover', '-s',
                     str(ROOT / 'references/tests'), '-v'], check=True)
+    subprocess.run([sys.executable, '-B', '-m', 'unittest', 'discover', '-s',
+                    str(ROOT / 'scripts/tests'), '-v'], check=True)
     workflows = [str(path) for path in (ROOT / '.github/workflows').glob('*.yml')]
     subprocess.run(['ruby', '-ryaml', '-e',
                     'ARGV.each { |p| YAML.load_file(p) }; puts "Workflow YAML parsed"',

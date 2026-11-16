@@ -1,7 +1,7 @@
 name: CI
 on:
   push:
-    branches: [main, dev, 'feat_*']
+    branches: [main, dev]
   pull_request:
     branches: [main, dev]
   workflow_dispatch:
@@ -14,39 +14,42 @@ concurrency:
   cancel-in-progress: true
 jobs:
   quality:
-    name: Quality and build
-    runs-on: macos-15
-    timeout-minutes: 25
+    name: Quality, build and tests
+    runs-on: macos-26
+    timeout-minutes: 40
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Enforce pull request flow
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_BRANCH: ${{ github.base_ref }}
+          HEAD_BRANCH: ${{ github.head_ref }}
+        run: |
+          if [[ "$BASE_BRANCH" == main && "$HEAD_BRANCH" != dev ]]; then
+            echo "Release PRs must originate from dev."
+            exit 1
+          fi
+          if [[ "$BASE_BRANCH" == dev && "$HEAD_BRANCH" != feat_* && "$HEAD_BRANCH" != dependabot/* ]]; then
+            echo "Feature PRs must use feat_<module>_<purpose> branches."
+            exit 1
+          fi
       - name: Record toolchain
         run: xcodebuild -version && swift --version
       - name: Validate source, tests, smoke and iOS build
         run: ./scripts/check.sh
+      - name: Run iOS unit and UI tests
+        timeout-minutes: 15
+        run: ./scripts/test-ios.sh
       - name: Upload build and coverage evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: quality-evidence
           path: |
             build/*.log
             packages/MunieCore/.build/debug/codecov/
             .build/debug/codecov/
-          if-no-files-found: ignore
-          retention-days: 14
-  ios-tests:
-    name: iOS unit and UI tests
-    runs-on: macos-15
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Run simulator tests
-        run: ./scripts/test-ios.sh
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: ios-test-results
-          path: build/ios-tests.*/Results.xcresult
+            build/ios-tests.*/Results.xcresult
+          include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 14

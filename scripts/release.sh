@@ -29,6 +29,14 @@ KEYCHAIN="$RELEASE_DIR/signing.keychain-db"
 KEYCHAIN_PASSWORD="$(openssl rand -hex 32)"
 PROFILE_PATH=""
 cleanup() {
+  if [ -f "$RELEASE_DIR/keychain-search-list.json" ]; then
+    python3 - <<'PY'
+import json, os, subprocess
+from pathlib import Path
+original = json.loads((Path(os.environ['RELEASE_DIR']) / 'keychain-search-list.json').read_text())
+subprocess.run(['security', 'list-keychains', '-d', 'user', '-s', *original], check=False)
+PY
+  fi
   security delete-keychain "$KEYCHAIN" >/dev/null 2>&1 || true
   if [ -n "$PROFILE_PATH" ]; then rm -f "$PROFILE_PATH"; fi
   rm -rf "$RELEASE_DIR"
@@ -46,6 +54,14 @@ PY
 security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
 security set-keychain-settings -lut 21600 "$KEYCHAIN"
 security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+export KEYCHAIN
+python3 - <<'PY'
+import json, os, shlex, subprocess
+from pathlib import Path
+original = shlex.split(subprocess.check_output(['security', 'list-keychains', '-d', 'user'], text=True))
+(Path(os.environ['RELEASE_DIR']) / 'keychain-search-list.json').write_text(json.dumps(original))
+subprocess.run(['security', 'list-keychains', '-d', 'user', '-s', os.environ['KEYCHAIN'], *original], check=True)
+PY
 security import "$RELEASE_DIR/certificate.p12" -P "$DISTRIBUTION_CERTIFICATE_PASSWORD" \
   -A -t cert -f pkcs12 -k "$KEYCHAIN"
 security set-key-partition-list -S apple-tool:,apple:,codesign: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null

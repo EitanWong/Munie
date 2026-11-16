@@ -1,6 +1,6 @@
 # Harness 集成与原生能力
 
-本页是执行框架集成的唯一规范入口；产品目标以[需求](../requirements.md)为准，信任、任务状态和恢复规则复用[远程 Agent 决策](../decisions/remote-agent-foundation.md)。当前仅完成设计、协议范围清单与离线工具；没有远程 adapter，也没有实现下列协议方法。
+本页是执行框架集成的唯一规范入口；产品目标以[需求](../requirements.md)为准，信任、任务状态和恢复规则复用[远程 Agent 决策](../decisions/remote-agent-foundation.md)。当前完成设计、协议范围清单、离线工具及无模型本机握手研究；没有产品远程 adapter，也没有实现下列原生能力。
 
 ## 开放边界与首发完整性
 
@@ -56,6 +56,8 @@ CI 无需安装 Codex；运行 `python3 scripts/catalog-codex.py --validate-cata
 清单保存默认 317 / 实验 447 个 JSON 文件的聚合 SHA-256：按相对路径排序，以“路径、NUL、排序键的规范 JSON、NUL”连接后哈希。完整 schema 留在 ignored 目录，不提交其大体积正文。核对差异与官方说明后，用相同参数将 `--check` 改为 `--output` 生成候选，再 review。当前生成器固定输出 `unimplemented`，防止把列出方法当成已支持；未来实现证据应逐项关联真实 adapter、功能测试和设备验收，再评审状态机制。
 
 ## 完整原生支持的通过条件
+
+实施前先按[测试入口](../testing.md#opt-in-local-codex-protocol-experiment)运行固定版本、系统隔离的 no-turn 探针，读取[协议研究](../../references/codex-protocol-research.md)。握手及不存在任务的拒绝只说明这些协议边界；不得据此把清单状态改为已实现，或声称真实审批、取消与恢复通过。
 
 以下按能力组织验收，机器清单仍保留全部原始方法，不能用这个摘要替代逐项范围。
 

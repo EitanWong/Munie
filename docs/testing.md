@@ -39,3 +39,20 @@ No hardware, user-study, remote-task or distribution result is implied by the re
 ## Performance evidence
 
 Run `./scripts/benchmark-core.sh` independently for the optimized synthetic store workload. Raw samples, provenance and budgets are defined only in the [performance standard](standards/performance.md). CI retains `build/core-performance*.json` and build logs; host measurements do not establish app search, real-device, voice or remote latency. Ordinary builds include `build/ios-release-build.log`; signing and distribution are still separate.
+
+## Opt-in local Codex protocol experiment
+
+After exporting and checking both schema bundles with the [Harness workflow](standards/harness-integration.md#codex-范围清单与漂移), select the actual native Mach-O executable, rather than an npm/shell launcher:
+
+```sh
+CODEX_NATIVE=/absolute/path/to/native/codex
+python3 scripts/probe-codex.py --codex "$CODEX_NATIVE" \
+  --schema-dir build/codex-schema-experimental \
+  --default-schema-dir build/codex-schema-stable
+```
+
+This macOS-only research command requires the saved Codex 0.162.1 schema and an available `sandbox-exec`; it never installs Codex or falls back to an unrestricted run. It creates temporary data/config/workspace directories, passes a minimal child environment, denies real-home/Keychain reads, Keychain Mach-service access, writes outside its fixture and all network operations. Only the two system preferences IPC endpoints remain allowed so managed configuration is not silently replaced by defaults. Six guard checks run before Codex. Existing login/config/session files are not copied or modified.
+
+The RPC sequence is fixed: pre-initialize nonexistent interrupt, initialize, initialized notification, duplicate initialize, invalid interrupt parameters, unknown method and nonexistent turn interrupt. No thread creation/resume, model turn, tool, approval, listener or real cancellation runs. Each response has a 10-second deadline, the transport has a 60-second deadline, lines are limited to 64 KiB and each output stream to 512 KiB. Initialization and the bounded shutdown both validate messages; unexpected server requests/notifications fail without a response. Cleanup closes stdin, escalates TERM/KILL and confirms process-group disappearance. This is a diagnostic transport, not a reusable production adapter.
+
+The mode-600 `build/codex-protocol-probe.json` records the binary/runner/schema hashes, revision and dirty flag, sanitized checks, bounded stream hashes/counts and cleanup. It excludes raw server errors, paths, user agent, host/installation identifiers and stderr. A failed attempt writes a failed report rather than retaining an earlier pass. Offline fake-peer regressions run in ordinary repository checks without Codex, credentials or model/network access; they cannot establish upstream behavior. Real observations and their limits are recorded in [project status](project-status.md), with field and network evidence in [protocol research](../references/codex-protocol-research.md).

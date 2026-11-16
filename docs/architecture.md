@@ -3,7 +3,7 @@
 ## Foundation
 
 ```text
-SwiftUI app (apps/ios)
+SwiftUI multi-destination app (apps/Munie) + native Watch view (apps/MunieWatch)
   presentation and localized interaction
            ↓ CaptureStore (async, Sendable)
 MunieCore (packages/MunieCore)
@@ -18,6 +18,14 @@ Records have stable UUIDs, text and creation time. The store validates input and
 
 Only show a record as saved after persistence succeeds. A local save does not imply submission to a model. Storage errors must remain visible and retryable without pretending success.
 
+## Native Xcode and Swift Package layout
+
+`project.yml` generates one ordinary `Munie.xcodeproj`. `Munie` is a native multi-destination application target for iOS/iPadOS, macOS, tvOS and visionOS. `MunieWatch` is a separate standalone watchOS application target; it reuses the app composition, presentation model, localization and core with a watch-specific view. Each app runs one store actor for its own file. Mac currently uses a single `Window` scene so multiple editors cannot overwrite the shared in-memory draft; multiwindow support requires separate draft ownership first. There is no Watch embedding, WatchConnectivity or cross-device synchronization. Tests remain separate targets under `apps/MunieTests` and `apps/MunieUITests`.
+
+`packages/` is a project grouping, while each local package follows SwiftPM’s `Package.swift`, `Sources/<Target>` and `Tests/<Target>Tests` convention. Keep domain logic in `MunieCore`; platform adaptation stays in `apps/`. Shared compilation does not require identical interaction: TV uses system text input and detail actions, Watch uses a compact stack, and Mac omits mobile-only navigation modifiers.
+
+Storage uses Application Support except on tvOS, where only a purgeable cache is promised and the composer warns about removal. Mac enables sandbox and hardened runtime settings. The current tvOS/visionOS targets still require native distribution artwork, and all new platforms need interaction/hardware acceptance. See [ADR 0002](decisions/0002-apple-platform-structure.md) and the [platform matrix](standards/platform-acceptance.md).
+
 ## Extension boundaries
 
 Do not create empty packages for future platforms. Extract a package when a second real caller demonstrates shared policy, models or transport needs. Keep device APIs in their app/adapter targets.
@@ -26,7 +34,7 @@ Do not create empty packages for future platforms. Extract a package when a seco
 |---|---|
 | Mac execution gateway | Separate authenticated service/adapter; agent credentials stay on Mac |
 | Remote task protocol | Shared models only after first adapter, stable request IDs and real state transitions |
-| Watch UI / connectivity | Native watch target; shared domain, platform-specific entry and transport |
+| Watch connectivity | Standalone native UI exists; transport, background work and pairing remain separate acceptance |
 | Glasses | Official SDK adapter isolated from domain and app presentation |
 | Search/memory | Start with local retrieval; adopt a mature indexed store when measured requirements justify it |
 | Secrets | Platform secure storage; never domain records, repository or diagnostics |

@@ -11,7 +11,7 @@ Status: 2026-11-17. This is an engineering record, not a redistribution license.
 | State observation / tests | Apple Observation, Swift Testing / XCTest | Existing supported tools; no custom framework |
 | Remote Mac/harness | Defer implementation; study Remodex, Happy and Chums | Preserve interchangeable backend boundary; do not fork a Codex-specific product for the entire frontend |
 | Personal memory | Study Omi; do not transplant its mobile stack | Learn retention/deletion flows while retaining native Swift frontend ownership |
-| Watch | Study Chums before implementing a separate module | Requires real-device connectivity/background/independent-network validation |
+| Watch | Native SwiftUI local capture target reusing MunieCore; no third-party code adopted. Chums remains a reference for connectivity | Local interaction/hardware acceptance pending; connectivity/background/independent-network validation is not implemented |
 | Glasses | Study OpenVision and official Meta DAT | MIT application code does not grant SDK rights; pinned SDK has developer terms and experimental voice capability limits |
 | Mimi Remote | No code adoption | GPLv3 applies; added permission addresses store conflicts only, not all copyleft requirements |
 | RayBridge | No code adoption | No root license found at pinned commit; public visibility is not permission to copy |

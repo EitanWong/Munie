@@ -10,10 +10,10 @@ let package = Package(
     .target(
       name: "Munie",
       dependencies: [.product(name: "MunieCore", package: "MunieCore")],
-      path: "apps/ios/Munie/Features/Capture",
+      path: "apps/Munie/Features/Capture",
       exclude: ["CaptureView.swift"],
       sources: ["CaptureModel.swift"]),
     .testTarget(
-      name: "MuniePresentationTests", dependencies: ["Munie"], path: "apps/ios/MunieTests"),
+      name: "MuniePresentationTests", dependencies: ["Munie"], path: "apps/MunieTests"),
   ]
 )

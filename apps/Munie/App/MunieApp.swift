@@ -8,8 +8,14 @@ struct MunieApp: App {
   init() {
     startup = Result {
       let manager = FileManager.default
+      #if os(tvOS)
+        // tvOS only permits purgeable local storage; this is not a durable backup.
+        let storageDirectory = FileManager.SearchPathDirectory.cachesDirectory
+      #else
+        let storageDirectory = FileManager.SearchPathDirectory.applicationSupportDirectory
+      #endif
       let support = try manager.url(
-        for: .applicationSupportDirectory, in: .userDomainMask,
+        for: storageDirectory, in: .userDomainMask,
         appropriateFor: nil, create: true)
       var directory = support.appending(path: "Munie", directoryHint: .isDirectory)
       #if DEBUG
@@ -29,15 +35,27 @@ struct MunieApp: App {
   }
 
   var body: some Scene {
-    WindowGroup {
-      switch startup {
-      case .success(let model):
+    #if os(macOS)
+      // One window prevents multiple editors from sharing the same in-memory draft.
+      Window("Munie", id: "main") { captureContent }
+    #else
+      WindowGroup { captureContent }
+    #endif
+  }
+
+  @ViewBuilder
+  private var captureContent: some View {
+    switch startup {
+    case .success(let model):
+      #if os(watchOS)
+        WatchCaptureView(model: model)
+      #else
         CaptureView(model: model)
-      case .failure:
-        ContentUnavailableView(
-          "Storage unavailable", systemImage: "externaldrive.badge.exclamationmark",
-          description: Text("Munie could not open local storage. Reopen the app to try again."))
-      }
+      #endif
+    case .failure:
+      ContentUnavailableView(
+        "Storage unavailable", systemImage: "externaldrive.badge.exclamationmark",
+        description: Text("Munie could not open local storage. Reopen the app to try again."))
     }
   }
 }

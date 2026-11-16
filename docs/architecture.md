@@ -1,5 +1,7 @@
 # Architecture
 
+This page describes the implemented structure. Product scope lives only in [requirements](requirements.md); the planned remote Codex/voice boundary and task protocol live in the [remote Agent decision](decisions/remote-agent-foundation.md). Local capture is an auxiliary foundation, not proof of remote execution.
+
 ## Foundation
 
 ```text
@@ -24,7 +26,7 @@ Only show a record as saved after persistence succeeds. A local save does not im
 
 `packages/` is a project grouping, while each local package follows SwiftPM’s `Package.swift`, `Sources/<Target>` and `Tests/<Target>Tests` convention. Keep domain logic in `MunieCore`; platform adaptation stays in `apps/`. Shared compilation does not require identical interaction: TV uses system text input and detail actions, Watch uses a compact stack, and Mac omits mobile-only navigation modifiers.
 
-Storage uses Application Support except on tvOS, where only a purgeable cache is promised and the composer warns about removal. Mac enables sandbox and hardened runtime settings. The current tvOS/visionOS targets still require native distribution artwork, and all new platforms need interaction/hardware acceptance. See [ADR 0002](decisions/0002-apple-platform-structure.md) and the [platform matrix](standards/platform-acceptance.md).
+Storage uses Application Support except on tvOS, where only a purgeable cache is promised and the composer warns about removal. Mac enables sandbox and hardened runtime settings. The current tvOS/visionOS targets still require native distribution artwork, and all new platforms need interaction/hardware acceptance. See [原生工程决策](decisions/native-apple-foundation.md) and the [platform matrix](standards/platform-acceptance.md).
 
 ## Extension boundaries
 
@@ -32,8 +34,7 @@ Do not create empty packages for future platforms. Extract a package when a seco
 
 | Future concern | Intended owner / gate |
 |---|---|
-| Mac execution gateway | Separate authenticated service/adapter; agent credentials stay on Mac |
-| Remote task protocol | Shared models only after first adapter, stable request IDs and real state transitions |
+| Mac Codex gateway / task protocol | Primary future execution path; ownership, state and trust contract only in the [remote Agent decision](decisions/remote-agent-foundation.md) |
 | Watch connectivity | Standalone native UI exists; transport, background work and pairing remain separate acceptance |
 | Glasses | Official SDK adapter isolated from domain and app presentation |
 | Search/memory | Start with local retrieval; adopt a mature indexed store when measured requirements justify it |
@@ -47,4 +48,4 @@ English and Simplified Chinese are supported UI languages. Stable code identifie
 
 Private user content belongs in application storage. `references/` holds third-party sources, `docs/research/` historical research, and `build/` disposable results. None of these directories is a substitute for a user-data model or an execution ledger.
 
-See [ADR 0001](decisions/0001-native-modular-foundation.md) and [SECURITY](../SECURITY.md).
+See [原生工程决策](decisions/native-apple-foundation.md) and [SECURITY](../SECURITY.md).

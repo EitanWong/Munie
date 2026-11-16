@@ -31,6 +31,14 @@ Apple 使用 project、target、scheme、build configuration 和资源 membershi
 
 项目采用 Swift 6 完整并发检查。UI 状态明确归属 `MainActor`，共享可变存储按 actor 隔离，通过 `async` 边界注入依赖。检查跨 actor 值的 `Sendable` 与任务取消；不要为消除诊断直接添加 `@unchecked Sendable`、`nonisolated(unsafe)` 或无证据的 `try?`。actor 并不自动解决多进程或跨设备数据一致性。
 
+## 代码质量与资源边界
+
+每个 API 明确输入不变量、成功含义、错误与所有者；优先具体类型和最小可见性。错误在边界翻译，保留可诊断原因，不能用 catch 后空结果掩盖损坏或失败。用户输入、转写与模型输出始终是数据，不可转成任意路径、shell 或权限决定。
+
+异步工作有明确生命周期与取消所有者，检查跨 `await` 后状态是否仍有效；并发结果按任务 ID 归属，防止旧请求覆盖新界面。避免无主 `Task`、无限流、无限重试和无界队列；新增任务需说明超时、背压与回收。不得在 MainActor 同步做磁盘/网络或重计算，按[性能规范](performance.md)测量实际边界。
+
+评审重点是用户状态、数据和权限不变量；不以覆盖率数字或快照数量代替失败、并发、取消、重连和恢复测试。诊断默认只含必要 ID/耗时/状态，禁止正文、媒体、凭据；新增依赖先记录固定版本、许可、维护及替代方案，生成物和缓存不进源码。
+
 ## 资源、签名与隐私
 
 将 asset catalog、string catalog 和隐私 manifest 纳入正确 target；不要靠磁盘上“存在文件”判断 bundle 已包含它。用户可见文案采用 English 与简体中文，日期和数字使用 locale-aware 格式；持久化模型使用稳定语言无关字段。

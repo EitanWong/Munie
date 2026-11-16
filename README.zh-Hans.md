@@ -4,7 +4,9 @@
 
 [English](README.md) · [文档](docs/README.md) · [项目状态](docs/project-status.md)
 
-Munie 是 Apple 原生个人 AI 前台：记录当下的想法，之后找回，并逐步支持交给可替换的 AI 执行端处理。工程基础提供本地文字记录：iPhone、iPad、Mac、Apple TV、Apple Vision Pro 共用原生多平台应用 target，Apple Watch 使用独立 target。共享代码不代表设备间自动同步。远程执行、语音、Watch 连接和 Ray-Ban Meta 接入仍是后续里程碑。Apple TV 记录使用可被系统清理的缓存。
+Munie 是随身的个人 Agent 助理前台：通过 iPhone、Apple Watch 的语音和原生设备交互，随时随地操控自己 Mac 上的 Codex，查看真实工作进展并接收结果。照片、视频及未来语音/眼镜助理延伸这一方向，文字作为补充。后端面向多种 harness 开放，首先以 Codex 原生完整支持为目标。这是[产品需求](docs/requirements.md)，不是已实现能力。
+
+当前工程底座仅提供本地文字记录、原生 Apple 应用 target 和共享存储核心。远程 Codex、语音、媒体、通知与设备同步均未实现。Apple TV 使用可能被系统清理的缓存。范围、正式开发准入和剩余验证统一见[基础准入](docs/foundation-readiness.md)与[项目状态](docs/project-status.md)。
 
 ## 开始开发
 
@@ -20,6 +22,8 @@ open Munie.xcodeproj
 真机安装前在忽略提交的 `config/Signing.xcconfig` 中设置签名团队与唯一 Bundle ID。生成的 Xcode 工程不入库；修改 `project.yml`。单项检查和环境限制见[开发说明](docs/development.md)、[测试说明](docs/testing.md)。
 
 先读 [Agent 任务索引](docs/agent/README.md)，再按需读取 [Apple 开发规范与 HIG 指引](docs/standards/README.md)。这些是附有官方来源的项目规则，不代表已获 Apple 认证。
+
+文档按主题命名、通过索引导航，每个主题只有一个权威来源。[维护规则](docs/maintenance.md)约束变更同步、过时内容移除和安全定期清理；仓库检查会拒绝未被索引或带数字前缀的文档。
 
 ## 仓库结构
 

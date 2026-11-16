@@ -2,6 +2,8 @@
 
 Updated: 2026-11-17. Stage: engineering foundation / 工程基础。
 
+Product scope is authoritative in [requirements](requirements.md): an Apple-native personal Agent frontend, open to multiple harnesses with complete native Codex support as the first target. Voice/device entry, media and proactive reports are planned; current local capture is auxiliary. [Foundation readiness](foundation-readiness.md) fixes the implementation order.
+
 ## Capability boundary
 
 | Area | Implemented | Remaining acceptance |
@@ -9,12 +11,12 @@ Updated: 2026-11-17. Stage: engineering foundation / 工程基础。
 | iPhone / iPad | Shared native SwiftUI app with local text capture, list/search, detail and confirmed deletion | Both-language UI, iPad layout, accessibility and real-device acceptance |
 | Reusable core | Swift 6 model, validation and atomic versioned file storage | Personal data lifecycle and scale review before beta |
 | Localization | 28 UI strings in English and Simplified Chinese; bilingual README | Both languages, Dynamic Type and VoiceOver on devices |
-| Engineering | Native multi-destination `Munie` target; separate standalone `MunieWatch`; standard local SwiftPM structure; all-platform CI builds | Real-device acceptance and signed distribution |
+| Engineering | Native Apple targets and standard SwiftPM layout; Debug matrix, unsigned iOS Release build, Release core performance gate and documentation index checks | Real-device acceptance and signed distribution; exact-head hosted results tracked per feature PR |
 | macOS / tvOS / visionOS | Native shared app compiles; Mac single window; TV system text input and purgeable cache warning | Runtime/UX acceptance; tvOS/visionOS native distribution artwork |
 | watchOS | Compact native local capture/list/detail/delete UI; shared core, model and localization | Device interaction, accessibility and signed standalone delivery; no connectivity or sync |
-| Agent guidance | Root contract → task routing → Apple engineering/HIG → platform matrix → official sources | Recheck relevant official documentation for new APIs or release rules |
-| Remote AI / Mac execution | Architecture and research only | Authenticated cellular → Mac task, replay and cancellation |
-| Voice / Watch connectivity / glasses | Research only | Transport, permissions, hardware and distribution validation |
+| Agent guidance | Indexed semantic topic files, canonical requirements/state/decisions/standards; AI task contract and safe-maintenance rules | Semantic freshness still needs review; daily maintenance automation configured ACTIVE, not yet observed executing |
+| Harness / remote execution | Open adapter contract and official research for seven harnesses; Codex 0.162.1 inventory: 266 methods, zero implemented | Fixed-version behavior/field coverage and authenticated cellular → Mac real-task acceptance; method inventory is not native support |
+| Voice / media / hardware entry | Apple/Qwen source and license research; Siri/Shortcuts, Watch, AirPods, Pencil, HomePod and CarPlay feasibility boundaries documented | No recording, media, notifications, device sync, remote adapter or hardware interaction implemented; runtime acceptance remains required |
 
 Local capture is not an AI response or an executed task. Drafts remain in memory until saved; unsaved drafts do not survive process termination. No telemetry is collected by this foundation.
 
@@ -27,10 +29,12 @@ Local environment: Xcode 27.2 (27B52), Swift 6.4.2, macOS arm64; iOS Simulator S
 | Core unit/integration | 14 Swift Testing tests passed, including concurrent writes, corrupt/versioned input and failed-write preservation |
 | App presentation model | 6 tests passed on macOS, including failed save/delete, failed load and edits during an in-flight save |
 | Reference sync safety | 10 Python tests passed; three pinned source checkouts synced and verified idempotently |
-| Repository fixtures | 12 Python tests passed: 4 simulator-selection fixtures and 8 SwiftPM/Xcode-graph contract regressions |
+| Repository fixtures | 48 Python tests passed: simulator/package/Xcode contracts, Release failure propagation, document navigation/code examples, performance rejection and Codex schema/catalog drift/type regressions |
+| Core performance | Release synthetic 100/1,000-record list/save/delete budgets passed, 3 warmups + 20 samples each; reopened-store correctness. Raw samples/provenance in `build/core-performance*.json`; host storage only, no device/remote claim |
+| Codex scope | Actual default/experimental CLI schema comparison passed: 200/266 methods across four message directions, all `unimplemented`. CI checks saved-catalog structure offline; live schema drift requires the explicit local comparison |
 | Core smoke | `PASS capture → persist → reopen → delete → reopen` |
 | Static / repository | Strict swift-format, actionlint, workflow parsing, local links, license hashes and localization checks passed |
-| Apple platform builds | `./scripts/check.sh` passed locally after review fixes: iOS `build-for-testing`, native macOS build and tvOS/visionOS/watchOS generic simulator builds; separate platform logs |
+| Apple platform builds | `./scripts/check.sh` exited 0: five SDK Debug builds (iOS `build-for-testing`) plus unsigned generic iOS device Release build; separate platform logs. Repository checks rerun after final review fixes |
 | iOS simulator execution | Hosted app tests (6) and UI smoke (1) passed: save → relaunch → retrieve/detail → delete → relaunch. Latest local `./scripts/test-ios.sh` exited 1: no available iPhone simulator compatible with SDK 27.2; next action is hosted CI or install a matching runtime |
 | Real device / cellular / Watch / Ray-Ban Meta | Not executed |
 | GitHub | Public [repository](https://github.com/EitanWong/Munie); `main` default; both main/dev protected. [PR #2](https://github.com/EitanWong/Munie/pull/2) merged after [complete CI success](https://github.com/EitanWong/Munie/actions/runs/43935261007) on `68602b2`; foundation [PR #1](https://github.com/EitanWong/Munie/pull/1) and maintenance [PR #3](https://github.com/EitanWong/Munie/pull/3) are merged. Exact-head all-platform results belong in the feature PR and [CI history](https://github.com/EitanWong/Munie/actions/workflows/ci.yml) |
@@ -40,13 +44,21 @@ Core source line coverage: `FileCaptureStore.swift` 85/86 (98.8%), `CaptureRecor
 
 The new targets share domain code, not device data. Watch stores records independently. tvOS uses a purgeable cache, with an English/Chinese warning; durable TV storage and synchronization require a separate design. Mac uses one window to prevent shared-draft collisions. No new platform hardware, HIG, App Store or signed-delivery acceptance is implied by compilation.
 
-Independent app/config review identified the Mac shared-draft multiwindow issue and missing Watch input-limit feedback; both were corrected before the final full local check. Source changes and standard-layout regression guards are covered by that check. See [ADR 0002](decisions/0002-apple-platform-structure.md), [Agent entry](agent/README.md) and [platform acceptance](standards/platform-acceptance.md).
+Independent app/config review identified the Mac shared-draft multiwindow issue and missing Watch input-limit feedback; both were corrected before the final full local check. Source changes and standard-layout regression guards are covered by that check. See [原生工程决策](decisions/native-apple-foundation.md), [Agent entry](agent/README.md) and [platform acceptance](standards/platform-acceptance.md).
 
 ## Next milestone
 
-Execute the [platform acceptance matrix](standards/platform-acceptance.md), starting with iPhone/iPad both-language, accessibility and lifecycle acceptance. Add native tvOS/visionOS distribution artwork before those platforms are eligible for a release. Use it personally to establish the original-method baseline and whether saved thoughts are later found and used. E1–E8 remain planned; no interviews, retention or product-market-fit results exist. See [product experiments](product.md).
+F0 changes integrate through reviewed feature PR, exact-head hosted checks and protected dev merge. The next implementation milestone, F1, uses the fixed Codex version/schema to validate local protocol behavior, select the first authenticated network path, and test identity, authorization and uncertain-submit recovery. F2 is the engineering cellular→Mac loop; first user-usable scope also requires F3 short voice, native inputs/feedback and device acceptance. R16 full Codex support needs field/response/event and native-capability evidence, not just a successful turn. See the single [foundation sequence](foundation-readiness.md).
 
-Before invited beta: select registered bundle identity/signing, establish private feedback/security contact, validate export/deletion, and execute real-device acceptance. Implement one remote adapter only after its scenario and authorization requirements are fixed.
+Execute the [platform acceptance matrix](standards/platform-acceptance.md) for the corresponding shipping scope, starting with iPhone/iPad bilingual/accessibility/lifecycle, followed by Watch/AirPods native entry and feedback. Physical-device/配件、cellular、media、notification delivery and signed distribution have not run. tvOS/visionOS artwork remains a separate release gate; other platform scaffolds do not delay the primary remote path.
+
+Before invited beta: registered signing identity, monitored private feedback/security path, actual data export/deletion and appropriate hardware acceptance. E1–E8 remain planned; no interviews, retention or product-market-fit results exist. Current hypothesis testing is owned by [product learning](product.md), not a second requirements list.
+
+## Foundation review and maintenance
+
+Independent reviews covered performance/Release gates, protocol inventory and requirement consistency. Corrected code-example links being mistaken for navigation, boolean/integer equivalence in catalog comparison, overly strong duplicate-execution wording, and stale capture-first scope. No third-party runtime/source or model weights were adopted. Consolidated numbered decisions into topic files and repaired maintained links; historical source reports remain attributed archives.
+
+The Codex app daily heartbeat “维护 Munie 工程与文档” is configured ACTIVE and attached to this chat. It inspects actual state, avoids duplicate PRs and preserves user/uncommitted/reference data; this configuration is not evidence that a future scheduled run has executed. Per-change cleanup remains part of the engineering contract.
 
 ## PR maintenance
 

@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "configuration": "release",
+  "minimumSamples": 20,
+  "minimumWarmups": 3,
+  "textUTF8Bytes": 248,
+  "p95MillisecondsByRecordCount": {
+    "100": { "list": 100, "save": 150, "delete": 150 },
+    "1000": { "list": 500, "save": 750, "delete": 750 }
+  }
+}

@@ -47,6 +47,7 @@ jobs:
           name: quality-evidence
           path: |
             build/*.log
+            build/core-performance*.json
             packages/MunieCore/.build/debug/codecov/
             .build/debug/codecov/
             build/ios-tests.*/Results.xcresult

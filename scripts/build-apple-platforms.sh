@@ -8,9 +8,10 @@ mkdir -p build
 
 build_platform() {
   local platform="$1" scheme="$2" destination="$3" action="$4" derived_data="$5"
+  local configuration="${6:-Debug}"
   local log="build/$platform-build.log"
-  printf 'Building %s (%s)\n' "$platform" "$destination"
-  xcodebuild -project Munie.xcodeproj -scheme "$scheme" -configuration Debug \
+  printf 'Building %s %s (%s)\n' "$platform" "$configuration" "$destination"
+  xcodebuild -project Munie.xcodeproj -scheme "$scheme" -configuration "$configuration" \
     -destination "$destination" -derivedDataPath "$derived_data" \
     CODE_SIGNING_ALLOWED=NO "$action" > "$log" 2>&1 || {
     tail -80 "$log"
@@ -25,4 +26,6 @@ build_platform macos Munie 'generic/platform=macOS' build build/DerivedData-maco
 build_platform tvos Munie 'generic/platform=tvOS Simulator' build build/DerivedData-tvos
 build_platform visionos Munie 'generic/platform=visionOS Simulator' build build/DerivedData-visionos
 build_platform watchos MunieWatch 'generic/platform=watchOS Simulator' build build/DerivedData-watchos
+# Exercise optimized shipping code before signing or distribution is configured.
+build_platform ios-release Munie 'generic/platform=iOS' build build/DerivedData-ios-release Release
 printf 'All Apple platform builds passed. Hardware and signed distribution remain separate acceptance.\n'

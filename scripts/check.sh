@@ -11,5 +11,6 @@ xcrun swift-format lint --strict --recursive apps packages/MunieCore/Sources \
 swift test --package-path packages/MunieCore --enable-code-coverage
 swift test --enable-code-coverage
 swift run --package-path packages/MunieCore MunieCoreSmoke
+./scripts/benchmark-core.sh
 ./scripts/build-apple-platforms.sh
-printf 'Quality checks passed; all Apple platform apps and iOS test bundles compiled.\n'
+printf 'Quality checks passed; core performance budgets, Apple Debug builds and iOS Release build passed.\n'

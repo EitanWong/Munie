@@ -26,6 +26,15 @@ No third-party product source is copied into `apps/` or `packages/`. The initial
 runtime uses Apple frameworks only. Root-license review does not cover all
 transitive dependencies, media, models, trademarks or SDK terms.
 
+## Current mechanism research
+
+- [Native entry and remote Codex](entry-point-research.md): official protocol, pairing/replay and pinned Remodex/Chums/OpenVision source observations.
+- [Voice, multimodal and proactive reports](multimodal-research.md): Apple APIs, exact Qwen candidates/pins/licenses, observed Codex input schema and unverified runtime limits.
+- [Harness interfaces](harness-research.md): Codex first, Claude Code/Pi/Hermes/OpenClaw/WorkBuddy/Qoder official integration paths and limits. [Codex method inventory](codex-capabilities.json) is a versioned scope snapshot, not support evidence.
+- [Reuse decisions](reuse-decisions.md): adopted/deferred choices; [verification](verification.md): provenance of the existing registry.
+
+These research notes evaluate candidates without adopting or executing their code. New checkouts/adoption still require the manifest, license snapshots and dependency review described below.
+
 ## Obtain pinned source
 
 From the Munie repository root:

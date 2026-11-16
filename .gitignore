@@ -14,3 +14,7 @@ xcuserdata/
 *.log
 references/checkouts/
 Munie.xcodeproj/
+.tools/
+__pycache__/
+*.pyc
+config/Signing.xcconfig

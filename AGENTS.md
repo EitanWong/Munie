@@ -12,3 +12,13 @@
 - Recording is opt-in; do not implement always-on capture by default. Preserve user control over retained data.
 - Use subagents for independent modules with disjoint file ownership; review their changes before integration.
 - Update `docs/project-status.md` and relevant architecture/decision records when behavior changes. Do not invent research results.
+
+## AI pull request ownership
+
+- Own the PR lifecycle for authorized project work: open or update the PR, review the final diff, monitor required checks, diagnose failures, fix regressions and conflicts, and rerun affected checks.
+- Read every review thread. Apply valid feedback; explain a declined suggestion with evidence. Resolve a thread only after the fix or explanation is present. A skipped bot review is not a completed code review.
+- Keep the title and description aligned with the final behavior, validation and remaining limits. Update documentation and tests with each material change.
+- Before merging, confirm the exact current head is checked, the base is current, required CI is successful, and actionable review threads are resolved. Never bypass branch protection or suppress a failing test to obtain a green check.
+- Merge completed feature PRs into `dev`, then maintain the release PR from `dev` into `main`. This is standing authorization for ordinary project integration; ask only for a new product decision, credentials, destructive work, or an explicit user hold. TestFlight distribution remains separately approved.
+- After merging, sync the local branches, check integration CI, and remove only clean, merged feature worktrees/branches. Preserve reference source checkouts and unrelated work.
+- Keep active runs in the current task until they finish or expose a concrete blocker. Record the blocker, exact run/commit and next action in project status; do not call queued, cancelled or skipped checks successful. Background maintenance requires a configured scheduler; do not imply it runs after the task ends.

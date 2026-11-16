@@ -1,0 +1,77 @@
+name: Munie
+options:
+  minimumXcodeGenVersion: 2.46.0
+  deploymentTarget:
+    iOS: '18.0'
+  developmentLanguage: en
+  knownRegions: [en, zh-Hans, Base]
+packages:
+  MunieCore:
+    path: packages/MunieCore
+settings:
+  base:
+    SWIFT_VERSION: '6.0'
+    SWIFT_STRICT_CONCURRENCY: complete
+    SWIFT_TREAT_WARNINGS_AS_ERRORS: YES
+    CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED: YES
+    MARKETING_VERSION: 0.1.0
+    CURRENT_PROJECT_VERSION: 1
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+targets:
+  Munie:
+    type: application
+    platform: iOS
+    sources:
+      - path: apps/ios/Munie
+    dependencies:
+      - package: MunieCore
+    configFiles:
+      Debug: config/Signing.xcconfig
+      Release: config/Signing.xcconfig
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Munie
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+        TARGETED_DEVICE_FAMILY: '1,2'
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+  MunieTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [apps/ios/MunieTests]
+    dependencies:
+      - target: Munie
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.munie.tests
+        GENERATE_INFOPLIST_FILE: YES
+  MunieUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [apps/ios/MunieUITests]
+    dependencies:
+      - target: Munie
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.munie.uitests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  Munie:
+    build:
+      targets:
+        Munie: all
+    test:
+      gatherCoverageData: true
+      targets:
+        - name: MunieTests
+          parallelizable: false
+        - name: MunieUITests
+          parallelizable: false
+    archive:
+      config: Release

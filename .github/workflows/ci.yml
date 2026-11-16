@@ -38,6 +38,7 @@ jobs:
       - name: Validate source, tests, smoke and iOS build
         run: ./scripts/check.sh
       - name: Run iOS unit and UI tests
+        timeout-minutes: 15
         run: ./scripts/test-ios.sh
       - name: Upload build and coverage evidence
         if: always()

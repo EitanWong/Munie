@@ -8,7 +8,7 @@ Munie 是 Apple 原生个人 AI 前台：记录当下的想法，之后找回，
 
 ## 开始开发
 
-要求：macOS，以及支持 Swift 6 和 iOS 18+ SDK 的 Xcode。初始化脚本将校验和固定的 XcodeGen 2.46.0 下载到忽略提交的 `.tools/`。模拟器测试还需要已安装的 iPhone 模拟器运行时。
+要求：macOS，以及支持 Swift 6 和 iOS 18+ SDK 的 Xcode。初始化脚本将校验和固定的 XcodeGen 2.46.0 与 actionlint 1.7.12 下载到忽略提交的 `.tools/`。模拟器测试还需要已安装的 iPhone 模拟器运行时。
 
 ```sh
 ./scripts/bootstrap.sh
@@ -17,7 +17,7 @@ open Munie.xcodeproj
 ./scripts/test-ios.sh
 ```
 
-真机安装前选择自己的签名团队与唯一 Bundle ID。生成的 Xcode 工程不入库；修改 `project.yml`。单项检查和环境限制见[开发说明](docs/development.md)、[测试说明](docs/testing.md)。
+真机安装前在忽略提交的 `config/Signing.xcconfig` 中设置签名团队与唯一 Bundle ID。生成的 Xcode 工程不入库；修改 `project.yml`。单项检查和环境限制见[开发说明](docs/development.md)、[测试说明](docs/testing.md)。
 
 ## 仓库结构
 
@@ -29,6 +29,8 @@ open Munie.xcodeproj
 | `references/` | 固定版本的第三方索引与忽略提交的源码检出 |
 | `scripts/` | 可重复执行的本地与 CI 自动化 |
 | `.github/` | CI/CD 工作流与协作模板 |
+| `Package.swift` | 应用状态逻辑的 Mac 测试入口，不是发布库 |
+| `config/` | 签名配置模板，个人值不入库 |
 | `project.yml` | Xcode 工程的唯一配置源 |
 
 `main` 是发布主分支，日常开发汇入 `dev`；功能使用 `feat_<module>_<purpose>` 分支和仓库旁的独立 worktree。见[贡献规范](CONTRIBUTING.md)。
@@ -38,3 +40,4 @@ open Munie.xcodeproj
 ## 隐私与发行
 
 本地记录基础不要求模型账户或服务器。记录内容是敏感用户数据，处理原则见 [SECURITY](SECURITY.md)。项目尚未选择开源许可证或授予产品分发权；第三方项目保留各自许可证。
+

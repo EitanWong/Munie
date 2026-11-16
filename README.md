@@ -8,7 +8,7 @@ Munie is an Apple-native frontend for capturing a thought, finding it later, and
 
 ## Start developing
 
-Requirements: macOS and Xcode with Swift 6 and the iOS 18+ SDK. Bootstrap downloads checksum-pinned XcodeGen 2.46.0 into ignored `.tools/`. Simulator tests also require an installed iPhone simulator runtime.
+Requirements: macOS and Xcode with Swift 6 and the iOS 18+ SDK. Bootstrap downloads checksum-pinned XcodeGen 2.46.0 and actionlint 1.7.12 into ignored `.tools/`. Simulator tests also require an installed iPhone simulator runtime.
 
 ```sh
 ./scripts/bootstrap.sh
@@ -17,7 +17,7 @@ open Munie.xcodeproj
 ./scripts/test-ios.sh
 ```
 
-Select your own signing team and unique bundle identifier before installing on a device. The generated Xcode project is ignored; edit `project.yml` instead. See [development](docs/development.md) and [testing](docs/testing.md) for individual checks and environment limits.
+Set your signing team and unique bundle identifier in ignored `config/Signing.xcconfig` before installing on a device. The generated Xcode project is ignored; edit `project.yml` instead. See [development](docs/development.md) and [testing](docs/testing.md) for individual checks and environment limits.
 
 ## Repository
 
@@ -29,6 +29,8 @@ Select your own signing team and unique bundle identifier before installing on a
 | `references/` | Pinned third-party registry and ignored source checkouts |
 | `scripts/` | Reproducible local and CI automation |
 | `.github/` | CI/CD workflows and contribution templates |
+| `Package.swift` | Host-side tests for app presentation logic; not a shipping library |
+| `config/` | Signing configuration template; personal values stay ignored |
 | `project.yml` | Source of truth for the Xcode project |
 
 `main` is the release branch. Work integrates through `dev`; features use `feat_<module>_<purpose>` branches in sibling worktrees. See [CONTRIBUTING](CONTRIBUTING.md).

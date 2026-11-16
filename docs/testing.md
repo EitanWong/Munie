@@ -14,12 +14,13 @@ Use tests to detect behavior regressions; avoid tests that merely repeat impleme
 
 ```sh
 swift test --package-path packages/MunieCore
+swift test # app presentation model on macOS
 swift run --package-path packages/MunieCore MunieCoreSmoke
 ./scripts/check.sh
 ./scripts/test-ios.sh
 ```
 
-`check.sh` runs static/repository/localization checks, core tests with coverage, the core smoke executable and a generic iOS build. `test-ios.sh` runs app unit tests and UI smoke tests on an available iPhone simulator. Use `IOS_TEST_DESTINATION` to select an explicit destination.
+`check.sh` runs static/repository/localization checks, core and host presentation tests with coverage, actionlint, the core smoke executable and a generic iOS build including app unit and UI test bundles. `test-ios.sh` runs app unit tests and UI smoke tests on an available iPhone simulator. Use `IOS_TEST_DESTINATION` to select an explicit destination.
 
 Do not report a build as a UI test, or a simulator run as hardware validation. The integrator records actual outcomes in [project status](project-status.md), with tool versions and environment limits. Hosted workflows need an observed run after a GitHub remote is connected.
 

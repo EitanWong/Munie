@@ -44,7 +44,8 @@ def load_manifest(root):
             if not re.fullmatch(r"licenses/[a-z][a-z0-9-]*\.txt", snapshot):
                 raise ValueError(f"Invalid license snapshot path: {name}")
             license_file = root / "references" / snapshot
-            expected = next(source for source in item["sources"] if source["path"] == "LICENSE")
+            source_path = item["license"].get("source_path", "LICENSE")
+            expected = next(source for source in item["sources"] if source["path"] == source_path)
             actual = hashlib.sha256(license_file.read_bytes()).hexdigest()
             if actual != expected["sha256"]:
                 raise ValueError(f"License snapshot hash mismatch: {name}")

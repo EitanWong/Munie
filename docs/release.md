@@ -26,3 +26,20 @@ For invited beta, use TestFlight only after Apple Developer/App Store Connect co
 Unsigned CI compilation/artifacts are development checks, not installable distribution or App Store approval. Automatic signed delivery remains gated until the account, bundle identity, secrets and environment are configured and an actual delivery succeeds.
 
 Release notes should state what works, what changed and known limits in supported languages. Do not advertise remote AI, Watch or glasses behavior before their own acceptance gates pass.
+
+## Configuration
+
+Hosted jobs explicitly select Xcode 26.2 on `macos-15` for a consistent toolchain. Update the image/toolchain together after reviewing the [runner inventory](https://github.com/actions/runner-images/blob/main/images/macos/macos-15-Readme.md) and [Apple upload requirements](https://developer.apple.com/news/upcoming-requirements/). Local checks were run with the locally installed toolchain; see project status.
+
+The `testflight` environment needs these secrets:
+
+| Secret | Value |
+|---|---|
+| `APPLE_TEAM_ID` / `APP_BUNDLE_ID` | Your registered team and explicit application identifier |
+| `DISTRIBUTION_CERTIFICATE_BASE64` | Base64 Apple Distribution `.p12` |
+| `DISTRIBUTION_CERTIFICATE_PASSWORD` | Password for that `.p12` |
+| `PROVISIONING_PROFILE_BASE64` | Base64 App Store distribution profile matching that app/team |
+| `APP_STORE_CONNECT_KEY_BASE64` | Base64 App Store Connect `.p8` key |
+| `APP_STORE_CONNECT_KEY_ID` / `APP_STORE_CONNECT_ISSUER_ID` | App Store Connect API key identity |
+
+Create the app record first and restrict API access to the necessary app. `release.sh` rejects local execution, non-main refs, missing credentials and Xcode older than 26. It uses an ephemeral signing keychain and cleans credentials on exit. Build numbers derive from the workflow run and attempt. An upload exit status is not proof that Apple processing or review completed; verify App Store Connect afterward. The first signed delivery still needs a real account run.

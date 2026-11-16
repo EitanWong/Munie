@@ -342,6 +342,75 @@ class JsonLinePeerTests(unittest.TestCase):
         self.assertEqual(members, [], 'Peer group still contains numeric process members')
 
 
+class ReportSafetyTests(unittest.TestCase):
+    def test_sigkill_during_experiment_cannot_leave_previous_pass_report(self):
+        if os.name != 'posix':
+            self.skipTest('This regression requires SIGKILL')
+        with tempfile.TemporaryDirectory(prefix='munie-report-test-') as directory:
+            root = Path(directory)
+            output = root / 'report.json'
+            ready = root / 'experiment-ready'
+            output.write_text(json.dumps({'status': 'passed', 'oldEvidence': True}))
+            output.chmod(0o644)
+            code = (
+                'import importlib.util,sys,time\nfrom pathlib import Path\n'
+                'script,ready,output=sys.argv[1:]\n'
+                'spec=importlib.util.spec_from_file_location("synthetic_probe",script)\n'
+                'module=importlib.util.module_from_spec(spec)\nspec.loader.exec_module(module)\n'
+                'def synthetic_experiment(*_):\n'
+                '    Path(ready).write_text("ready")\n'
+                '    time.sleep(30)\n'
+                'module.experiment=synthetic_experiment\n'
+                'sys.argv=[script,"--codex","/synthetic/codex",\n'
+                '    "--schema-dir","/synthetic/schema",\n'
+                '    "--default-schema-dir","/synthetic/default","--output",output]\n'
+                'sys.exit(module.main())\n'
+            )
+            process = subprocess.Popen([sys.executable, '-I', '-u', '-c', code,
+                                        str(SCRIPT), str(ready), str(output)],
+                                       stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                       stderr=subprocess.PIPE, start_new_session=True)
+            try:
+                deadline = time.monotonic() + 3
+                while not ready.exists() and process.poll() is None and time.monotonic() < deadline:
+                    time.sleep(.01)
+                self.assertTrue(ready.exists(), 'Synthetic experiment did not reach its ready marker')
+                self.assertIsNone(process.poll())
+                process.kill()
+                self.assertEqual(process.wait(timeout=2), -signal.SIGKILL)
+                report = json.loads(output.read_text())
+                self.assertEqual(report['status'], 'failed')
+                self.assertEqual(report['phase'], 'starting')
+                self.assertNotIn('oldEvidence', report)
+                self.assertEqual(output.stat().st_mode & 0o777, 0o600)
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                process.wait(timeout=2)
+                process.stdout.close()
+                process.stderr.close()
+
+    def test_atomic_report_replaces_symlink_and_preserves_linked_file(self):
+        if os.name != 'posix':
+            self.skipTest('This regression requires POSIX symlinks and permissions')
+        with tempfile.TemporaryDirectory(prefix='munie-report-link-test-') as directory:
+            root = Path(directory)
+            protected = root / 'protected.json'
+            original = b'{"synthetic": "pristine bytes"}\n'
+            protected.write_bytes(original)
+            protected.chmod(0o644)
+            output = root / 'report.json'
+            output.symlink_to(protected)
+            report = {'status': 'failed', 'phase': 'starting'}
+            probe.write_report(output, report)
+            self.assertFalse(output.is_symlink())
+            self.assertEqual(json.loads(output.read_text()), report)
+            self.assertEqual(output.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(protected.read_bytes(), original)
+            self.assertEqual(protected.stat().st_mode & 0o777, 0o644)
+            self.assertEqual(list(root.glob('.codex-probe-*')), [], 'Atomic-write temporary file leaked')
+
+
 class StrictJSONAndSandboxTests(unittest.TestCase):
     def test_strict_json_rejects_nonfinite_numbers_at_every_depth(self):
         for value in (b'NaN', b'Infinity', b'-Infinity', b'1e999', b'-1e999',

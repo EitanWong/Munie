@@ -387,6 +387,22 @@ def experiment(binary, schema_dir, default_dir, catalog_path, report):
         report['phase'] = 'complete'
 
 
+def write_report(path, report):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', dir=path.parent,
+                                         prefix='.codex-probe-', delete=False) as output:
+            temporary = Path(output.name)
+            json.dump(report, output, ensure_ascii=False, indent=2, sort_keys=True)
+            output.write('\n')
+        # The temporary file starts private (0600); replace also avoids following output symlinks.
+        os.replace(temporary, path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--codex', type=Path, required=True, help='Absolute native Mach-O path; no wrapper')
@@ -397,7 +413,9 @@ def main():
     parser.add_argument('--output', type=Path, default=Path('build/codex-protocol-probe.json'))
     args = parser.parse_args()
     report = {'reportVersion': 1, 'status': 'failed',
-              'capturedAtUTC': datetime.now(timezone.utc).isoformat()}
+              'phase': 'starting', 'capturedAtUTC': datetime.now(timezone.utc).isoformat()}
+    # Invalidate an older success before any child can start, including on forced termination.
+    write_report(args.output, report)
     status = 1
     try:
         experiment(args.codex, args.schema_dir, args.default_schema_dir, args.catalog, report)
@@ -410,10 +428,7 @@ def main():
             report['failure'] = str(error)
         print('Codex stdio probe failed: ' + type(error).__name__, file=sys.stderr)
     finally:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + '\n',
-                               encoding='utf-8')
-        args.output.chmod(0o600)
+        write_report(args.output, report)
     if status == 0:
         print('PASS isolated Codex 0.162.1 stdio: 6 protocol checks; no model task executed.')
     return status

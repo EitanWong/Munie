@@ -21,6 +21,7 @@
 - Recording is opt-in; do not implement always-on capture by default. Preserve user control over retained data.
 - Use subagents for independent modules with disjoint file ownership; review their changes before integration.
 - Update `docs/project-status.md` and relevant architecture/decision records when behavior changes. Do not invent research results.
+- Keep each topic in one authoritative document, use semantic filenames without numeric prefixes and link through indexes. Update requirements when intent changes; merge/remove superseded guidance and repair links in the same change. Follow [maintenance](docs/maintenance.md); preserve user data, reference evidence and unrelated work during cleanup.
 
 ## AI pull request ownership
 

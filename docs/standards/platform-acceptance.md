@@ -13,6 +13,10 @@
 
 watchOS 优先短而明确的操作，不复制桌面分栏；tvOS 使用系统焦点而非依赖触控手势；visionOS 的文本与列表工作优先标准窗口，新增沉浸体验需有具体场景及舒适性验证。各平台只复用适合的 UI 与领域逻辑；“通用”不意味着每个平台提供完全相同的交互。
 
+## 配件与硬件入口
+
+AirPods 是配件而非独立 app target。iPhone Action button、Watch 的可配置 Shortcut 和 AirPods Siri/通知播报验收统一按[入口硬件规范](entry-points.md#硬件触发与掌控感)执行，记录具体型号/系统/固件与路由。不能用手机 app 编译证明耳机后台触发、Watch 按键或播报已经工作。
+
 ## 分开记录三层证据
 
 1. **构建**：Xcode 版本、scheme、destination、配置、签名设置、命令及退出状态。iPhone 与 iPad 共享 SDK；一次 iOS 编译不能证明两种布局已验收。

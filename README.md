@@ -4,7 +4,9 @@ Your personal AI companion, close at hand.
 
 [GitHub](https://github.com/EitanWong/Munie) · [简体中文](README.zh-Hans.md) · [Documentation](docs/README.md) · [Project status](docs/project-status.md)
 
-Munie is an Apple-native frontend for capturing a thought, finding it later, and eventually handing work to an interchangeable AI execution service. The foundation provides local text capture with a native shared app target for iPhone, iPad, Mac, Apple TV and Apple Vision Pro, plus a separate Apple Watch app. Shared code does not imply cross-device synchronization. Remote execution, voice, Watch connectivity and Ray-Ban Meta integration remain future milestones. Apple TV records use purgeable cache storage.
+Munie is a personal Agent assistant frontend: use voice and native device interactions on iPhone or Apple Watch to direct Codex running on your own Mac from anywhere, follow real work and receive results. Photos, video and a future voice/glasses assistant extend that direction; text remains an alternative. The backend architecture is open to multiple harnesses, with complete native Codex support as the first target. These are [product requirements](docs/requirements.md), not implemented capabilities.
+
+The current foundation provides only local text capture with native Apple app targets and a reusable storage core. Remote Codex, voice, media, notifications and device synchronization are not implemented. Apple TV records use purgeable cache storage. Scope, engineering prerequisites and remaining validation are tracked in [foundation readiness](docs/foundation-readiness.md) and [project status](docs/project-status.md).
 
 ## Start developing
 
@@ -20,6 +22,8 @@ open Munie.xcodeproj
 Set your signing team and unique bundle identifier in ignored `config/Signing.xcconfig` before installing on a device. The generated Xcode project is ignored; edit `project.yml` instead. See [development](docs/development.md) and [testing](docs/testing.md) for individual checks and environment limits.
 
 Start with the [Agent task index](docs/agent/README.md) and read only the relevant [Apple engineering and HIG guidance](docs/standards/README.md). These are maintained project rules with official sources, not a claim of Apple certification.
+
+Documentation uses topic names and indexes, with one authoritative source per topic. [Maintenance](docs/maintenance.md) defines updates, obsolete-guidance removal and safe recurring cleanup; repository checks reject unindexed or numbered documentation.
 
 ## Repository
 

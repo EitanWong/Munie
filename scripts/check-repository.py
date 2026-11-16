@@ -21,6 +21,83 @@ def require(condition, message):
 APPLE_PLATFORMS = {'ios', 'macos', 'tvos', 'watchos', 'visionos'}
 
 
+def markdown_links(markdown):
+    """Extract the repository's inline links, excluding fenced and inline code examples."""
+    visible = []
+    fence = None
+    for line in markdown.splitlines(keepends=True):
+        if fence:
+            character, length = fence
+            closing = r' {0,3}' + re.escape(character) + '{' + str(length) + r',}[ \t]*\r?\n?'
+            if re.fullmatch(closing, line):
+                fence = None
+            # Retain a block boundary so code spans cannot bridge a removed fence.
+            visible.append('\n')
+            continue
+        opening = re.match(r'^ {0,3}(`{3,}|~{3,})([^\r\n]*)', line)
+        if opening and (opening[1][0] != '`' or '`' not in opening[2]):
+            fence = (opening[1][0], len(opening[1]))
+            visible.append('\n')
+        else:
+            visible.append(line)
+
+    links = []
+    for paragraph in re.split(r'\r?\n[ \t]*\r?\n', ''.join(visible)):
+        runs = list(re.finditer(r'`+', paragraph))
+        next_by_length = {}
+        closing_runs = {}
+        for index in range(len(runs) - 1, -1, -1):
+            length = len(runs[index][0])
+            if length in next_by_length:
+                closing_runs[index] = next_by_length[length]
+            next_by_length[length] = index
+        masked = list(paragraph)
+        index = 0
+        while index < len(runs):
+            start = runs[index].start()
+            preceding = start
+            while preceding > 0 and paragraph[preceding - 1] == '\\':
+                preceding -= 1
+            closing_index = closing_runs.get(index)
+            if (start - preceding) % 2 or closing_index is None:
+                index += 1
+                continue
+            # Only an equally long backtick run closes a code span; escapes inside are literal.
+            end = runs[closing_index].end()
+            masked[start:end] = ' ' * (end - start)
+            index = closing_index + 1
+        links.extend(re.findall(r'\[[^\]]*\]\(([^\s)]+)\)', ''.join(masked)))
+    return links
+
+
+def validate_documentation(root):
+    """Keep topic-named documentation discoverable through the maintained index."""
+    docs = (root / 'docs').resolve()
+    documents = {path.resolve() for path in docs.rglob('*.md')}
+    index = docs / 'README.md'
+    require(index in documents, 'Missing documentation index: docs/README.md')
+    for path in sorted(documents):
+        require(not re.match(r'^\d+[-_]', path.name),
+                f'Use a topic filename without a numeric prefix: {path.relative_to(docs)}')
+    visited = set()
+    pending = [index]
+    while pending:
+        path = pending.pop()
+        if path in visited:
+            continue
+        visited.add(path)
+        for link in markdown_links(path.read_text(encoding='utf-8')):
+            target = unquote(link.split('#')[0])
+            if not target or re.match(r'[a-zA-Z]+:', target):
+                continue
+            resolved = (path.parent / target).resolve()
+            if resolved in documents and resolved not in visited:
+                pending.append(resolved)
+    orphans = documents - visited
+    require(not orphans, 'Unindexed documentation: ' +
+            ', '.join(str(path.relative_to(docs)) for path in sorted(orphans)))
+
+
 def validate_swift_package(package_root, manifest):
     """Reject local packages that silently drop a shipping platform or conventional source roots."""
     platforms = {item['platformName'] for item in manifest.get('platforms', [])}
@@ -95,6 +172,9 @@ def main():
                  'SECURITY.md', 'docs/project-status.md', 'references/manifest.json'):
         require((ROOT / name).is_file(), f'Missing maintained file: {name}')
 
+    validate_documentation(ROOT)
+    subprocess.run([sys.executable, str(ROOT / 'scripts/catalog-codex.py'),
+                    '--validate-catalog', str(ROOT / 'references/codex-capabilities.json')], check=True)
     check_swift_packages(ROOT)
     check_xcode_project(ROOT)
 
@@ -136,7 +216,7 @@ def main():
                   if 'research' not in path.relative_to(ROOT / 'docs').parts),
                 *ROOT.glob('references/*.md')]
     for file in markdown:
-        for link in re.findall(r'\[[^\]]*\]\(([^\s)]+)\)', file.read_text()):
+        for link in markdown_links(file.read_text(encoding='utf-8')):
             target = unquote(link.split('#')[0])
             if not target or re.match(r'[a-zA-Z]+:', target):
                 continue

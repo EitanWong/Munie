@@ -11,11 +11,16 @@
 
 | 当前任务 | 首先读取 | 然后定位 |
 |---|---|---|
+| 明确需求或安排下一片工作 | [需求基线](../requirements.md)与[基础准入](../foundation-readiness.md) | 当前 R 编号 → 实际状态 → 最小可验收切片 |
 | 熟悉代码与数据流 | [架构](../architecture.md) | `apps/` 的组合入口 → `CaptureStore` → `packages/MunieCore` |
 | 调整目录、target、SDK 或最低版本 | [Apple 工程规范](../standards/apple-engineering.md) | 根 `project.yml`、`config/`、各 `Package.swift` |
 | 新增或修改界面 | [HIG 项目指引](../standards/human-interface.md) | 所属 app 的 `Features/`、`Resources/`；再读目标平台验收行 |
 | 添加共享逻辑 | [架构边界](../architecture.md)与 [Swift 规则](../standards/apple-engineering.md#swift-与并发) | `packages/MunieCore/Sources/` 与对应 `Tests/` |
 | 修复失败或回归 | [测试](../testing.md) | 失败命令、最小复现、相关测试及 `scripts/` |
+| 测量性能或调整预算 | [性能规范](../standards/performance.md) | `benchmark-core.sh` → Release 基准 → 原始样本/预算 |
+| 设计语音、快捷入口或远程任务 | [入口规范](../standards/entry-points.md)与[远程决策](../decisions/remote-agent-foundation.md) | 官方协议 / 固定源码 / 多模态研究，先验边界再实现 |
+| 对接 Codex 或其他 harness | [Harness 规范](../standards/harness-integration.md) | 版本化能力清单 → 官方接口/许可 → adapter 与行为验收 |
+| 整理文档、清理和消除过时内容 | [维护规则](../maintenance.md) | 唯一来源表 → 索引/链接检查 → 实际代码与PR状态 |
 | 添加权限、SDK 或远程连接 | [安全边界](../../SECURITY.md)与 [隐私规则](../standards/apple-engineering.md#资源签名与隐私) | [引用登记](../../references/README.md)，再检查所属 app/adapter |
 | 准备集成或发布 | [开发](../development.md)、[发布](../release.md) | 当前 PR、精确 head 的 CI、review threads |
 | 做产品决策或实验 | [产品](../product.md) | 仅按需要读取[研究归档](../research/README.md)；归档不代表实现结果 |

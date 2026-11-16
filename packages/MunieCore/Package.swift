@@ -7,10 +7,12 @@ let package = Package(
   products: [
     .library(name: "MunieCore", targets: ["MunieCore"]),
     .executable(name: "MunieCoreSmoke", targets: ["MunieCoreSmoke"]),
+    .executable(name: "MunieCoreBenchmark", targets: ["MunieCoreBenchmark"]),
   ],
   targets: [
     .target(name: "MunieCore"),
     .executableTarget(name: "MunieCoreSmoke", dependencies: ["MunieCore"]),
+    .executableTarget(name: "MunieCoreBenchmark", dependencies: ["MunieCore"]),
     .testTarget(name: "MunieCoreTests", dependencies: ["MunieCore"]),
   ]
 )

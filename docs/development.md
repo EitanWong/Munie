@@ -27,7 +27,7 @@ Work inside the new checkout, keep its scope focused, and run the relevant check
 ./scripts/test-ios.sh
 ```
 
-`check.sh` runs repository/localization checks, Swift formatting, core and host presentation tests with coverage, actionlint, core smoke and builds for all five SDK families, including iOS test bundles. `test-ios.sh` selects an available iPhone simulator; set `IOS_TEST_DESTINATION` for an explicit Xcode destination. UI tests and iOS execution of the app tests need a simulator; presentation tests also run on macOS. See [testing](testing.md) for commands and precise evidence requirements. Keep outputs and caches in ignored paths. References are optional local checkouts managed by the registry workflow; they are not runtime dependencies.
+`check.sh` runs repository/localization checks, Swift formatting, core and host presentation tests with coverage, actionlint, core smoke, Release core performance budgets and builds for all five SDK families, including iOS test bundles plus an unsigned iOS Release build. `test-ios.sh` selects an available iPhone simulator; set `IOS_TEST_DESTINATION` for an explicit Xcode destination. UI tests and iOS execution of the app tests need a simulator; presentation tests also run on macOS. See [testing](testing.md) for commands and precise evidence requirements. Keep outputs and caches in ignored paths. References are optional local checkouts managed by the registry workflow; they are not runtime dependencies.
 
 Review subagent work as normal code: path ownership, API agreement, diff review, relevant tests, then integration. Update status and decisions with the final implementation. Release changes go from `dev` to `main` by PR; no routine feature development on `main`.
 

@@ -32,6 +32,7 @@ transitive dependencies, media, models, trademarks or SDK terms.
 - [Voice, multimodal and proactive reports](multimodal-research.md): Apple APIs, exact Qwen candidates/pins/licenses, observed Codex input schema and unverified runtime limits.
 - [Harness interfaces](harness-research.md): Codex first, Claude Code/Pi/Hermes/OpenClaw/WorkBuddy/Qoder official integration paths and limits. [Codex method inventory](codex-capabilities.json) is a versioned scope snapshot, not support evidence.
 - [Codex protocol and network feasibility](codex-protocol-research.md): fixed-version fields, authentication candidates, Watch transport limits, no-turn stdio and native lifecycle with a synthetic provider.
+- [Host submission ledger](submission-ledger-research.md): system SQLite/GRDB comparison, project authorization, crash windows and the limits of replay/dedup evidence.
 - [Reuse decisions](reuse-decisions.md): adopted/deferred choices; [verification](verification.md): provenance of the existing registry.
 
 Third-party source checkouts remain inspection-only. The explicitly selected local Codex binary can run bounded protocol experiments, including actual native lifecycle/tools driven by a deterministic local provider; this is not real-model or remote-product evidence. New checkouts/adoption still require the manifest, license snapshots and dependency review described below.

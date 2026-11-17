@@ -6,6 +6,7 @@ Status: 2026-11-17. This is an engineering record, not a redistribution license.
 | --- | --- | --- |
 | App and adaptive UI | SwiftUI and Apple system components | Native accessibility/localization and fewer dependencies; review third-party components only for an observed gap |
 | Local capture persistence | Foundation + a small `MunieCore` package | Current local text scope does not need an external database; review SwiftData/GRDB when migrations, indexing, concurrency or query requirements justify them |
+| Mac submission research ledger | System SQLite3, DELETE/EXTRA/fullfsync, one actor/connection and lifetime owner lock | Durable dispatch phases need transactions beyond capture JSON; [official guarantees and fixed GRDB alternative](submission-ledger-research.md). No third-party runtime or new package; reconsider GRDB if the fixed-SQL wrapper grows into a general storage framework |
 | Project generation | XcodeGen | Established declarative native-project generation; adopted as build tooling, not embedded in the app |
 | Workflow validation | actionlint 1.7.12 | Established GitHub Actions static analysis; pinned official release, MIT license and platform-specific archive hashes; build-time only |
 | State observation / tests | Apple Observation, Swift Testing / XCTest | Existing supported tools; no custom framework |

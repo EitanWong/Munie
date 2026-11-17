@@ -30,11 +30,15 @@ Storage uses Application Support except on tvOS, where only a purgeable cache is
 
 ## Extension boundaries
 
+`apps/MunieHost/Execution` now contains a Mac-only `HostSubmissionLedger` actor, typed text requests and a small system SQLite boundary. The root SwiftPM harness builds/tests it and the actual `MunieSubmissionProbe` fault-injection caller; shipping Xcode app targets do not link it. It is not a remote adapter or authenticated gateway. This host module stays outside `MunieCore` until another real consumer demonstrates reusable domain behavior.
+
+The ledger pins locally administered project directories and device grants, binds immutable request identities, commits accepted/dispatching stages before returning a single local dispatch claim, and records trusted upstream IDs/terminals. Reopen moves uncertain dispatching/running rows to reconciling without resending. SQLite storage uses private files, an exclusive cooperating-process owner lock and short rollback-journal transactions; capture JSON is neither reused nor migrated. See the [trust decision](decisions/remote-agent-foundation.md) and [storage evidence/limits](../references/submission-ledger-research.md). Authentication, Codex submission, media, event streams and mobile presentation are still future consumers.
+
 Do not create empty packages for future platforms. Extract a package when a second real caller demonstrates shared policy, models or transport needs. Keep device APIs in their app/adapter targets.
 
 | Future concern | Intended owner / gate |
 |---|---|
-| Mac Codex gateway / task protocol | Primary future execution path; ownership, state and trust contract only in the [remote Agent decision](decisions/remote-agent-foundation.md) |
+| Mac Codex gateway / task protocol | Local submission-ledger research module exists; network authentication and Codex adapter remain future work. Ownership, state and trust contract only in the [remote Agent decision](decisions/remote-agent-foundation.md) |
 | Watch connectivity | Standalone native UI exists; transport, background work and pairing remain separate acceptance |
 | Glasses | Official SDK adapter isolated from domain and app presentation |
 | Search/memory | Start with local retrieval; adopt a mature indexed store when measured requirements justify it |

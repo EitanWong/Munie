@@ -1,4 +1,6 @@
 import importlib.util
+import json
+import shutil
 from pathlib import Path
 import tempfile
 import unittest
@@ -90,6 +92,41 @@ class XcodeProjectContractTests(unittest.TestCase):
         project["objects"]["watch-dependency"] = {"target": "watch"}
         with self.assertRaisesRegex(ValueError, "Do not embed the standalone Watch app"):
             CHECKER.validate_xcode_project(project)
+
+
+class IdentityResearchArchiveTests(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.root = Path(self.directory.name)
+        source = SCRIPT.parents[1]
+        self.archive = self.root / 'references/licenses/device-identity'
+        shutil.copytree(source / 'references/licenses/device-identity', self.archive)
+        fixture = self.root / 'scripts/fixtures/device-identity'
+        fixture.mkdir(parents=True)
+        self.lock = fixture / 'Package.resolved'
+        shutil.copy2(source / 'scripts/fixtures/device-identity/Package.resolved', self.lock)
+
+    def test_reviewed_lock_and_original_notices_pass_offline(self):
+        CHECKER.check_identity_research(self.root)
+
+    def test_notice_change_is_rejected_without_rewriting_original(self):
+        notice = self.archive / 'swift-certificates-NOTICE.txt'
+        notice.write_bytes(notice.read_bytes() + b'changed')
+        with self.assertRaisesRegex(ValueError, 'archive bytes changed'):
+            CHECKER.check_identity_research(self.root)
+
+    def test_extra_or_changed_resolution_is_rejected(self):
+        original = self.lock.read_text()
+        for duplicate in (False, True):
+            lock = json.loads(original)
+            if duplicate:
+                lock['pins'].append(lock['pins'][0])
+            else:
+                lock['pins'][0]['state']['revision'] = '0' * 40
+            self.lock.write_text(json.dumps(lock))
+            with self.subTest(duplicate=duplicate), self.assertRaisesRegex(ValueError, 'lock does not match'):
+                CHECKER.check_identity_research(self.root)
 
 
 if __name__ == "__main__":

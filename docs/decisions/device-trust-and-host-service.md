@@ -4,7 +4,7 @@
 
 ## 方向与适用边界
 
-下一片原型采用标准 TLS 客户端证书认证，Apple 客户端通过 `URLSession` 发 HTTPS 短请求；Mac 自己终止 TLS、授权并驱动本机 Codex stdio。设备各有私钥，Codex 账号凭据留在执行主机。先证明本地生成密钥→回签证书→原生 `SecIdentity`→mTLS 的真实组合，再冻结实现库、证书策略和产品 wire schema。当前临时 PKCS#12 导入实验不能作为此组合的证据。
+原型采用标准 TLS 客户端证书认证，Apple 客户端通过 `URLSession` 发 HTTPS 短请求；Mac 自己终止 TLS、授权并驱动本机 Codex stdio。设备各有私钥，Codex 账号凭据留在执行主机。本地生成密钥→回签证书→原生 `SecIdentity`→mTLS 的内存组合已有独立 Mac 研究夹具，结果只见[项目状态](../project-status.md)；正式实现库、持久凭据策略和产品 wire schema 仍未冻结。先前临时 PKCS#12 导入与新的本地密钥组合是不同证据。
 
 网络寻址与设备信任分开。研发 listener 默认只绑定 loopback；增加 LAN/外网入口须显式配置和验证路由。首个蜂窝候选必须让普通 Watch 直接访问 HTTPS，不能要求 Watch 继承 iPhone VPN、运行 SSH 或保持低层长连接。私有网络/受限隧道可作 iPhone 工程对照；公网端点、DNS、TLS 透传或 relay 的部署/成本尚未选择。TLS 若在 relay 终止，它就是内容接收方；未通过现成端到端机制评审前不能接受该部署，更不能称两段 TLS 为端到端保护。不安装服务、不注册域名、不改系统信任/电源/远程登录来实现本设计。
 
@@ -33,7 +33,7 @@ bootstrap 必须是独立的短期 TLS listener/严格 route allowlist，不含�
 | 对象 | 保存与生命周期 |
 |---|---|
 | 设备私钥 | 本地生成；默认评估 `WhenUnlockedThisDeviceOnly`、不启用同步、不导出为 PKCS#12。`ThisDeviceOnly` 约束迁移，不单独证明私钥不可提取或硬件保护。锁屏/重启后不可用时明确要求解锁，已在 Mac 执行的任务继续；不能因后台需求静默放宽保护。Secure Enclave 是按设备/算法验证的候选，不能假定 Apple 全系列都有同样硬件能力 |
-| 设备 identity | 证书是公开材料，私钥不离开本机。各目标 OS 实测证书与本地 key 的关联/查询、签名和 URLSession challenge；macOS 专有的 identity 创建 API 不能用于证明 watchOS/iOS 可行。Keychain access group、签名、Data Protection Keychain 与安装/删除/备份语义分别验证 |
+| 设备 identity | 证书是公开材料，私钥不离开本机。公开 `SecIdentityCreate(nil, certificate, privateKey)` 可直接匹配证书与原 key；当前五平台 SDK 声明/编译不等于各 OS 运行验收，不能误称该 API 为 macOS 专有。各目标 OS 实测关联/查询、签名和 URLSession challenge；Keychain access group、签名、Data Protection Keychain 与安装/删除/备份语义分别验证。内存 identity 成功不证明持久化、硬件保护或锁屏可用 |
 | Mac issuer/TLS key | 与 Codex 账号及任务工作区分开；Keychain/签名访问要求只放行所需 helper，CA 私钥不通过 remote API、普通文件或 native 子进程环境交接。server 库必须实证可使用所选 key，不因方便导出私钥或假定 NIO 与 `SecKey` 自动兼容 |
 | 正常续期 | 候选 leaf 7 天、到期前 24 小时续期；由仍有效且未撤销的旧 mTLS credential 认证新的 CSR。新 credential 映射原逻辑 deviceID，保留 origin/任务身份，权限只取当前有效 grants。新 credential 最终激活也核对原认证、当前 policy revision/tombstone，不能用旧快照恢复权限；激活后旧 credential 最长重叠 10 分钟，再拒绝。单张 leaf 到期/退役只影响该 credential，不能禁掉已激活的新证书或逻辑 device。期限、重叠与 key/certificate 更新均待原型验证 |
 | 独立 credential 状态 | 记录 serial/fingerprint、deviceID、validity、激活/退役/撤销；每请求检查实际证书和 live device/project grants。TLS 1.3 会话恢复、连接复用、URLSession 缓存与跨 await 撤销分别覆盖，不能只在新握手检查；无法保证恢复会话绑定当前 credential 时先禁用该恢复机制 |
@@ -94,7 +94,7 @@ Watch 用短请求/分页状态，前台刷新、通知与退避由设备生命�
 
 | 次序 / 切片 | 必须一起观察的接受事件 |
 |---|---|
-| 身份组合原型 | 临时合成 issuer，设备本地 key/CSR/证书关联→实际 mTLS；私钥未导出，错 CA/hostname/EKU/过期/未知证书拒绝。Mac 与每个目标 OS 的 identity/Keychain API 分别编译和运行，独立 Watch 另验；任何不可用组合先调整设计 |
+| 身份组合原型 | 临时合成 issuer，设备本地 key/CSR/证书关联→实际 mTLS；审查无私钥导出调用，验证 CSR 签名/篡改、key/cert 匹配/错配及错 CA/hostname/EKU/过期/未知证书拒绝。软件内存 key 不等于不可提取或 Secure Enclave。Mac 与每个目标 OS 的 identity/Keychain API 分别编译和运行，独立 Watch 另验；任何不可用组合先调整设计 |
 | enrollment 持久状态 | Mac 精确确认后才激活；无证书 bootstrap、另一实际 peer leaf（同 CA active/未知）均不能激活候选。邀请过期/替换/重放/CSR 竞争/洪泛拒绝；固定签发输入/签名/DER 落盘/发送/安装/激活各中断窗口无第二身份或隐式 grant。重启后 pending 一律失效、已 active 丢 ACK 可确认；减权/撤销先提交则迟到激活拒绝。全部临时 identity/服务器/进程清理；不碰个人 Keychain |
 | credential/授权迁移 | 续期同 device 保留原任务，旧 leaf 到期不禁用新 leaf；退役、撤销、重配新 UUID、已有 TLS/恢复会话及备份恢复不复活权限。read-only 的提交/继续/审批/中断与 claim 均拒绝；旧 B 迁移后仍不能读 A，直到 Mac 明确授权。新 owner/read/control schema 事务失败可重开，原 identity/tombstone 保留、不重发未知任务 |
 | 多设备审批/接续 | A 提交→获准的 B 查询/控制既有 turn→A 重连，仍为原 request/turn；B 发送后续内容则新 request/new turn 接续原 thread，旧映射不变。未授权 B 拒绝。双端完整展示同一审批，一端回答另一端失效；并发撤销/回答的实际提交顺序与 native 答复对应，丢回执、过期/重启不再批准 |

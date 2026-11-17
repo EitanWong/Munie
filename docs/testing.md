@@ -145,6 +145,25 @@ The current macOS experiment has an explicit HTTP denial comparison: a legacy HT
 
 In-flight cancellation uses an authenticated response with a two-byte advertised body: the server sends headers and one prefix byte, then withholds completion. The native response callback cancels before delivering any body data to its delegate. Acceptance requires the server's request barrier, `cancelledOnResponse=true`, HTTP 200, cancellation error `-999`, zero retained body bytes and no new fixture acceptance; it is separate from the slow-response timeout. This is HTTP transfer cancellation, not evidence of cancelling an Agent task.
 
+## Opt-in local-key identity experiment
+
+This independent macOS fixture generates a volatile P-256 `SecKey`, signs a PKCS#10 CSR with pinned Apple X509 APIs and combines the synthetic returned certificate with the original key through public `SecIdentityCreate`. It exercises actual native URLSession/Security against two temporary loopback TLS listeners. The package is outside the root dependency graph and all shipping targets; default CI runs its offline Python regressions, license/pin checks and formatting, not its dependency build or actual network experiment.
+
+```sh
+./scripts/build-device-identity-probe.sh
+PYTHON_TLS=/absolute/path/to/python3
+"$PYTHON_TLS" -c 'import ssl; assert ssl.HAS_TLSv1_3, ssl.OPENSSL_VERSION'
+"$PYTHON_TLS" scripts/probe-device-identity.py \
+  --driver build/MunieDeviceIdentityProbe \
+  --report build/device-identity-probe.json
+```
+
+Use a fresh report path for every attempt; existing evidence is never overwritten. The build script runs the fixture's Release lifecycle tests and uses ignored `references/checkouts/device-identity-build/` for SwiftPM scratch/cache/config/security with Keychain/netrc lookup disabled and the committed lock enforced. It requires the package's Swift tools version and a compatible Apple SDK. The observed local build uses Xcode 27.2; Xcode 26.2 compilation of this separate package has not been established. Python must be linked to TLS 1.3, and the runner requires an OpenSSL executable. On this machine the explicit Homebrew Python 3.15.2 uses OpenSSL 4.1.0; Xcode's default Python 3.9.6/LibreSSL 2.8.3 lacks TLS 1.3. That environment fails with `python-tls13-unavailable` before creating credentials or launching the driver; it never lowers TLS requirements.
+
+Acceptance requires all nine named cases: valid, repeat-valid, same-CA unknown, wrong client CA, expired client, wrong EKU, no client certificate, wrong server anchor and wrong server hostname. CSR signature verification and a corrupted-signature rejection, exact public-key binding, identity leaf/possession checks and mismatched-key rejection must pass. The main server must observe exactly three HTTP requests: two accepted and one same-CA unknown domain denial. HTTP 200 with `denied` is not authorization success. The trusted-CA/wrong-SAN listener must receive no business request; both server-trust controls must reject before any client credential challenge. Native successful transport requires observed TLS 1.3 and no proxy.
+
+All nine sessions must invalidate, driver streams must reach EOF with exit 0 and no stderr, its process group must disappear, both listeners/workers/active sockets must close, and all temporary CSR/certificate/issuer/server files must be removed. Per-command, frame, stream, connection and total-time bounds are recorded in the private report with runner/binary hashes and Python/TLS provenance. Failed attempts retain distinct reports and still run cleanup. Synthetic CA/server private keys are temporary files; only the device key stays in memory. Audited `keychainUsed: false` and `privateKeyExported: false` source constraints are not dynamic Keychain/memory-forensics evidence, reliable memory erasure, Secure Enclave or persistence. No product enrollment, Codex, real account, WAN, mobile runtime or device acceptance runs here. API and fixed dependency/license sources live in [network research](../references/authenticated-network-research.md#设备本地密钥续期与每用户-host-服务的可行性依据).
+
 ## Opt-in authenticated ledger network experiment
 
 This separate Mac-only experiment connects the verified TLS peer identity to the actual `HostSubmissionLedger`, using temporary projects, certificates and SQLite files. The Python TLS server obtains the client leaf DER from the authenticated socket and sends its fingerprint over a trusted local pipe; the Swift driver maps it to the enrolled device. HTTP bodies cannot select trusted device identity, host, filesystem paths or administrative operations. The threat boundary and remaining production choices are maintained in [network research](../references/authenticated-network-research.md#tls-连接身份到真实账本的桥接研究卡).

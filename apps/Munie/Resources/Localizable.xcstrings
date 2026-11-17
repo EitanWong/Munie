@@ -448,6 +448,70 @@
           }
         }
       }
+    },
+    "Munie task update": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Munie task update"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Munie 任务更新"
+          }
+        }
+      }
+    },
+    "A task needs your approval.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A task needs your approval."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有任务需要你的审批。"
+          }
+        }
+      }
+    },
+    "Your task is complete.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your task is complete."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的任务已完成。"
+          }
+        }
+      }
+    },
+    "A task failed. Open Munie to review it.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A task failed. Open Munie to review it."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任务失败。打开 Munie 查看详情。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

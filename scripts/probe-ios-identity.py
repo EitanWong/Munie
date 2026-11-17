@@ -477,6 +477,23 @@ class Experiment:
             require(b'found nothing to terminate' in errors.lower() or b'not running' in errors.lower(),
                     'app-termination-unconfirmed')
 
+    def wait_booted(self):
+        # Fresh-runtime migration can finish before the CoreSimulator service is
+        # responsive. Retry only this read, never install/launch or app operations.
+        deadline = min(self.work_end, time.monotonic() + 90)
+        for attempt in range(3):
+            try:
+                booted = self.find_owned(self.inventory(deadline))
+                require(booted is not None and booted.get('state') == 'Booted',
+                        'booted-simulator-not-ready')
+                return
+            except ProbeFailure as error:
+                if error.code != 'command-timeout' or attempt == 2:
+                    raise
+                self.report.setdefault('readinessRetries', []).append(
+                    {'read': 'post-boot-owned-inventory', 'attempt': attempt + 1,
+                     'failure': error.code})
+
     def phase(self, name, cleanup=False):
         deadline = min(self.end if cleanup else self.work_end, time.monotonic() + PHASE_SECONDS)
         if name != 'create':
@@ -552,9 +569,7 @@ class Experiment:
             self.command('simulator-boot', 'xcrun', 'simctl', 'boot', self.simulator)
             self.command('simulator-boot-ready', 'xcrun', 'simctl', 'bootstatus', self.simulator, '-b',
                            seconds=BOOT_SECONDS)
-            booted = self.find_owned(self.inventory(self.work_end))
-            require(booted is not None and booted.get('state') == 'Booted',
-                    'booted-simulator-not-ready')
+            self.wait_booted()
             self.install_attempted = True
             self.command('app-install-once', 'xcrun', 'simctl', 'install', self.simulator, str(self.app),
                          seconds=INSTALL_SECONDS)
@@ -647,6 +662,7 @@ def main():
                          'bootSeconds': BOOT_SECONDS, 'phaseSeconds': PHASE_SECONDS,
                          'commandSeconds': COMMAND_SECONDS, 'commandStreamBytes': MAX_STREAM,
                          'installSeconds': INSTALL_SECONDS, 'inventorySeconds': INVENTORY_SECONDS,
+                         'postBootReadAttempts': 3,
                          'phaseReportBytes': MAX_PHASE_REPORT},
               'scopeLimits': ['ios-simulator-only', 'no-device-lock-screen-or-Secure-Enclave-evidence',
                               'no-WAN-model-account-or-mobile-mTLS', 'no-private-state-or-reference-export',

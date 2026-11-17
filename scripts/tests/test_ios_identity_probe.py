@@ -546,6 +546,45 @@ class ExperimentTests(unittest.TestCase):
                 self.assertEqual(report['phases'][-1]['phase'], 'cleanup')
                 self.assert_only_owned_operations(tools)
 
+    def test_post_boot_read_timeout_can_recover_before_install_without_repeating_effects(self):
+        class DelayedRead(FakeTools):
+            failed = False
+
+            def run(self, stage, *args, **kwargs):
+                if stage == 'own-simulator-inventory' and self.state == 'Booted' and not self.failed:
+                    self.failed = True
+                    raise probe.ProbeFailure('command-timeout')
+                return super().run(stage, *args, **kwargs)
+
+        with tempfile.TemporaryDirectory() as directory:
+            tools = DelayedRead(Path(directory))
+            report = {'commands': []}
+            experiment = probe.Experiment(Path(directory) / 'Research.app', report, tools, RUN)
+            experiment.execute()
+            self.assertEqual(len(report['readinessRetries']), 1)
+            self.assertEqual(sum(call['stage'] == 'app-install-once' for call in tools.calls), 1)
+            self.assertEqual([item['phase'] for item in report['phases']], list(probe.PHASES) + ['cleanup'])
+
+    def test_persistent_post_boot_read_timeout_never_installs_and_has_three_attempt_bound(self):
+        class UnresponsiveRead(FakeTools):
+            attempts = 0
+
+            def run(self, stage, *args, **kwargs):
+                if stage == 'own-simulator-inventory' and self.state == 'Booted' and self.attempts < 3:
+                    self.attempts += 1
+                    raise probe.ProbeFailure('command-timeout')
+                return super().run(stage, *args, **kwargs)
+
+        with tempfile.TemporaryDirectory() as directory:
+            tools = UnresponsiveRead(Path(directory))
+            report = {'commands': []}
+            experiment = probe.Experiment(Path(directory) / 'Research.app', report, tools, RUN)
+            with self.assertRaisesRegex(probe.ProbeFailure, 'command-timeout'):
+                experiment.execute()
+            self.assertEqual(tools.attempts, 3)
+            self.assertFalse(any(call['stage'] == 'app-install-once' for call in tools.calls))
+            self.assertTrue(report['cleanup']['createdSimulatorAbsent'])
+
     def test_app_cleanup_failure_cannot_be_replaced_by_simulator_deletion(self):
         with tempfile.TemporaryDirectory() as directory:
             _, report, tools, failure = self.exercise(Path(directory), cleanup_bad=True)

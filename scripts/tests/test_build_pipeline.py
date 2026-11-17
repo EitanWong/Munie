@@ -65,7 +65,10 @@ if configuration == os.environ.get("FAIL_CONFIGURATION"):
         self.assertEqual(command[command.index("-scheme") + 1], "Munie")
         self.assertIn("CODE_SIGNING_ALLOWED=NO", command)
         self.assertEqual(command[-1], "build")
-        self.assertEqual(len(commands), 6)
+        self.assertEqual(len(commands), 7)
+        host = [item for item in commands if item[item.index("-scheme") + 1] == "MunieHost"]
+        self.assertEqual(len(host), 1)
+        self.assertEqual(host[0][host[0].index("-destination") + 1], "generic/platform=macOS")
         self.assertIn("Synthetic Release build output",
                       (self.root / "build/ios-release-build.log").read_text())
 

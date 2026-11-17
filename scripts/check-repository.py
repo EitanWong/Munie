@@ -203,22 +203,27 @@ def main():
     check_swift_packages(ROOT)
     check_xcode_project(ROOT)
 
-    catalog = json.loads((ROOT / 'apps/Munie/Resources/Localizable.xcstrings').read_text())
-    strings = catalog['strings']
-    for key, item in strings.items():
-        for language in ('en', 'zh-Hans'):
-            unit = item['localizations'][language]['stringUnit']
-            require(unit['state'] == 'translated' and bool(unit['value'].strip()),
-                    f'Missing {language} translation: {key}')
+    strings = {}
+    for catalog_path in sorted((ROOT / 'apps').rglob('*.xcstrings')):
+        catalog = json.loads(catalog_path.read_text())
+        for key, item in catalog['strings'].items():
+            for language in ('en', 'zh-Hans'):
+                unit = item['localizations'][language]['stringUnit']
+                require(unit['state'] == 'translated' and bool(unit['value'].strip()),
+                        f'Missing {language} translation in {catalog_path.name}: {key}')
+            strings[key] = item
     patterns = [
         r'\b(?:Text|TextField|SecureField|Button|Label|ContentUnavailableView)\(\s*"([^"\\\n]+)"',
         r'String\(localized:\s*"([^"\\\n]+)"',
         r'\.(?:navigationTitle|accessibilityLabel|alert|confirmationDialog)\(\s*"([^"\\]+)"',
         r'prompt:\s*"([^"\\]+)"',
+        r'\b(?:hostText|remoteString)\(\s*"([^"\\\n]+)"',
     ]
     for source in (ROOT / 'apps').rglob('*.swift'):
         for pattern in patterns:
             for key in re.findall(pattern, source.read_text()):
+                if not key.strip():
+                    continue
                 require(key in strings, f'Unlocalized string in {source.name}: {key}')
 
     for file in (ROOT / 'apps').rglob('*.xcprivacy'):

@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 1,
+  "codexCLI": "0.162.1",
+  "munieProtocolVersion": 1,
+  "scope": "Bounded first iPhone–Mac product slice; zero full-method/variant completeness claims.",
+  "inventory": "codex-capabilities.json",
+  "implementation": "../apps/MunieHost/Execution/CodexAppServer.swift",
+  "capabilities": [
+    {
+      "id": "initialize",
+      "methods": [
+        "initialize",
+        "initialized"
+      ],
+      "state": "implemented_tested",
+      "evidence": [
+        "../apps/MunieHostTests/CodexAppServerTests.swift"
+      ],
+      "limit": "Pinned CLI only; sanitized startup notifications, fixed read-only/on-request policy. No account/config management."
+    },
+    {
+      "id": "text-and-continuation",
+      "methods": [
+        "thread/start",
+        "thread/resume",
+        "turn/start"
+      ],
+      "state": "implemented_tested",
+      "evidence": [
+        "../apps/MunieProductHostTests/ProductHostTests.swift",
+        "../scripts/accept-remote-product.py"
+      ],
+      "limit": "Text only, explicit project, same origin device, one active native task. Arbitrary Desktop session takeover is deferred."
+    },
+    {
+      "id": "progress-and-result",
+      "methods": [
+        "thread/started",
+        "thread/status/changed",
+        "turn/started",
+        "turn/completed",
+        "item/started",
+        "item/completed",
+        "item/agentMessage/delta",
+        "item/commandExecution/outputDelta",
+        "thread/read",
+        "thread/turns/list"
+      ],
+      "state": "implemented_tested",
+      "evidence": [
+        "../apps/MunieProductHostTests/CodexHistoryProjectionTests.swift",
+        "../apps/MunieHostTests/CodexAppServerTests.swift",
+        "../scripts/accept-remote-product.py"
+      ],
+      "limit": "Bounded sanitized phases and assistant text. Raw commands, paths, usage and native payloads are not forwarded. Unknown interactions fail closed."
+    },
+    {
+      "id": "informed-command-approval",
+      "methods": [
+        "item/commandExecution/requestApproval",
+        "serverRequest/resolved"
+      ],
+      "state": "implemented_tested",
+      "evidence": [
+        "../apps/MunieProductHostTests/ProductHostTests.swift",
+        "../scripts/accept-remote-product.py"
+      ],
+      "limit": "Exact command/cwd/reason and offered one-time accept/cancel only; 60s expiry. No persistent allow, file-change/permission/MCP/user-input approvals."
+    },
+    {
+      "id": "cancel-and-recovery",
+      "methods": [
+        "turn/interrupt",
+        "thread/read",
+        "thread/turns/list"
+      ],
+      "state": "implemented_tested",
+      "evidence": [
+        "../apps/MunieProductHostTests/ProductHostTests.swift",
+        "../scripts/accept-remote-product.py"
+      ],
+      "limit": "ACK is distinct from native terminal. Known IDs reconcile; missing mapping is never replayed. Specific observed windows only, not arbitrary power-loss guarantee."
+    },
+    {
+      "id": "account-gated-features",
+      "methods": [],
+      "state": "unavailable_unverified",
+      "evidence": [],
+      "limit": "Model/provider and account features depend on the local login; no claims for configurations not exercised."
+    },
+    {
+      "id": "remaining-native-surface",
+      "methods": [],
+      "state": "deferred",
+      "evidence": [],
+      "limit": "All inventory methods/fields outside the subset, including media, realtime, plugins/config administration, PTY, steer, fork/review and other harnesses. No arbitrary RPC route."
+    }
+  ],
+  "acceptance": {
+    "synthetic": "Default Swift/runner tests use synthetic peers; tests do not imply actual Codex work.",
+    "realModel": "Explicitly opt-in disposable-project runner; exact executed reports and limitations are recorded in docs/project-status.md.",
+    "device": "Compilation, physical unit/native HTTP, UI gestures, cellular, microphone and notification delivery are separate evidence levels."
+  }
+}

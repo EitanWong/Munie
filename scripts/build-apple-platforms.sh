@@ -23,6 +23,7 @@ build_platform() {
 # iPadOS shares the iOS target and device family; iOS also compiles both test bundles.
 build_platform ios Munie 'generic/platform=iOS Simulator' build-for-testing build/DerivedData
 build_platform macos Munie 'generic/platform=macOS' build build/DerivedData-macos
+build_platform macos-host MunieHost 'generic/platform=macOS' build build/DerivedData-host
 build_platform tvos Munie 'generic/platform=tvOS Simulator' build build/DerivedData-tvos
 build_platform visionos Munie 'generic/platform=visionOS Simulator' build build/DerivedData-visionos
 build_platform watchos MunieWatch 'generic/platform=watchOS Simulator' build build/DerivedData-watchos

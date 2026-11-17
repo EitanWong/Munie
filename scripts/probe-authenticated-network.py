@@ -420,7 +420,12 @@ def experiment(executable, report):
                     client = LoopbackClient(port, contexts['device-b'])
                     client.connect()
                     client.sock.sendall(b'POST /fixture/submit HTTP/1.1\r\nHost: local')
-                require(client.sock.recv(1) == b'', 'Cleanup retained incomplete-header connection')
+                try:
+                    require(client.sock.recv(1) == b'', 'Cleanup retained incomplete-header connection')
+                    report['pendingHeaderClientClose'] = 'eof'
+                except ConnectionResetError:
+                    # Closing with unread request bytes may reset TCP instead of sending EOF.
+                    report['pendingHeaderClientClose'] = 'reset'
                 report['pendingHeaderClosedOnCleanup'] = cleanup.get('serverStopped') is True
             finally:
                 if client is not None:

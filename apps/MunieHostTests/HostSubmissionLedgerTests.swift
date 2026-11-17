@@ -77,8 +77,7 @@ struct HostSubmissionLedgerTests {
     let fixture = try LedgerFixture()
     defer { fixture.remove() }
     let request = try fixture.request()
-    do {
-      let ledger = try await fixture.authorizedLedger()
+    try await fixture.withReleasedLedger { ledger in
       try await ledger.accept(request, from: fixture.device)
       try await ledger.revokeDevice(id: fixture.device.id)
     }
@@ -101,8 +100,7 @@ struct HostSubmissionLedgerTests {
     let fixture = try LedgerFixture()
     defer { fixture.remove() }
     let unknown = AuthenticatedDevice(id: UUID())
-    do {
-      let ledger = try await fixture.authorizedLedger()
+    try await fixture.withReleasedLedger { ledger in
       try await ledger.revokeDevice(id: unknown.id)
       await #expect(throws: SubmissionError.unauthorized) {
         try await ledger.authorizeDevice(id: unknown.id, projects: [fixture.projectID])
@@ -371,8 +369,7 @@ struct HostSubmissionLedgerTests {
     let dispatching = try fixture.request()
     let running = try fixture.request()
     let upstream = UpstreamTurn(threadID: UUID(), turnID: UUID())
-    do {
-      let ledger = try await fixture.authorizedLedger()
+    try await fixture.withReleasedLedger { ledger in
       for request in [dispatching, running] {
         try await ledger.accept(request, from: fixture.device)
         _ = try await ledger.claimForDispatch(request, from: fixture.device)
@@ -467,8 +464,7 @@ struct HostSubmissionLedgerTests {
     defer { fixture.remove() }
     let request = try fixture.request()
     let upstream = UpstreamTurn(threadID: UUID(), turnID: UUID())
-    do {
-      let ledger = try await fixture.authorizedLedger()
+    try await fixture.withReleasedLedger { ledger in
       try await ledger.accept(request, from: fixture.device)
       _ = try await ledger.claimForDispatch(request, from: fixture.device)
       try await ledger.observeStarted(requestID: request.requestID, upstream: upstream)
@@ -476,9 +472,9 @@ struct HostSubmissionLedgerTests {
     #expect(throws: SubmissionError.invalidStorage) {
       try HostSubmissionLedger(directoryURL: fixture.storeURL, hostID: UUID())
     }
-    do {
-      let storage = try SQLiteStorage(directoryURL: fixture.storeURL)
-      #expect(try storage.rows("SELECT phase FROM requests") == [[.text("running")]])
+    try await fixture.withReleasedStorage { storage in
+      let phases = try storage.rows("SELECT phase FROM requests")
+      #expect(phases == [[.text("running")]])
     }
     let reopened = try fixture.reopen()
     let recovered = try await reopened.snapshot(requestID: request.requestID, from: fixture.device)
@@ -490,19 +486,15 @@ struct HostSubmissionLedgerTests {
     let fixture = try LedgerFixture()
     defer { fixture.remove() }
     let request = try fixture.request()
-    do {
-      let ledger = try await fixture.authorizedLedger()
+    try await fixture.withReleasedLedger { ledger in
       try await ledger.accept(request, from: fixture.device)
     }
-    let before: [[SQLiteValue]]
-    do {
-      let storage = try SQLiteStorage(directoryURL: fixture.storeURL)
+    let before = try await fixture.withReleasedStorage { storage in
       try storage.run("PRAGMA user_version=99")
-      before = try storage.rows("SELECT id,identity,phase FROM requests")
+      return try storage.rows("SELECT id,identity,phase FROM requests")
     }
     #expect(throws: SubmissionError.unsupportedSchema) { try fixture.reopen() }
-    do {
-      let storage = try SQLiteStorage(directoryURL: fixture.storeURL)
+    try await fixture.withReleasedStorage { storage in
       #expect(try storage.rows("PRAGMA user_version") == [[.integer(99)]])
       #expect(try storage.rows("SELECT id,identity,phase FROM requests") == before)
       try storage.run("PRAGMA user_version=1")
@@ -513,11 +505,10 @@ struct HostSubmissionLedgerTests {
         == .accepted)
   }
 
-  @Test func unversionedForeignDatabaseIsRejectedWithoutDroppingItsData() throws {
+  @Test func unversionedForeignDatabaseIsRejectedWithoutDroppingItsData() async throws {
     let fixture = try LedgerFixture()
     defer { fixture.remove() }
-    do {
-      let storage = try SQLiteStorage(directoryURL: fixture.storeURL)
+    try await fixture.withReleasedStorage { storage in
       try storage.run("CREATE TABLE foreign_data(value TEXT NOT NULL)")
       try storage.run("INSERT INTO foreign_data(value) VALUES('preserve-me')")
     }
@@ -532,8 +523,7 @@ struct HostSubmissionLedgerTests {
     defer { fixture.remove() }
     let plaintext = "MUNIE_PRIVATE_TEST_BODY_" + String(repeating: "不可落盘-private-🔒", count: 24)
     let request = try fixture.request(text: plaintext)
-    do {
-      let ledger = try await fixture.authorizedLedger()
+    try await fixture.withReleasedLedger { ledger in
       try await ledger.accept(request, from: fixture.device)
       _ = try await ledger.claimForDispatch(request, from: fixture.device)
       let upstream = UpstreamTurn(threadID: UUID(), turnID: UUID())
@@ -592,6 +582,36 @@ private struct LedgerFixture: Sendable {
 
   func reopen() throws -> HostSubmissionLedger {
     try HostSubmissionLedger(directoryURL: storeURL, hostID: hostID)
+  }
+
+  func withReleasedLedger(
+    _ operation: @Sendable (HostSubmissionLedger) async throws -> Void
+  ) async throws {
+    let previous = try await performLedgerOperation(operation)
+    try await previous.wait()
+  }
+
+  private func performLedgerOperation(
+    _ operation: @Sendable (HostSubmissionLedger) async throws -> Void
+  ) async throws -> HostFixtureOwnerRelease {
+    let ledger = try await authorizedLedger()
+    try await operation(ledger)
+    return HostFixtureOwnerRelease(ledger: ledger, store: storeURL)
+  }
+
+  func withReleasedStorage<Value: Sendable>(
+    _ operation: (SQLiteStorage) throws -> Value
+  ) async throws -> Value {
+    let value = try performStorageOperation(operation)
+    try await HostFixtureOwnerRelease(store: storeURL).wait()
+    return value
+  }
+
+  private func performStorageOperation<Value>(
+    _ operation: (SQLiteStorage) throws -> Value
+  ) throws -> Value {
+    let storage = try SQLiteStorage(directoryURL: storeURL)
+    return try operation(storage)
   }
 
   func request(

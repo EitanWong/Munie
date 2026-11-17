@@ -34,9 +34,14 @@ struct CodexStdioTransportTests {
   @Test func sendsExplicitEnvironmentAndHandlesFragmentedAndMultipleFrames() async throws {
     let fixture = try Fixture()
     defer { fixture.remove() }
+    var limits = fixture.limits
+    // Allow CI scheduling and process reaping for normal EOF. The fault fixtures' 120ms grace
+    // accelerates escalation tests; it is not a product shutdown latency requirement.
+    limits.shutdownGrace = .seconds(3)
     let transport = try fixture.transport(
       """
-      import json, os, sys, time
+      import json, os, signal, sys, time
+      signal.signal(signal.SIGTERM, lambda *_: os._exit(71))
       for raw in sys.stdin.buffer:
           request = json.loads(raw)
           reply = json.dumps({"echo":request,"only":os.environ.get("MUNIE_SYNTHETIC"),"homePresent":"HOME" in os.environ,"cwd":os.getcwd()},ensure_ascii=False).encode()
@@ -45,9 +50,11 @@ struct CodexStdioTransportTests {
               time.sleep(0.005)
           os.write(1,b'\\n{"second":true}\\n')
           break
+      os.write(1,b'{"awaitingEOF":true}\\n')
       sys.stdin.buffer.read()
       os.write(2,b'synthetic final stderr')
-      """, environment: ["MUNIE_SYNTHETIC": "explicit"])
+      os._exit(0)
+      """, environment: ["MUNIE_SYNTHETIC": "explicit"], limits: limits)
     let frame = CodexJSON.object(["id": .integer(3), "text": .string("你好\0")])
     try await transport.send(frame)
     let first = try await transport.receive()
@@ -56,6 +63,7 @@ struct CodexStdioTransportTests {
     #expect(first.object?["homePresent"] == .bool(false))
     #expect(first.object?["cwd"] == .string(fixture.directory.path))
     #expect(try await transport.receive() == .object(["second": .bool(true)]))
+    #expect(try await transport.receive() == .object(["awaitingEOF": .bool(true)]))
     let result = try await transport.shutdown()
     #expect(result.complete)
     #expect(result.leaderExitStatus == 0)
@@ -296,6 +304,7 @@ struct CodexStdioTransportTests {
       limits.readTimeout = .seconds(3)
       limits.writeTimeout = .seconds(3)
       limits.sessionTimeout = .seconds(10)
+      // Failure/descendant tests intentionally exercise bounded TERM/KILL escalation quickly.
       limits.shutdownGrace = .milliseconds(120)
       return limits
     }

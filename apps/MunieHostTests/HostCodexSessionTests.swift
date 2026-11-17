@@ -650,35 +650,9 @@ struct HostCodexSessionTests {
   }
 }
 
-private enum SessionFailure: Error, Equatable { case disconnected, ownerNotReleased }
+private enum SessionFailure: Error, Equatable { case disconnected }
 
-private struct SessionLedgerRelease: Sendable {
-  weak var ledger: HostSubmissionLedger?
-  let store: URL
-
-  func wait() async throws {
-    // Swift's async call frame may retain the actor after its helper returns. Weak references can
-    // clear before deinit finishes, so also observe release of this fixture's actual owner lock.
-    // Never retry or weaken the production single-owner storage initializer.
-    let clock = ContinuousClock()
-    let deadline = clock.now.advanced(by: .seconds(3))
-    while ledger != nil {
-      guard clock.now < deadline else { throw SessionFailure.ownerNotReleased }
-      try await clock.sleep(for: .milliseconds(2))
-    }
-    let descriptor = open(
-      store.appendingPathComponent(".owner").path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
-    guard descriptor >= 0 else { throw SessionFailure.ownerNotReleased }
-    defer { close(descriptor) }
-    while flock(descriptor, LOCK_EX | LOCK_NB) != 0 {
-      guard errno == EWOULDBLOCK || errno == EAGAIN, clock.now < deadline else {
-        throw SessionFailure.ownerNotReleased
-      }
-      try await clock.sleep(for: .milliseconds(2))
-    }
-    guard flock(descriptor, LOCK_UN) == 0 else { throw SessionFailure.ownerNotReleased }
-  }
-}
+private typealias SessionLedgerRelease = HostFixtureOwnerRelease
 
 private actor SessionGate {
   private var opened = false

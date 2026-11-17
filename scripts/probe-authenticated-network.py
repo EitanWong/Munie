@@ -137,12 +137,12 @@ class FixtureHandler(BaseHTTPRequestHandler):
 class FixtureServer(HTTPServer):
     """One bounded worker, loopback only; http.server is unsuitable for production."""
 
-    def __init__(self, context, policy):
+    def __init__(self, context, policy, handler=FixtureHandler):
         self.context, self.policy = context, policy
         self.active = set()
         self.active_lock = threading.Lock()
         self.stopping = False
-        super().__init__(('127.0.0.1', 0), FixtureHandler)
+        super().__init__(('127.0.0.1', 0), handler)
 
     def get_request(self):
         raw, address = super().get_request()
@@ -286,8 +286,8 @@ def fingerprint(root, name):
 
 
 @contextmanager
-def running_server(context, policy, report):
-    server = FixtureServer(context, policy)
+def running_server(context, policy, report, handler=FixtureHandler):
+    server = FixtureServer(context, policy, handler)
     thread = threading.Thread(target=server.serve_forever, kwargs={'poll_interval': .02})
     thread.start()
     try:

@@ -16,7 +16,7 @@
 
 资料版本是核对时的网页版本，不是 runtime pin。每次实验记录 `sys.executable`、Python 版本、`ssl.OPENSSL_VERSION`、TLS 实际协商版本及证书生成工具版本。不同 shell 的 `python3` 可能指向不同实现；缺少 TLS 1.3 时 preflight 明确失败，不能静默降到 TLS 1.2。不得开启 TLS key log、加载个人 CA/客户端身份或修改系统信任库。
 
-Apple 后续探针应先做原生 `URLSession` HTTPS 小请求和有界状态读取，再测流式输出；本机 Python keepalive 只是撤销检查的测试条件，不要求 Watch 保持连接。仍缺真实配对、硬件安全存储、后台调度、断网恢复、蜂窝延迟/功耗和独立 Watch 路由证据。
+Apple 客户端研究先做原生 `URLSession` HTTPS 小请求和有界状态读取，再测流式输出；下一张 Mac-only 身份实验卡见下文。本机 Python keepalive 只是撤销检查的测试条件，不要求 Watch 保持连接。仍缺真实配对、硬件安全存储、后台调度、断网恢复、蜂窝延迟/功耗和独立 Watch 路由证据。
 
 ## 最小威胁模型
 
@@ -55,6 +55,61 @@ TLS 提供认证加密记录，不自动阻止合法客户端再次发送相同�
 
 **解释边界：**即使全部通过，也只验证当前 Python/OpenSSL 与夹具实现下的本机加密短请求、预置身份和负向拒绝；未集成生产 ledger、native Codex、原生 Apple 客户端、真实凭据/模型、互联网/蜂窝、持久配对/撤销或生产可用服务。下一步先评审身份如何接入真实 ledger，再单独选择并授权实际网络/设备实验。
 
+## Mac-only URLSession 原生身份研究卡
+
+本卡核对日期同页首。它补充上一张 Python 对 Python 的通道实验：以独立 macOS Swift executable、系统 Foundation/Security 和临时 PKCS#12 身份研究真实 `URLSession` 挑战/信任/取消行为。本机观察环境为 macOS 27.2.1、Xcode 27.2、Swift 6.4.2；下文区分官方约束、已观察限制与研究对照，**不预填整轮通过结果**。实际实现、命令、完整场景和结果以代码及[项目状态](../docs/project-status.md)为准。不连接 shipping apps、真实 ledger/Codex、账号、外网或系统证书配置。
+
+### 临时身份、可用性与 Keychain 边界
+
+2026-11-17 实际读取 Xcode 27.2（27B52）的 macOS/iPhoneOS 27.2 SDK `Security.framework/Headers/SecImportExport.h`。两份 header SHA-256 均为 `2353b5bf09b3bec8c61cd488a5b647dba6b3e0b63d7b9c8af0c11757eaae57b1`；同时重开 Apple [SecPKCS12Import](https://developer.apple.com/documentation/security/secpkcs12import(_:_:_:))、[导入 identity](https://developer.apple.com/documentation/security/importing-an-identity)与 [kSecImportToMemoryOnly](https://developer.apple.com/documentation/security/ksecimporttomemoryonly)。SDK 明确区分：默认 iOS 导入进程内存，macOS 则导入默认 Keychain；`ephemeral` URLSession 不能改变这个 Security API 副作用。
+
+本机实验导入必须显式传 `kSecImportToMemoryOnly: kCFBooleanTrue` 与合成 PKCS#12 passphrase，检查 `OSStatus`、identity 数量和类型；失败不得回退到默认导入、个人身份查找或系统信任修改。该 key 自 **macOS 15 / iOS 18** 可用，与当前最低版本相符；在线 availability 还列出 watchOS 11，但本卡只验证 macOS，不能据此宣称已构建或运行其他平台。SDK 说明 memory-only 选项会忽略 Keychain 相关导入选项；不是创建临时 Keychain 后再删文件的替代说法。
+
+本机已观察 OpenSSL 4 默认导出的 PKCS#12 可被上述 memory-only 导入，未通过降低 PBE 或 legacy export 取得结果。这不证明其他系统或算法组合均兼容。当前 native importer 只核对导入结果、数量和类型，**尚未独立提取并比对导入 identity 的 leaf DER 指纹**；runner 生成材料、server 实际 TLS peer 指纹与合成设备接受记录是另一层证据，不能写成 native 已做此项校验。
+
+PKCS#12、私钥及密码只来自本轮临时合成材料，不记录到报告，不借读取个人 Keychain 来选 identity。源码选项与文件清理证据只能支持相应实现声明；本研究**没有枚举、前后比对或审计个人 Keychain**，不能声称已证明系统内不存在残留，也不承诺已对内存密钥作可靠擦除。真正产品配对、硬件保护、续期/轮换和持久保存仍需独立设计。
+
+### 挑战作用域与服务端信任
+
+| 官方依据 | 本次原生探针的约束 |
+|---|---|
+| [session challenge delegate](https://developer.apple.com/documentation/foundation/urlsessiondelegate/urlsession(_:didreceive:completionhandler:))、[URLProtectionSpace](https://developer.apple.com/documentation/foundation/urlprotectionspace) | 客户端证书和 server trust 是 session-level 挑战；每次回答前精确核对固定 HTTPS host、port、非 proxy 与 authenticationMethod，只向此 session 的预定 endpoint 提供预定 identity。不能用子串匹配 host、证书 display name 或 payload 的 deviceID 代替身份约束；不让未知挑战自动找到个人凭据 |
+| [URLCredential identity initializer](https://developer.apple.com/documentation/foundation/urlcredential/init(identity:certificates:persistence:)) | 官方明确 `persistence` 参数会被忽略，建议 `.forSession` 反映实际行为。传 `.none` 不能证明 identity 不被会话缓存或不进 Keychain；Keychain 行为由上面的导入选项控制。root 直接签 leaf 的 fixture 通常不需携带 intermediate 数组 |
+| [SecPolicyCreateSSL](https://developer.apple.com/documentation/security/secpolicycreatessl(_:_:))、[anchor-only](https://developer.apple.com/documentation/security/sectrustsetanchorcertificatesonly(_:_:))、[network fetch](https://developer.apple.com/documentation/security/sectrustsetnetworkfetchallowed(_:_:)) | 对该 challenge 的 trust 设置 SSL **server** policy 与预定 hostname，临时 CA 为唯一 anchor，显式 anchor-only `true`、network-fetch `false`，检查每次配置结果并在 trust 成功后才接受。不能仅把拿到 `serverTrust` 当验证通过。关闭 fetch 的官方语义是限制本次 trust 获取缺失 intermediate，不能泛化成整个操作系统无外联的审计结论 |
+| [手动 trust](https://developer.apple.com/documentation/foundation/performing-manual-server-trust-authentication)、[ATS](https://developer.apple.com/documentation/security/preventing-insecure-network-connections) | 私有 CA 仅限 fixture 的显式信任配置；不增加 ATS 例外、不无条件接受自签或不匹配 hostname，也不以降低 TLS 版本让实验变绿。独立 Mac executable 的通过不证明 shipping app 的 bundle/ATS/签名、沙箱或移动设备网络验收 |
+
+未知或已撤销设备可以先通过 CA 层的 TLS，再在应用层被拒绝；原生客户端必须保留这一区别。session/TLS 可能复用认证状态，不能要求每个 HTTP 请求都再次出现证书挑战；撤销必须由 server 每请求重查并用接受记录验证，不以“重新握手成功”代替。
+
+### 会话、代理、重定向与资源
+
+采用专用 [ephemeral configuration](https://developer.apple.com/documentation/foundation/urlsessionconfiguration/ephemeral)，与其他 endpoint/identity 分开；不用 `.shared` 或 background session。ephemeral 默认仍有 RAM 中的私有 [cookie store](https://developer.apple.com/documentation/foundation/urlsessionconfiguration/httpcookiestorage)和 [credential store](https://developer.apple.com/documentation/foundation/urlsessionconfiguration/urlcredentialstorage)，不等于没有状态。实验显式关 cookie 自动发送、置空 cookie/credential/cache store，不手工补 Cookie/Authorization；结束时使 session 失效并等待相应完成证据。它不会擦除独立写出的 PKCS#12/报告文件。
+
+代理单独处理：[connectionProxyDictionary](https://developer.apple.com/documentation/foundation/urlsessionconfiguration/connectionproxydictionary) 默认 `nil`、较新的 [proxyConfigurations](https://developer.apple.com/documentation/foundation/urlsessionconfiguration/proxyconfigurations) 默认空数组，官方均说明会使用系统设置；空数组不能被写成“已关闭代理”。记录实验实际的显式代理策略及 [`isProxyConnection`](https://developer.apple.com/documentation/foundation/urlsessiontasktransactionmetrics/isproxyconnection) 指标，拒绝 proxy 身份挑战；不改用户系统/VPN/PAC。单个本机指标也不是所有网络出口的证明。
+
+用 [redirect delegate](https://developer.apple.com/documentation/foundation/urlsessiontaskdelegate/urlsession(_:task:willperformhttpredirection:newrequest:completionhandler:)) 返回 `nil` 拒绝重定向，测试 server 的 Location 未被跟随、目标接受数未增加；不依赖 HTTP 自动删敏感 header 的细节保护 identity。该回调只适用于 default/ephemeral，官方说明 background 会自动跟随，故不用于本轮。无身份、错误 endpoint、错误 CA/hostname 都需有负向对照；客户端预检拒绝与真实 TLS/trust 拒绝在报告中分别标识。
+
+TLS min/max 限定为 1.3，同时以 [`negotiatedTLSProtocolVersion`](https://developer.apple.com/documentation/foundation/urlsessiontasktransactionmetrics/negotiatedtlsprotocolversion) 及 server 实际协商值作证，不能把配置值写成协商结果；无指标或无加密连接保持未知/失败。超大响应应在 header 和增量数据边界有界处理，在整包下载后才数 bytes 不能证明内存有界。[request timeout](https://developer.apple.com/documentation/foundation/urlsessionconfiguration/timeoutintervalforrequest) 随新数据重置，[resource timeout](https://developer.apple.com/documentation/foundation/urlsessionconfiguration/timeoutintervalforresource) 才约束整个资源；另有 runner 总期限与清理期限。[task.cancel](https://developer.apple.com/documentation/foundation/urlsessiontask/cancel()) 立即返回且之后仍可能有 delegate 回调，需核对完成错误与清理，不能把调用取消等同上游任务已停。
+
+### 本机观察与协议对照
+
+| 输入 / 对照 | 已观察事实或必须满足的接受条件 | 解释边界 |
+|---|---|---|
+| 同一原生 session 的首次提交、相同重试与冲突 | 首次 202、相同重试 200、冲突 409 的 HTTP 状态和 body 均可读；接受数保持 1 | 重试未新增合成接受，不代表已实现持久 ledger 或上游 exactly-once |
+| 应用层 403 | 未登记设备及越项目、撤销拒绝在本机 native 侧表现为 `URLError -1206`，无 HTTP 状态、body 为 0；server 记录实际 403 | 同连接越项目和撤销两例没有新 challenge；新连接拒绝有初始 challenge。独立 keepalive 对照也观察到 -1206；原因未经证明，不归因为重复 challenge，也不推断所有系统行为 |
+| 不受信客户端 CA | native 为 `-1005`，server 同时记录 `SSLCertVerificationError.verify_code = 20`，接受数为 0 | 必须关联双侧拒绝和接受数；任意网络错误本身不能证明证书验证有效 |
+| 在途取消 | server 已收到请求并发送 headers 后暂缓 body；native 在 response delegate 返回 `.cancel`，接受条件为 `-999`、HTTP 200、`cancelledOnResponse`、body 为 0 和接受数不增 | 这些字段需由实际报告共同确认；不是先取消尚未发出的 task，也不等于已取消远程模型或工具 |
+| slow timeout | 独立 slow 场景由 server 已收到请求、真实等待后 `-1001` 及接受数不增作证 | 不以取消场景代替 timeout，也不由一次超时推断所有慢头/drip-feed 时序已覆盖 |
+
+诊断记录 `isolated-persistent-policy-05.json`、`isolated-policy-keepalive-04.json` 与早期失败的 `failed-attempt-02.json` 保留上述局部观察，不能作为整轮通过记录。完整正式结果由项目状态引用实际报告，不在本研究卡另维护完成数量。
+
+为继续对照应用授权与传输行为，native runner 保留独立 `legacy-http403-control`，主 native fixture 另试 **HTTP 200 + 固定 error envelope** 表达 `device-denied` / `project-denied`。它们仍是业务拒绝：不能产生 `fixture-accepted`/ordinal，不能增加 server 合成接受数；冲突继续为 409。原 Python 23-case fixture 的 403 语义不变。这只是明确标识的研究候选，**未选定为生产协议**；不能因 wire HTTP 200 声称授权成功，也不能由绕过本机限制的对照结果声称已解释其原因。
+
+### 接受事件与解释限度
+
+计划负向输入为同 CA 未登记身份、撤销后请求、无 identity、endpoint/信任不匹配、redirect、超大响应、超时和主动取消；实际运行清单不得从本卡推定。正向结果需关联真实 native client-certificate/server-trust challenge、任务 metrics 与 Python server 的 TLS peer identity/合成接受次数；负向结果需说明拒绝发生在本机预检、TLS、HTTP 授权还是响应读取，且没有新增不应有的接受记录。challenge/metrics 只记必要结构和计数，不输出证书、私钥、密码、完整 URL/header/body 或系统 trust 详情。
+
+清理核对 native process/session/tasks、Python server/listener、活动连接和临时材料，错误保留明确阶段及结构化原因。即使观察全部接受事件，也仅补 macOS Foundation/Security 到本机 fixture 的证据；不实现生产设备配对/Keychain 生命周期、持久网络授权或真实 ledger/harness 接入，不证明 iOS/watchOS、蜂窝、独立 Watch、后台、功耗或端到端产品流程。
+
 ## 成熟替代与许可复查
 
 | 候选 | 用途与代价 | 当前决定 / 许可 |
@@ -62,6 +117,7 @@ TLS 提供认证加密记录，不自动阻止合法客户端再次发送相同�
 | 标准 HTTPS mTLS | 直接使用成熟 TLS/X.509；适合把通道身份与每请求应用授权分开测。代价是证书分发、轮换、撤销和 Apple identity 生命周期 | 仅选为本机研究机制，未选生产 PKI/server。Python 软件/文档为 [PSF License v2](https://docs.python.org/3.15/license.html)，文档示例另有 0BSD 双许可；本次不复制示例。OpenSSL 3.0 及后继主线为 [Apache-2.0](https://openssl-library.org/source/license/index.html)，历史版本/其他 TLS 实现另核对 |
 | 受限 OpenSSH 隧道 | 可给 iPhone 工程探针提供已有主机认证/加密转发；仍需 pin 主机身份、最小账号/转发范围和应用授权。建隧道不证明服务健康；不能作为普通 Watch 通道 | [官方 portable](https://www.openssh.org/portable.html)、[转发选项](https://man.openbsd.org/ssh_config#ExitOnForwardFailure)及上游 [LICENCE](https://github.com/openssh/openssh-portable/blob/master/LICENCE)已核对：按组件列 BSD 或更宽松许可，不能简写为统一某一 BSD。未启用 Remote Login、未装依赖或复制代码 |
 | 私有网络，例如 Tailscale | [官方连接类型](https://tailscale.com/docs/reference/connection-types)区分 direct/DERP/peer relay，均使用 WireGuard 端到端加密；路由可达不等于业务授权。需分别测中继性能与撤销；[平台列表](https://tailscale.com/docs/install)不能推出独立 Watch 或继承 iPhone VPN | 仅比较，没有选服务/账号。上游 client [LICENSE](https://github.com/tailscale/tailscale/blob/main/LICENSE)为 BSD-3-Clause；托管服务条款、各平台客户端及传递依赖须独立审查。正式复用前按引用规则固定 commit/许可 |
+| SwiftNIO / NIOSSL | [SwiftNIO](https://github.com/apple/swift-nio)提供低层异步协议构件，[NIOSSL](https://github.com/apple/swift-nio-ssl)以 BoringSSL 提供 TLS，适合未来 server/跨平台边界比较；不能替代 Foundation 的 Apple HTTP 生命周期，也不能绕过 Watch 平台网络限制 | 本轮优先官方 URLSession，不加依赖或复制代码。两仓库 root [NIO LICENSE](https://github.com/apple/swift-nio/blob/main/LICENSE.txt)/[NIOSSL LICENSE](https://github.com/apple/swift-nio-ssl/blob/main/LICENSE.txt)为 Apache-2.0；NIOSSL 的 [NOTICE](https://github.com/apple/swift-nio-ssl/blob/main/NOTICE.txt)另列 BoringSSL 及组件许可，正式复用须固定 commit、审阅 vendored license/notice 与传递依赖，不能只记 root 许可 |
 
 上述在线资料均在本页日期重开；未采用或复制上游产品实现，未新增移动端 runtime。Apple 文档为其版权资料，按[网站条款](https://www.apple.com/legal/internet-services/terms/site.html)引用链接和本项目摘要；不得套用 Munie 的开源许可证。未来源码复用先更新[引用清单](README.md)和固定版本许可快照。
 

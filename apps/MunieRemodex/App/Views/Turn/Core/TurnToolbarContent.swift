@@ -86,13 +86,30 @@ struct TurnToolbarContent: ToolbarContent {
     private var actionItems: some ToolbarContent {
         // Order: git actions sit closest to the title, the ellipsis thread-
         // actions menu trails after them.
+        combinedActionItemsWhenVisible
+        standaloneGitActionItem
+        standaloneThreadActionItem
+    }
+
+    @ToolbarContentBuilder
+    private var combinedActionItemsWhenVisible: some ToolbarContent {
         if showsGitActions, showsThreadActions {
             combinedActionItems
-        } else if showsGitActions {
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var standaloneGitActionItem: some ToolbarContent {
+        if showsGitActions, !showsThreadActions {
             ToolbarItem(placement: .topBarTrailing) {
                 gitActionsButton
             }
-        } else if showsThreadActions {
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var standaloneThreadActionItem: some ToolbarContent {
+        if showsThreadActions, !showsGitActions {
             ToolbarItem(placement: .topBarTrailing) {
                 threadActionsButton
             }

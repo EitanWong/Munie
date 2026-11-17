@@ -120,13 +120,27 @@ struct NativeCodexRuntimeTests {
     if location == "source" { try FileManager.default.removeItem(at: fixture.source) }
     #expect(mkfifo(fifo.path, 0o600) == 0)
     let result = Mutex<NativeRuntimeError?>(nil)
+    let ready = DispatchSemaphore(value: 0)
+    let begin = DispatchSemaphore(value: 0)
     let completed = DispatchSemaphore(value: 0)
-    DispatchQueue.global().async {
+    let worker = Thread {
+      defer { completed.signal() }
+      ready.signal()
+      guard begin.wait(timeout: .now() + .seconds(5)) == .success,
+        !Thread.current.isCancelled
+      else { return }
       do { try fixture.runtime.prepare(usingLocalLoginAt: fixture.source) } catch {
         result.withLock { $0 = error as? NativeRuntimeError }
       }
-      completed.signal()
     }
+    worker.start()
+    defer {
+      worker.cancel()
+      begin.signal()
+    }
+    // Startup scheduling is separate from the one-second nonblocking operation limit.
+    try #require(ready.wait(timeout: .now() + .seconds(5)) == .success)
+    begin.signal()
     let rejectedWithoutWriter = completed.wait(timeout: .now() + .seconds(1)) == .success
     if !rejectedWithoutWriter {
       let rescue = open(fifo.path, O_RDWR | O_NONBLOCK | O_CLOEXEC)

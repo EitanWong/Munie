@@ -27,16 +27,30 @@ struct ProductPersistenceTests {
     let fifo = state.appending(path: "history.json")
     #expect(mkfifo(fifo.path, 0o600) == 0)
     let outcome = Mutex<ProductHostError?>(nil)
+    let ready = DispatchSemaphore(value: 0)
+    let begin = DispatchSemaphore(value: 0)
     let finished = DispatchSemaphore(value: 0)
-    DispatchQueue.global().async {
+    let worker = Thread {
+      defer { finished.signal() }
+      ready.signal()
+      guard begin.wait(timeout: .now() + .seconds(5)) == .success,
+        !Thread.current.isCancelled
+      else { return }
       do {
         let store = try ProductPersistence(directory: state)
         _ = try store.load(hostID: UUID())
       } catch {
         outcome.withLock { $0 = error as? ProductHostError }
       }
-      finished.signal()
     }
+    worker.start()
+    defer {
+      worker.cancel()
+      begin.signal()
+    }
+    // Startup scheduling is separate from the one-second nonblocking operation limit.
+    try #require(ready.wait(timeout: .now() + .seconds(5)) == .success)
+    begin.signal()
     let completedWithoutWriter = finished.wait(timeout: .now() + .seconds(1)) == .success
     if !completedWithoutWriter {
       // A regression must fail promptly without leaving a blocked worker in the test process.

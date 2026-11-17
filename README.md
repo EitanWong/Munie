@@ -4,9 +4,18 @@ Your personal AI companion, close at hand.
 
 [GitHub](https://github.com/EitanWong/Munie) · [简体中文](README.zh-Hans.md) · [Documentation](docs/README.md) · [Project status](docs/project-status.md)
 
-Munie is a personal Agent assistant frontend: use voice and native device interactions on iPhone or Apple Watch to direct Codex running on your own Mac from anywhere, follow real work and receive results. Photos, video and a future voice/glasses assistant extend that direction; text remains an alternative. The backend architecture is open to multiple harnesses, with complete native Codex support as the first target. These are [product requirements](docs/requirements.md), not implemented capabilities.
+Munie is a native Apple Agent frontend. The first iPhone–Mac slice pairs explicitly, selects authorized projects, accepts text or short voice input, runs actual Codex on the Mac, shows progress/results, answers one-time command approvals, cancels and continues tasks. Reconnect reads authoritative state before any retry. System Shortcuts open input and notifications route to their task.
 
-The current foundation provides only local text capture with native Apple app targets and a reusable storage core. Remote Codex, voice, media, notifications and device synchronization are not implemented. Apple TV records use purgeable cache storage. Scope, engineering prerequisites and remaining validation are tracked in [foundation readiness](docs/foundation-readiness.md) and [project status](docs/project-status.md).
+Tailscale Serve on the Mac provides private HTTPS; Codex credentials stay on the Mac. This is a bounded subset for a pinned Codex version. Full native coverage, Watch remote tasks and media remain later goals. [Project status](docs/project-status.md) separates real-model, build, physical-device, cellular, voice and notification-delivery evidence. Other destinations retain local capture; Apple TV uses purgeable cache.
+
+## Connect iPhone and Mac
+
+1. Install and log in to Codex 0.162.1 on the Mac. Build/run the `MunieHost` Xcode scheme, start the service and explicitly authorize a project folder.
+2. Install and sign in to the same Tailscale network on both devices. Configure private Serve HTTPS on the Mac to `http://127.0.0.1:9274`, with no public Funnel. An optional setup script is described in [testing](docs/testing.md#product-private-network-setup).
+3. Enter the Mac's Tailscale HTTPS address and create a two-minute invitation. Scan or enter it in Munie on iPhone; compare both fingerprints, then confirm project access on the Mac.
+4. Select a project and submit text. Voice starts only after an explicit tap; edit or discard its transcript. Use text when on-device speech is unavailable. Keep the Mac awake and online.
+
+Approval applies only to its exact action; cancellation waits for the host's terminal confirmation. Revoke devices or delete terminal Munie history on the Mac; native Codex history is retained separately. Optional push requires an APNs-capable team and key; local alerts only reflect states already observed by the app.
 
 ## Start developing
 
@@ -32,12 +41,14 @@ Documentation uses topic names and indexes, with one authoritative source per to
 | `apps/Munie/` | Native multi-destination SwiftUI app, shared presentation and resources |
 | `apps/MunieWatch/` | Watch-specific interaction in a separate watchOS app target |
 | `apps/MunieTests/`, `apps/MunieUITests/` | App unit and iOS UI test targets |
+| `apps/MunieMacHost/`, `apps/MunieHost/` | Native Mac host UI, supervised execution, ledger and transport |
+| `packages/MunieRemote/` | Shared protocol, bounded transport and client recovery |
 | `packages/MunieCore/` | Reusable capture models, durable storage and core tests |
 | `docs/` | Product decisions, architecture, workflow, research and project status |
 | `references/` | Pinned third-party registry and ignored source checkouts |
 | `scripts/` | Reproducible local and CI automation |
 | `.github/` | CI/CD workflows and contribution templates |
-| `Package.swift` | Host-side tests for app presentation logic; not a shipping library |
+| `Package.swift` | Host modules, service/guardian executables and Mac tests |
 | `config/` | Signing configuration template; personal values stay ignored |
 | `project.yml` | Source of truth for the Xcode project |
 
@@ -49,4 +60,4 @@ Prefer native capabilities and mature, license-reviewed components. Extract reus
 
 ## Privacy and distribution
 
-The local capture foundation does not require a model account or a server. Stored text is sensitive user data; see [SECURITY](SECURITY.md). No product open-source license or distribution rights have been selected. Third-party projects retain their own licenses.
+Remote work needs the Mac’s local Codex account; independent local capture needs no model account. Stored text is sensitive user data; see [SECURITY](SECURITY.md). No product open-source license or distribution rights have been selected. Third-party projects retain their own licenses.

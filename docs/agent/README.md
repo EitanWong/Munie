@@ -19,7 +19,7 @@
 | 修复失败或回归 | [测试](../testing.md) | 失败命令、最小复现、相关测试及 `scripts/` |
 | 测量性能或调整预算 | [性能规范](../standards/performance.md) | `benchmark-core.sh` → Release 基准 → 原始样本/预算 |
 | 设计语音、快捷入口或远程任务 | [入口规范](../standards/entry-points.md)与[远程决策](../decisions/remote-agent-foundation.md) | 官方协议 / 固定源码 / 多模态研究，先验边界再实现 |
-| 实施配对、主机服务或多设备审批 | [信任与服务设计](../decisions/device-trust-and-host-service.md) | 当前研究边界 → 本地密钥/identity 原型 → 授权/迁移与实际服务验收 |
+| 实施配对、主机服务或多设备审批 | [信任与服务设计](../decisions/device-trust-and-host-service.md) | 当前 Tailscale HTTPS / bearer 产品边界 → 授权、撤销、实际服务与设备验收；identity 研究独立保留 |
 | 对接 Codex 或其他 harness | [Harness 规范](../standards/harness-integration.md) | 版本化能力清单 → 官方接口/许可 → adapter 与行为验收 |
 | 整理文档、清理和消除过时内容 | [维护规则](../maintenance.md) | 唯一来源表 → 索引/链接检查 → 实际代码与PR状态 |
 | 添加权限、SDK 或远程连接 | [安全边界](../../SECURITY.md)与 [隐私规则](../standards/apple-engineering.md#资源签名与隐私) | [引用登记](../../references/README.md)，再检查所属 app/adapter |

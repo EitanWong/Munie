@@ -4,9 +4,18 @@
 
 [English](README.md) · [文档](docs/README.md) · [项目状态](docs/project-status.md)
 
-Munie 是随身的个人 Agent 助理前台：通过 iPhone、Apple Watch 的语音和原生设备交互，随时随地操控自己 Mac 上的 Codex，查看真实工作进展并接收结果。照片、视频及未来语音/眼镜助理延伸这一方向，文字作为补充。后端面向多种 harness 开放，首先以 Codex 原生完整支持为目标。这是[产品需求](docs/requirements.md)，不是已实现能力。
+Munie 是原生 Apple Agent 前台。首个 iPhone–Mac 切片支持明确配对、选择授权项目、文字或短语音输入、让 Mac 上真实 Codex 执行、查看进展/结果、回答单次命令审批、取消和继续任务。重连先查询权威状态，不盲目重发。系统 Shortcuts 可打开输入，通知按任务路由。
 
-当前工程底座仅提供本地文字记录、原生 Apple 应用 target 和共享存储核心。远程 Codex、语音、媒体、通知与设备同步均未实现。Apple TV 使用可能被系统清理的缓存。范围、正式开发准入和剩余验证统一见[基础准入](docs/foundation-readiness.md)与[项目状态](docs/project-status.md)。
+Mac 上的 Tailscale Serve 提供私有 HTTPS；Codex 凭据留在 Mac。当前是固定 Codex 版本的受限子集，完整原生覆盖、Watch 远程任务和媒体仍属后续目标。真实模型、构建、设备、蜂窝、语音和通知送达分别记录于[项目状态](docs/project-status.md)，不能以编译或路由测试替代设备验收。其他平台保留本地记录基础，Apple TV 使用可清除缓存。
+
+## 连接 iPhone 与 Mac
+
+1. 在 Mac 安装并登录 Codex 0.162.1。用 Xcode 的 `MunieHost` scheme 构建/运行主机 app，启动服务并明确授权一个项目目录。
+2. 两端安装并登录同一 Tailscale 网络。在 Mac 配置私有 Serve HTTPS 到 `http://127.0.0.1:9274`，不启用公网 Funnel；可选脚本见[测试说明](docs/testing.md#product-private-network-setup)。
+3. Mac 输入自己的 Tailscale HTTPS 地址，创建两分钟邀请。iPhone 打开 Munie 扫描或手动输入邀请；在两端比对指纹，再由 Mac 确认项目权限。
+4. 选择项目后输入/提交。语音仅在主动点击后开始，转写可编辑或丢弃；系统不支持离线识别时使用文字。Mac 需清醒在线。
+
+审批只对确切动作有效；取消显示主机确认后的终态。可在 Mac 撤销设备或删除 Munie 的终态历史；原生 Codex 历史另行保留。推送是可选配置，需要支持 APNs 的团队及密钥；本地通知只反映 app 已观察的状态。
 
 ## 开始开发
 
@@ -32,12 +41,14 @@ open Munie.xcodeproj
 | `apps/Munie/` | 原生多平台 SwiftUI 应用、共享展示层和资源 |
 | `apps/MunieWatch/` | 独立 watchOS target 中的 Watch 专属交互 |
 | `apps/MunieTests/`、`apps/MunieUITests/` | 应用单元测试和 iOS UI 测试 target |
+| `apps/MunieMacHost/`、`apps/MunieHost/` | 原生 Mac 主机 UI、受监督执行、账本与传输 |
+| `packages/MunieRemote/` | 跨端协议、有界传输与客户端恢复逻辑 |
 | `packages/MunieCore/` | 可复用的记录模型、持久化和核心测试 |
 | `docs/` | 产品决策、架构、流程、调研和项目状态 |
 | `references/` | 固定版本的第三方索引与忽略提交的源码检出 |
 | `scripts/` | 可重复执行的本地与 CI 自动化 |
 | `.github/` | CI/CD 工作流与协作模板 |
-| `Package.swift` | 应用状态逻辑的 Mac 测试入口，不是发布库 |
+| `Package.swift` | 主机模块、服务/guardian 可执行文件及 Mac 测试入口 |
 | `config/` | 签名配置模板，个人值不入库 |
 | `project.yml` | Xcode 工程的唯一配置源 |
 
@@ -49,4 +60,4 @@ open Munie.xcodeproj
 
 ## 隐私与发行
 
-本地记录基础不要求模型账户或服务器。记录内容是敏感用户数据，处理原则见 [SECURITY](SECURITY.md)。项目尚未选择开源许可证或授予产品分发权；第三方项目保留各自许可证。
+远程任务需要 Mac 本地 Codex 账户；独立本地记录无需模型账户。记录内容是敏感用户数据，处理原则见 [SECURITY](SECURITY.md)。项目尚未选择开源许可证或授予产品分发权；第三方项目保留各自许可证。

@@ -11,11 +11,11 @@ Apple 使用 project、target、scheme、build configuration 和资源 membershi
 | Xcode 工程 | 根 `Munie.xcodeproj`；由根 `project.yml` 经 `scripts/bootstrap.sh` 生成。修改生成源，避免手改生成物 |
 | 多平台应用 | `apps/Munie/`；`App/` 负责生命周期与依赖组合，`Features/` 负责功能 UI，`Resources/` 负责 bundle 资源 |
 | watchOS | `apps/MunieWatch/`；独立 watch target，允许复用明确列入该 target 的共享 app 源码与 domain package |
-| 共享逻辑 | `packages/MunieCore/`；标准 `Package.swift`、`Sources/<Target>/`、`Tests/<TestTarget>/`，无 app UI 或设备 SDK |
+| 共享逻辑 | `packages/MunieCore/` 与 `packages/MunieRemote/`；标准 `Package.swift`、`Sources/<Target>/`、`Tests/<TestTarget>/`，无 app UI 或设备 SDK |
 | 应用测试 | `apps/MunieTests/`、`apps/MunieUITests/`；测试 target 与对应 app 分离 |
 | 配置与自动化 | `config/`、`scripts/`；签名个人配置、缓存与产物保持 ignored |
 
-`packages/` 是多个本地 Swift Package 的容器，不是 SwiftPM 自身的源码目录。实际 package root 是 `packages/MunieCore/`。不要为迎合目录外观添加空 package，或把 `.xcodeproj` 塞进已有 package。
+`packages/` 是多个本地 Swift Package 的容器，不是 SwiftPM 自身的源码目录。实际 package roots 是 `packages/MunieCore/` 与 `packages/MunieRemote/`。不要为迎合目录外观添加空 package，或把 `.xcodeproj` 塞进已有 package。
 
 一个 Xcode project 足够组织目前的 app、测试和本地包。只有出现多个需要统一管理的 project 或工具明确要求时才增加 `.xcworkspace`；文件数量不代表工程更标准。
 

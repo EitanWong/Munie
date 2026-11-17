@@ -7,24 +7,30 @@
 | Core unit/integration | Validation, Unicode/limits, persistence/reload, deletion, corrupt/versioned data, concurrency and failed writes |
 | Core smoke | Real temporary-file save → reopen → delete loop through the public API |
 | App tests | Presentation behavior with injected storage, including failures |
-| UI smoke | Capture → observe saved item → retrieve → delete on an iPhone simulator |
+| UI smoke | Capture lifecycle plus unpaired/connection UI; real remote UI flow is separately opt-in |
+| Remote package / host | Pairing/grants, bounded HTTP, request recovery, actual SQLite with fake native peers, approval/cancel races, result projection, guardian process cleanup |
 | Build/static | Swift formatting, repository/localization checks and generated native builds for all five Apple SDK families |
 
 Use tests to detect behavior regressions; avoid tests that merely repeat implementation or assert cosmetic trivia. Test data must be synthetic. Keep failed-write and corrupt-file evidence because data loss is a critical risk.
 
 ```sh
 swift test --package-path packages/MunieCore
-swift test # app presentation model on macOS
+swift test --package-path packages/MunieRemote
+swift test # host/product/presentation modules on macOS
 swift run --package-path packages/MunieCore MunieCoreSmoke
 ./scripts/check.sh
 ./scripts/test-ios.sh
 ```
 
-`check.sh` runs static/repository/localization checks, core and host presentation/execution tests with coverage, actionlint, the host submission crash experiment, the core smoke executable, Release core performance budgets, generic Debug builds for iOS/iPadOS, macOS, tvOS, visionOS and watchOS (including the iOS test bundles), and an unsigned generic iOS device Release build. Each platform has a separate `build/*-build.log`. Run `./scripts/build-apple-platforms.sh` to repeat only generation and builds. `test-ios.sh` runs app unit tests and UI smoke tests on the newest available iPhone runtime compatible with the selected Xcode SDK, with explicit per-test time limits (120s default, 180s maximum). Simulator boot has a 240-second limit; the CI simulator step has a 15-minute upper limit. Four fixture tests cover runtime/device selection. Use `IOS_TEST_DESTINATION` to select an explicit destination.
+`check.sh` runs static/repository/localization checks, core, remote and host product/transport/execution tests with coverage, actionlint, the host submission crash experiment, actual guardian process probe, the core smoke executable, Release core performance budgets, generic Debug builds for iOS/iPadOS, macOS capture, macOS host, tvOS, visionOS and watchOS (including the iOS test bundles), and an unsigned generic iOS device Release build. Each platform has a separate `build/*-build.log`. Run `./scripts/build-apple-platforms.sh` to repeat only generation and builds. `test-ios.sh` runs app unit tests and UI smoke tests on the newest available iPhone runtime compatible with the selected Xcode SDK, with explicit per-test time limits (120s default, 180s maximum). Simulator boot has a 240-second limit; the CI simulator step has a 15-minute upper limit. Four fixture tests cover runtime/device selection. Use `IOS_TEST_DESTINATION` to select an explicit destination.
 
 Do not report a build as a UI test, or a simulator run as hardware validation. The integrator records actual outcomes in [project status](project-status.md), with tool versions and environment limits. Hosted workflows need an observed run after a GitHub remote is connected.
 
 Repository checks inspect the generated Xcode graph (including the iPhone/iPad device family and separate watchOS target), the actual SwiftPM manifests and standard package source roots, localization and maintained documentation links. Fixture tests reject dropped platforms, missing source trees, invalid Watch embedding and hidden Release build failures. Documentation checks require topic filenames and index reachability, excluding code examples; semantic freshness still needs review. See [maintenance](maintenance.md).
+
+## Available-device entry
+
+Run `python3 scripts/test-available-ios.py --dry-run` to report the current choice, or omit `--dry-run` to execute bounded tests. Set a real signing team in ignored `config/Signing.xcconfig` or `MUNIE_DEVELOPMENT_TEAM` before physical testing. The wrapper prefers a reachable usable iPhone; otherwise it invokes existing simulator tests. Physical build/signing/test failures stay failures. Reports and original logs remain in ignored `build/`; no model task, microphone capture, app deletion or phone-setting change is triggered. The owner’s scheduled device checks use this same entry and skip revisions already verified under the same conditions.
 
 ## Device acceptance before beta
 
@@ -32,13 +38,66 @@ Run the same capture/save/relaunch/retrieve/delete loop on iPhone and iPad in En
 
 Apply the [Apple platform acceptance matrix](standards/platform-acceptance.md) to Mac, Watch, TV and Vision Pro as well. Native compilation is an engineering gate; focus/remote input, small-screen navigation, spatial input, accessibility, persistence limits, native artwork and signed distribution require their own evidence. tvOS uses purgeable cache, and no platform currently synchronizes records.
 
-For future voice/remote work, extend only the relevant matrix: permissions revoked, locked/cold start, calls/audio interruptions, offline drafts, Wi-Fi↔cellular change, duplicate retry, cancellation, credentials revoked and host unavailable. Record literal inputs, state transitions and actual results. Same-LAN success does not establish outside-LAN operation.
+For the iPhone–Mac slice, apply the relevant matrix: permissions revoked, locked/cold start, calls/audio interruptions, offline drafts, Wi-Fi↔cellular change, duplicate retry, cancellation, credentials revoked and host unavailable. Record literal inputs, state transitions and actual results. Same-LAN success does not establish outside-LAN operation.
 
 No hardware, user-study, remote-task or distribution result is implied by the repository scaffold.
 
 ## Performance evidence
 
 Run `./scripts/benchmark-core.sh` independently for the optimized synthetic store workload. Raw samples, provenance and budgets are defined only in the [performance standard](standards/performance.md). CI retains `build/core-performance*.json` and build logs; host measurements do not establish app search, real-device, voice or remote latency. Ordinary builds include `build/ios-release-build.log`; signing and distribution are still separate.
+
+## Product private network setup
+
+Use a separately installed Tailscale CLI/client and the same private tailnet on Mac and iPhone. The following optional owner-invoked setup creates only the per-user userspace daemon LaunchAgent; it does not enable Funnel, change system DNS/routes, log in on the owner's behalf, or prove cellular reachability:
+
+```sh
+./scripts/setup-private-network.sh
+MUNIE_NETWORK_SOCKET="$HOME/Library/Application Support/MunieNetwork/tailscaled.sock"
+tailscale --socket="$MUNIE_NETWORK_SOCKET" up --hostname=munie-host
+tailscale --socket="$MUNIE_NETWORK_SOCKET" serve --bg http://127.0.0.1:9274
+tailscale --socket="$MUNIE_NETWORK_SOCKET" status
+```
+
+Complete account/HTTPS enablement in Tailscale's owner flow. Use the actual HTTPS origin in MunieHost. The daemon must remain on the same Mac because it is the trusted TLS terminator. The app listener stays IPv4 loopback-only and independently requires a device bearer plus project grant. Stop the optional daemon with `launchctl bootout "gui/$(id -u)/app.munie.private-network"`; inspect existing configuration before changing it. Keep the Mac awake/online. These commands are configuration, not a cellular acceptance result.
+
+## Opt-in actual Codex product acceptance
+
+This is separately authorized account usage; default CI never runs it. The runner creates a disposable Git project/private Codex home, imports only the Mac's local login, and accepts only its exact marker commands in that project. It preserves failed reports, records binary/source hashes, and removes its temporary account. The synthetic project/ledger remain in its private evidence directory for diagnosis. It is not authorization to use a personal project or broaden a command approval.
+
+```sh
+swift build --product MunieHostService
+swift build --product MunieCodexGuardian
+CODEX_NATIVE=/absolute/path/to/native/codex
+python3 scripts/accept-remote-product.py --allow-real-model \
+  --service "$PWD/.build/debug/MunieHostService" \
+  --guardian "$PWD/.build/debug/MunieCodexGuardian" --codex "$CODEX_NATIVE" \
+  --output "$PWD/build/remote-product-real.json"
+```
+
+Seven checks cover explicit grant, real text and exact retry, reconnect/continuation in the same native thread, exact one-time command approval, running-shell cancellation with no late marker, native cleanup and new-service known-ID recovery with no resubmit. The loopback runner does not establish phone UI, microphone, cellular or push delivery. Ordinary fixture tests cover the runner's strict shell-body matching and explicit opt-in gate. The [versioned product coverage](../references/codex-product-coverage.json) distinguishes this subset from complete native support.
+
+### Physical iPhone HTTPS and process recovery
+
+Build signed app-hosted tests for the explicit connected phone first, using the owner's existing signing team in ignored configuration. This runner uses only `MunieTests` inside the app, avoiding a second UI runner provisioning slot. It clones format-1 xctestrun files beside the original Products file, removes UI dependencies, passes private invitation inputs and deletes the clones afterward. It preserves an existing different app pairing and never removes user apps. A local Mac fixture confirms only the exact UUID/fingerprint emitted by that trusted device test.
+
+```sh
+python3 scripts/accept-iphone-product.py --allow-real-model \
+  --service "$PWD/.build/debug/MunieHostService" \
+  --guardian "$PWD/.build/debug/MunieCodexGuardian" --codex "$CODEX_NATIVE" \
+  --xctestrun /absolute/path/to/signed/Products/Munie_iphoneos-SDK-arm64.xctestrun \
+  --device DEVICE --endpoint https://HOST \
+  --output "$PWD/build/iphone-product-real.json"
+```
+
+The first real-device invocation pairs, saves its device-only Keychain credential, submits one actual text task via URLSession HTTPS and verifies exact assistant text. A separate invocation must have a different app PID and recover the same authoritative completed task with exactly one ledger request and no submit. Its exact fixture credential is removed on success unless `--keep-fixture-pairing` was explicitly chosen. On a failed run it may remain and can be forgotten explicitly in the app; the dead temporary host cannot become a live project grant. Private reports/logs/xcresults stay ignored. This is native app-hosted execution, **not** UI touch, real microphone, cellular or notification-delivery evidence.
+
+For actual pairing/text/relaunch UI interaction, `RemoteFlowTests` has an opt-in invitation-based test. Approval/cancel touch flows still need separate device interaction evidence. Default CI skips real model inputs. Free development signing may need separate slots for the app and UI runner; preserve the original Apple install failure and ask the owner to free a slot rather than delete an app. Default UI smoke needs no real account.
+
+### Notification and short voice acceptance
+
+Offline tests use fake permissions/engines and synthetic ES256 keys/payloads; they never record audio or call Apple push endpoints. For real voice, explicitly tap Start, speak a short request, Stop, correct/discard, submit and interrupt/background the recording; exercise permission denial and text fallback. Record actual locale, device/OS, route and interruption, separately from compilation.
+
+Local notifications require granted permission and an observed state. Background delivery additionally requires paid APNs signing, valid device registration and an optional owner-only `APNs.json` in the host state directory. Configuration fields are `teamID`, `keyID`, `topic`, `privateKeyPEM`, `sandbox`; no example private key is committed. Keep it a regular owner file with mode 0600/0400. Use Apple sandbox vs production consistently with the app entitlement. Without those credentials the sender stays disabled; no delivery claim follows from routing/JWT tests. Confirm generic completion/failure/approval alerts, dedupe and cold-launch return to the original authoritative task under permission/Focus/offline conditions.
 
 ## Opt-in local Codex protocol experiment
 
@@ -82,7 +141,7 @@ swift test --filter MunieExecutionHostTests
 ./scripts/check-submissions.sh
 ```
 
-The root SwiftPM harness tests a Mac-only execution module; the shipping Xcode apps still use only MunieCore. Actual system SQLite tests cover authorization, permanent device revocation, immutable request identity, thread/project ownership, single/concurrent dispatch claims, positive upstream state evidence, path/symlink/inode changes, unknown schema/host, storage capacity failures, transaction rollback, private files and lifetime locks across processes. Fixtures use temporary canonical directories; no personal project, account or Codex is accessed.
+The root SwiftPM harness tests Mac execution, product and transport modules also consumed by the native Mac host; the iOS product consumes MunieRemote and preserves MunieCore capture on other destinations. Actual system SQLite tests cover authorization, permanent device revocation, immutable request identity, thread/project ownership, single/concurrent dispatch claims, positive upstream state evidence, path/symlink/inode changes, unknown schema/host, storage capacity failures, transaction rollback, private files and lifetime locks across processes. Fixtures use temporary canonical directories; no personal project, account or Codex is accessed.
 
 `check-submissions.sh` builds `MunieSubmissionProbe` in Release and drives six actual process/terminal windows. Five SIGKILL cases stop at explicit pipe barriers with the owner lock still held: uncommitted dispatch update, accepted commit, dispatching commit, synthetic upstream effect and upstream mapping. A completed request supplies the terminal case. Each restarts the same store and retries twice. Only an unclaimed accepted request executes; uncertain requests remain reconciling and never automatically repeat an effect. A separate positive synthetic upstream record can reconcile already-executed cases without another effect. Every store open checks SQLite `quick_check(1)`; side-effect counts use append records, not a file-presence/touch test.
 

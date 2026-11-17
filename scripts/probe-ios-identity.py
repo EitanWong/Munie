@@ -3,6 +3,8 @@
 
 The app alone handles its run-scoped Keychain items. This runner reads only its
 fixed, bounded report file, never its private ownership manifest or references.
+Optional --fault-case runs a separate expected creation failure and cleanup probe;
+it never treats an ordinary lifecycle failure as successful recovery evidence.
 No simulator, account, Keychain or network operation occurs on import.
 """
 
@@ -26,12 +28,15 @@ import uuid
 BUNDLE = 'app.munie.research.identity'
 MINIMUM = '18.0'
 PHASES = ('create', 'reopen', 'delete', 'confirm-deleted')
+FAULT_CASES = ('after-key-add', 'after-certificate-add')
 REPORT_PARTS = ('Library', 'Application Support', 'MunieIdentityResearch', 'report.json')
 TOTAL_SECONDS = 600
 CLEANUP_RESERVE = 90
 BOOT_SECONDS = 240
 PHASE_SECONDS = 30
 COMMAND_SECONDS = 15
+INSTALL_SECONDS = 120
+INVENTORY_SECONDS = 30
 MAX_STREAM = 262_144
 MAX_DIAGNOSTIC = 8192
 MAX_PHASE_REPORT = 16_384
@@ -75,6 +80,10 @@ def new_uuid():
     return str(uuid.uuid4()).upper()
 
 
+def fault_expectation(fault_case):
+    return {'faultCase': fault_case, 'requiredFailure': 'injected-' + fault_case, 'confirmed': False}
+
+
 def canonical_uuid(value):
     require(type(value) is str and re.fullmatch(
         r'[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}', value), 'invalid-uuid')
@@ -114,10 +123,13 @@ def compatible_device(device, runtime):
             type(device.get('name')) is str and device['name'].startswith('iPhone')):
         return False
     supported = runtime.get('supportedDeviceTypes')
+    listed = False
     if type(supported) is list:
         identifiers = [item.get('identifier') if type(item) is dict else item for item in supported]
         if identifiers:
-            return device['identifier'] in identifiers
+            if device['identifier'] not in identifiers:
+                return False
+            listed = True
     packed = sum(part << shift for part, shift in zip(version(runtime['version']), (16, 8, 0)))
     lower, upper = device.get('minRuntimeVersion'), device.get('maxRuntimeVersion')
     if type(lower) is int and type(upper) is int:
@@ -125,7 +137,7 @@ def compatible_device(device, runtime):
     lower, upper = device.get('minRuntimeVersionString'), device.get('maxRuntimeVersionString')
     if type(lower) is str and type(upper) is str:
         return version(lower) <= version(runtime['version']) <= version(upper)
-    return False  # Do not guess a device/runtime compatibility pair.
+    return listed  # A supported type list is evidence when bounds are absent.
 
 
 def select_runtime(runtimes, device_types, sdk, minimum=MINIMUM):
@@ -141,13 +153,20 @@ def select_runtime(runtimes, device_types, sdk, minimum=MINIMUM):
         runtime_version = version(runtime.get('version'))
         if not version(minimum) <= runtime_version <= version(sdk):
             continue
-        for device in device_types['devicetypes']:
+        for index, device in enumerate(device_types['devicetypes']):
             if compatible_device(device, runtime):
-                candidates.append((runtime_version, device['name'], runtime, device))
+                device_minimum = device.get('minRuntimeVersion')
+                generation = device_minimum if type(device_minimum) is int and device_minimum >= 0 else 0
+                # Device names sort SE ahead of current numbered iPhones. Prefer
+                # the newest supported profile metadata, then the SDK's order.
+                candidates.append((runtime_version, generation, -index, runtime, device))
     require(candidates, 'no-compatible-available-iphone-runtime')
-    _, _, runtime, device = max(candidates, key=lambda item: (item[0], item[1]))
+    _, _, _, runtime, device = max(candidates, key=lambda item: item[:3])
+    bounds = {key: device[key] for key in ('minRuntimeVersion', 'maxRuntimeVersion',
+              'minRuntimeVersionString', 'maxRuntimeVersionString') if key in device}
     return {'runtimeID': runtime['identifier'], 'runtimeVersion': runtime['version'],
-            'deviceTypeID': device['identifier'], 'deviceTypeName': device['name']}
+            'deviceTypeID': device['identifier'], 'deviceTypeName': device['name'],
+            'compatibilityBounds': bounds}
 
 
 def group_gone(process_id):
@@ -175,8 +194,10 @@ class CommandRunner:
     def run(self, stage, command, deadline, seconds=COMMAND_SECONDS, *, allowed=(0,), private=False):
         remaining = min(seconds, deadline - time.monotonic())
         require(remaining > 0, 'command-budget-exhausted')
+        started = time.monotonic()
         end = time.monotonic() + remaining
-        record = {'stage': stage, 'argv': [str(item) for item in command]}
+        record = {'stage': stage, 'argv': [str(item) for item in command],
+                  'effectiveLimitSeconds': remaining}
         self.records.append(record)
         process = selector = None
         output = {'stdout': bytearray(), 'stderr': bytearray()}
@@ -262,6 +283,7 @@ class CommandRunner:
                     record[name + 'Truncated'] = totals[name] > MAX_DIAGNOSTIC
             if failure is not None:
                 record['failure'] = failure_code(failure)
+            record['elapsedSeconds'] = round(time.monotonic() - started, 6)
         if failure is not None:
             raise failure
         return bytes(output['stdout']), bytes(output['stderr']), process.returncode
@@ -390,8 +412,10 @@ def source_snapshot(repo):
 
 
 class Experiment:
-    def __init__(self, app, report, runner, run_id=None):
+    def __init__(self, app, report, runner, run_id=None, *, fault_case=None):
+        require(fault_case is None or fault_case in FAULT_CASES, 'unknown-fault-case')
         self.app, self.report, self.runner = app, report, runner
+        self.fault_case = fault_case
         self.run_id = new_uuid() if run_id is None else canonical_uuid(run_id)
         self.name = 'MunieIdentityResearch-' + self.run_id
         self.simulator = None
@@ -404,6 +428,9 @@ class Experiment:
         self.work_end = self.end - CLEANUP_RESERVE
         self.history = []
         self.report.update(runID=self.run_id, phases=[], cleanup={'errors': []})
+        if fault_case is not None:
+            self.report.update(experiment='expected-creation-failure-recovery',
+                               expectedCreationFailure=fault_expectation(fault_case))
 
     def command(self, stage, *arguments, deadline=None, seconds=COMMAND_SECONDS, allowed=(0,), private=False):
         return self.runner.run(stage, list(arguments), self.work_end if deadline is None else deadline,
@@ -411,7 +438,7 @@ class Experiment:
 
     def inventory(self, deadline):
         raw, _, _ = self.command('own-simulator-inventory', 'xcrun', 'simctl', 'list', 'devices', '--json',
-                                  deadline=deadline, private=True)
+                                  deadline=deadline, seconds=INVENTORY_SECONDS, private=True)
         value = strict_json(raw)
         require(type(value.get('devices')) is dict and
                 all(type(items) is list for items in value['devices'].values()), 'device-inventory-schema')
@@ -468,8 +495,11 @@ class Experiment:
             require(path.is_file(), 'phase-report-not-file')
             path.unlink()
         nonce = new_uuid()
-        raw, _, _ = self.command('app-launch-' + name, 'xcrun', 'simctl', 'launch', self.simulator,
-                                  BUNDLE, '--run-id', self.run_id, '--phase', name, '--nonce', nonce,
+        arguments = ['xcrun', 'simctl', 'launch', self.simulator, BUNDLE,
+                     '--run-id', self.run_id, '--phase', name, '--nonce', nonce]
+        if name == 'create' and self.fault_case is not None:
+            arguments.extend(['--fault', self.fault_case])
+        raw, _, _ = self.command('app-launch-' + name, *arguments,
                                   deadline=deadline, seconds=10)
         match = re.fullmatch(re.escape(BUNDLE) + r': ([1-9][0-9]*)\s*', raw.decode('ascii'))
         require(match is not None, 'app-launch-pid-missing')
@@ -486,7 +516,15 @@ class Experiment:
             result = validate_phase(frame, self.run_id, name, nonce, self.history, process_id)
             self.history.append(result)
             self.report['phases'].append(result)
-            require(result['passed'], 'app-phase-failed-' + name)
+            if name == 'create' and self.fault_case is not None:
+                expected = self.report['expectedCreationFailure']
+                expected['observed'] = result
+                expected['confirmed'] = (result['passed'] is False and result['checks'] == {} and
+                                         result.get('failure') == expected['requiredFailure'] and
+                                         'osStatus' not in result)
+                require(expected['confirmed'], 'expected-creation-failure-not-observed')
+            else:
+                require(result['passed'], 'app-phase-failed-' + name)
             return result
 
     def execute(self):
@@ -514,9 +552,13 @@ class Experiment:
             self.command('simulator-boot', 'xcrun', 'simctl', 'boot', self.simulator)
             self.command('simulator-boot-ready', 'xcrun', 'simctl', 'bootstatus', self.simulator, '-b',
                            seconds=BOOT_SECONDS)
+            booted = self.find_owned(self.inventory(self.work_end))
+            require(booted is not None and booted.get('state') == 'Booted',
+                    'booted-simulator-not-ready')
             self.install_attempted = True
-            self.command('app-install-once', 'xcrun', 'simctl', 'install', self.simulator, str(self.app), seconds=60)
-            for name in PHASES:
+            self.command('app-install-once', 'xcrun', 'simctl', 'install', self.simulator, str(self.app),
+                         seconds=INSTALL_SECONDS)
+            for name in (('create',) if self.fault_case is not None else PHASES):
                 self.phase(name)
         except BaseException as error:
             failure = error
@@ -568,8 +610,12 @@ class Experiment:
                 self.report['cleanup'].get('keychainCleanupConfirmed') is True and
                 self.report['cleanup'].get('createdSimulatorAbsent') is True,
                 'experiment-cleanup-failed')
-        require([item['phase'] for item in self.history] == list(PHASES) + ['cleanup'],
+        phases = ['create', 'cleanup'] if self.fault_case is not None else list(PHASES) + ['cleanup']
+        require([item['phase'] for item in self.history] == phases,
                 'phase-sequence-incomplete')
+        if self.fault_case is not None:
+            require(self.report['expectedCreationFailure']['confirmed'] is True,
+                    'expected-creation-failure-not-observed')
 
 
 def save_report(path, report):
@@ -586,20 +632,27 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--app', type=Path, required=True)
     parser.add_argument('--report', type=Path, required=True)
+    parser.add_argument('--fault-case', choices=FAULT_CASES,
+                        help='Run a separate expected creation failure and cleanup experiment.')
     args = parser.parse_args()
     destination = args.report.expanduser().absolute()
     if destination.exists() or destination.is_symlink() or not destination.parent.is_dir():
         print(json.dumps({'passed': False, 'failure': 'report-path-not-fresh'}))
         return 2
-    report = {'schemaVersion': 1, 'experiment': 'isolated-ios-simulator-identity-lifecycle',
+    experiment_name = ('expected-creation-failure-recovery' if args.fault_case is not None
+                       else 'isolated-ios-simulator-identity-lifecycle')
+    report = {'schemaVersion': 1, 'experiment': experiment_name,
               'passed': False, 'utcStarted': datetime.now(timezone.utc).isoformat(), 'commands': [],
               'limits': {'totalSeconds': TOTAL_SECONDS, 'cleanupReserveSeconds': CLEANUP_RESERVE,
                          'bootSeconds': BOOT_SECONDS, 'phaseSeconds': PHASE_SECONDS,
                          'commandSeconds': COMMAND_SECONDS, 'commandStreamBytes': MAX_STREAM,
+                         'installSeconds': INSTALL_SECONDS, 'inventorySeconds': INVENTORY_SECONDS,
                          'phaseReportBytes': MAX_PHASE_REPORT},
               'scopeLimits': ['ios-simulator-only', 'no-device-lock-screen-or-Secure-Enclave-evidence',
                               'no-WAN-model-account-or-mobile-mTLS', 'no-private-state-or-reference-export',
                               'app-item-deletion-and-simulator-deletion-are-separate-gates']}
+    if args.fault_case is not None:
+        report['expectedCreationFailure'] = fault_expectation(args.fault_case)
     old_mask = os.umask(0o077)
     previous_sigterm = signal.getsignal(signal.SIGTERM)
 
@@ -612,7 +665,7 @@ def main():
         report['app'] = dict(hash_app(app), path=str(app))
         report['sourceSnapshot'] = source_snapshot(Path(__file__).resolve().parents[1])
         runner = CommandRunner(report['commands'])
-        Experiment(app, report, runner).execute()
+        Experiment(app, report, runner, fault_case=args.fault_case).execute()
         report['passed'] = True
     except BaseException as error:
         report['failure'] = failure_code(error)

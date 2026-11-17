@@ -39,7 +39,7 @@ jobs:
   identity-lifecycle:
     name: Isolated iOS identity lifecycle
     runs-on: macos-26
-    timeout-minutes: 25
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build isolated research app with reviewed dependencies
@@ -49,13 +49,23 @@ jobs:
           python3 scripts/probe-ios-identity.py \
             --app build/identity-ios/DerivedData/Build/Products/Release-iphonesimulator/MunieIdentityResearch.app \
             --report build/ios-identity-probe.json
+      - name: Recover an owned key before its persistent reference is journaled
+        run: |
+          python3 scripts/probe-ios-identity.py \
+            --app build/identity-ios/DerivedData/Build/Products/Release-iphonesimulator/MunieIdentityResearch.app \
+            --fault-case after-key-add --report build/ios-identity-after-key-add.json
+      - name: Recover an owned certificate before its persistent reference is journaled
+        run: |
+          python3 scripts/probe-ios-identity.py \
+            --app build/identity-ios/DerivedData/Build/Products/Release-iphonesimulator/MunieIdentityResearch.app \
+            --fault-case after-certificate-add --report build/ios-identity-after-certificate-add.json
       - name: Upload isolated identity evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ios-identity-evidence
           path: |
-            build/ios-identity-probe.json
+            build/ios-identity-*.json
             build/identity-ios/build.log
             build/identity-ios/ownership-checks.log
             build/identity-ios/MunieIdentityResearch.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved

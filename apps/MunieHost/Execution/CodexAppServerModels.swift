@@ -152,7 +152,14 @@ public protocol CodexExecutionAdapter: Sendable {
   func interrupt(_ upstream: UpstreamTurn) async throws
   /// nil is an explicitly missing history entry, never evidence of completion.
   func read(_ upstream: UpstreamTurn) async throws -> CodexTurnSnapshot?
+  /// Curated final assistant text only; never a raw native history payload.
+  func readResult(_ upstream: UpstreamTurn) async throws -> String?
   func respondApproval(_ approval: CodexCommandApproval, decision: CodexApprovalDecision)
     async throws
   func close() async throws -> CodexTransportCleanup
+}
+
+extension CodexExecutionAdapter {
+  /// Other adapters must explicitly implement persisted result recovery before advertising it.
+  public func readResult(_ upstream: UpstreamTurn) async throws -> String? { nil }
 }

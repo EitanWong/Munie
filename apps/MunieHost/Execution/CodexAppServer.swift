@@ -1,3 +1,4 @@
+import CryptoKit
 import Darwin
 import Foundation
 
@@ -145,6 +146,7 @@ public actor CodexAppServer: CodexExecutionAdapter {
     guard !consumingEvent, !starting else { throw CodexClientError.busy }
     consumingEvent = true
     defer { consumingEvent = false }
+    var diagnosticMethod: String?
     do {
       let frame: CodexJSON
       if !frames.isEmpty {
@@ -160,8 +162,16 @@ public actor CodexAppServer: CodexExecutionAdapter {
           Task { await self.cancelEventWaiter() }
         }
       }
+      diagnosticMethod = frame.object?["method"]?.string
       return try parseEvent(frame)
     } catch {
+      #if DEBUG
+        if let method = diagnosticMethod {
+          let digest = SHA256.hash(data: Data(method.utf8)).map { String(format: "%02x", $0) }
+            .joined()
+          FileHandle.standardError.write(Data("Munie rejected event SHA256: \(digest)\n".utf8))
+        }
+      #endif
       let safe = safeError(error)
       fail(safe)
       throw safe
@@ -183,6 +193,33 @@ public actor CodexAppServer: CodexExecutionAdapter {
   }
 
   public func read(_ upstream: UpstreamTurn) async throws -> CodexTurnSnapshot? {
+    guard let turn = try await readNativeTurn(upstream),
+      let statusText = turn.object?["status"]?.string,
+      let status = CodexTurnStatus(rawValue: statusText)
+    else { return nil }
+    return CodexTurnSnapshot(upstream: upstream, status: status)
+  }
+
+  public func readResult(_ upstream: UpstreamTurn) async throws -> String? {
+    guard let turn = try await readNativeTurn(upstream), let items = turn.object?["items"]?.array
+    else {
+      return nil
+    }
+    var messages: [String] = []
+    var bytes = 0
+    for value in items {
+      guard let item = value.object else { throw CodexClientError.malformedFrame }
+      if item["type"]?.string == "agentMessage" {
+        guard let text = item["text"]?.string else { throw CodexClientError.malformedFrame }
+        bytes += text.utf8.count + (messages.isEmpty ? 0 : 2)
+        guard bytes <= 262_144 else { throw CodexClientError.eventLimit }
+        messages.append(text)
+      }
+    }
+    return messages.isEmpty ? nil : messages.joined(separator: "\n\n")
+  }
+
+  private func readNativeTurn(_ upstream: UpstreamTurn) async throws -> CodexJSON? {
     try checkInitialized()
     let result = try await rpc(
       "thread/read",
@@ -203,16 +240,16 @@ public actor CodexAppServer: CodexExecutionAdapter {
       guard let turns = page["data"]?.array, turns.count <= 100 else {
         throw CodexClientError.malformedFrame
       }
-      var found: CodexTurnSnapshot?
+      var found: CodexJSON?
       var pageIDs: Set<UUID> = []
       for value in turns {
         let turn = try object(value)
         let id = try uuid(turn["id"])
         guard pageIDs.insert(id).inserted,
           let statusString = turn["status"]?.string,
-          let status = CodexTurnStatus(rawValue: statusString)
+          CodexTurnStatus(rawValue: statusString) != nil
         else { throw CodexClientError.malformedFrame }
-        if id == upstream.turnID { found = CodexTurnSnapshot(upstream: upstream, status: status) }
+        if id == upstream.turnID { found = value }
       }
       if let found {
         knownTurns.insert(UpstreamTurnKey(upstream))
@@ -316,6 +353,13 @@ public actor CodexAppServer: CodexExecutionAdapter {
           throw CodexClientError.responseMismatch
         }
       } else if !Self.notifications.contains(method) {
+        #if DEBUG
+          // A method digest diagnoses fixed-schema drift without retaining native payload or names.
+          let digest = SHA256.hash(data: Data(method.utf8)).map { String(format: "%02x", $0) }
+            .joined()
+          FileHandle.standardError.write(
+            Data("Munie unsupported notification SHA256: \(digest)\n".utf8))
+        #endif
         throw CodexClientError.unsupportedMethod
       }
       let params = try object(value["params"]!)
@@ -370,6 +414,7 @@ public actor CodexAppServer: CodexExecutionAdapter {
       throw CodexClientError.malformedFrame
     }
     let params = try object(payload)
+    var projectedPayload = payload
     var threadID: UUID?
     var turnID: UUID?
     var itemID = params["itemId"]?.string
@@ -379,6 +424,41 @@ public actor CodexAppServer: CodexExecutionAdapter {
         throw CodexClientError.permissionMismatch
       }
       // Host identity fields remain host-only payload and must not reach diagnostics.
+    } else if method == "account/updated" {
+      // These optional schema fields are lifecycle metadata, never an authentication action.
+      // Their values are deliberately neither retained in the event nor forwarded to mobile.
+      guard nullableString(params["authMode"]), nullableString(params["planType"]) else {
+        throw CodexClientError.malformedFrame
+      }
+      itemID = nil
+      projectedPayload = .object([:])
+    } else if method == "mcpServer/startupStatus/updated" {
+      guard params["name"]?.string != nil, let status = params["status"]?.string,
+        ["starting", "ready", "failed", "cancelled"].contains(status),
+        nullableString(params["error"]),
+        params["failureReason"] == nil || params["failureReason"] == .null
+          || params["failureReason"] == .string("reauthenticationRequired")
+      else { throw CodexClientError.malformedFrame }
+      if let target = params["threadId"], target != .null {
+        let id = try uuid(target)
+        guard knownThreads.contains(id) else { throw CodexClientError.identityMismatch }
+        threadID = id
+      }
+      itemID = nil
+      // MCP names and startup errors may contain host paths or authentication context.
+      projectedPayload = .object(["status": .string(status)])
+    } else if method == "thread/tokenUsage/updated" {
+      // Resume can report usage for a previous turn. It is a thread snapshot, never evidence
+      // that the current turn started/completed, and must not acquire its request identity.
+      let id = try uuid(params["threadId"])
+      _ = try uuid(params["turnId"])
+      guard knownThreads.contains(id), params["tokenUsage"]?.object != nil else {
+        throw CodexClientError.identityMismatch
+      }
+      threadID = id
+      turnID = nil
+      itemID = nil
+      projectedPayload = .object([:])
     } else if method != "account/rateLimits/updated" {
       if method == "thread/started" {
         let thread = try object(try required(payload, "thread"))
@@ -465,7 +545,11 @@ public actor CodexAppServer: CodexExecutionAdapter {
     }
     return CodexNativeEvent(
       method: method, requestID: requestID, threadID: threadID, turnID: turnID, itemID: itemID,
-      kind: kind, payload: payload)
+      kind: kind, payload: projectedPayload)
+  }
+
+  private func nullableString(_ value: CodexJSON?) -> Bool {
+    value == nil || value == .null || value?.string != nil
   }
 
   private func validateThread(_ result: CodexJSON, expected: UUID?, verifyPermissions: Bool) throws
@@ -489,7 +573,8 @@ public actor CodexAppServer: CodexExecutionAdapter {
   }
 
   private static let notifications: Set<String> = [
-    "remoteControl/status/changed", "thread/started", "thread/status/changed", "warning",
+    "remoteControl/status/changed", "account/updated", "mcpServer/startupStatus/updated",
+    "thread/started", "thread/status/changed", "warning",
     "turn/started", "turn/completed", "item/started", "item/completed",
     "thread/tokenUsage/updated", "account/rateLimits/updated", "item/commandExecution/outputDelta",
     "item/agentMessage/delta", "serverRequest/resolved", "thread/goal/cleared",

@@ -166,6 +166,23 @@ Acceptance requires all nine named cases: valid, repeat-valid, same-CA unknown, 
 
 All nine sessions must invalidate, driver streams must reach EOF with exit 0 and no stderr, its process group must disappear, both listeners/workers/active sockets must close, and all temporary CSR/certificate/issuer/server files must be removed. Per-command, frame, stream, connection and total-time bounds are recorded in the private report with runner/binary hashes and Python/TLS provenance. Failed attempts retain distinct reports and still run cleanup. Synthetic CA/server private keys are temporary files; only the device key stays in memory. Audited `keychainUsed: false` and `privateKeyExported: false` source constraints are not dynamic Keychain/memory-forensics evidence, reliable memory erasure, Secure Enclave or persistence. No product enrollment, Codex, real account, WAN, mobile runtime or device acceptance runs here. API and fixed dependency/license sources live in [network research](../references/authenticated-network-research.md#设备本地密钥续期与每用户-host-服务的可行性依据).
 
+## Isolated iOS persistent identity lifecycle
+
+The independent `MunieIdentityResearch` app is built only by the research job; it is not part of the shipping app or root package graph. It uses the same reviewed three dependency revisions and license archive as the Mac fixture, with its own committed lock. The build helper runs 15 Foundation-only ownership/protocol checks without Security calls, checks both the source lock and Xcode's effective lock, and disables automatic package resolution. Unclaimed collision/failed-add entries cannot become cleanup claims; armed entries require the pre-recorded public-key or certificate hash before exact recovery.
+
+```sh
+./scripts/build-ios-identity-probe.sh
+python3 scripts/probe-ios-identity.py \
+  --app build/identity-ios/DerivedData/Build/Products/Release-iphonesimulator/MunieIdentityResearch.app \
+  --report build/ios-identity-probe.json
+```
+
+Use a fresh report path. The runner must create a new compatible iPhone simulator, install once and run create → terminate → reopen → terminate → delete → terminate → confirm-deleted in distinct app processes. Acceptance requires matching run/phase/nonce, distinct launch/process identities, the original key/certificate public hashes and a fresh possession signature. Exact persistent references stay inside the app container. Actual delete statuses must be success and subsequent exact lookups must be `errSecItemNotFound` (`-25300`); an independently created control identity must remain usable through every main phase. Creating replacements on reopen is forbidden.
+
+Finally, a separate cleanup phase must remove the research-owned items, then the runner must shut down/delete only its newly created simulator and verify its absence. Simulator deletion cannot substitute for the Keychain deletion assertions. Failed phase, missing/stale report, command timeout or failed cleanup keeps the overall result failed. Evidence contains fixed checks and bounded command output, never persistent references, private keys or container manifests. The workflow uploads the report, build log and effective dependency lock.
+
+This experiment tests app-process persistence on an isolated simulator. It does not test device reboot/first unlock, physical lock, Secure Enclave, mTLS challenges, Watch networking, production pairing, hardware experience or signed distribution. A machine without a compatible iOS runtime can compile the fixture but cannot supply lifecycle acceptance; use the configured hosted job and preserve its exact-head result.
+
 ## Opt-in authenticated ledger network experiment
 
 This separate Mac-only experiment connects the verified TLS peer identity to the actual `HostSubmissionLedger`, using temporary projects, certificates and SQLite files. The Python TLS server obtains the client leaf DER from the authenticated socket and sends its fingerprint over a trusted local pipe; the Swift driver maps it to the enrolled device. HTTP bodies cannot select trusted device identity, host, filesystem paths or administrative operations. The threat boundary and remaining production choices are maintained in [network research](../references/authenticated-network-research.md#tls-连接身份到真实账本的桥接研究卡).

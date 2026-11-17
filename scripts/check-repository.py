@@ -172,13 +172,14 @@ def check_identity_research(root):
     """Verify the opt-in fixture lock and archived notices without resolving packages."""
     archive = root / 'references/licenses/device-identity'
     manifest = json.loads((archive / 'manifest.json').read_text())
-    lock = json.loads((root / 'scripts/fixtures/device-identity/Package.resolved').read_text())
     packages = manifest['packages']
-    pins = lock['pins']
     expected = {item['identity']: (item['repository'], item['revision']) for item in packages}
-    actual = {item['identity']: (item['location'], item['state']['revision']) for item in pins}
-    require(len(expected) == len(packages) == len(actual) == len(pins) == 3 and expected == actual,
-            'Identity fixture lock does not match its reviewed license source revisions')
+    for fixture in ('device-identity', 'device-identity-ios'):
+        lock = json.loads((root / 'scripts/fixtures' / fixture / 'Package.resolved').read_text())
+        pins = lock['pins']
+        actual = {item['identity']: (item['location'], item['state']['revision']) for item in pins}
+        require(len(expected) == len(packages) == len(actual) == len(pins) == 3 and expected == actual,
+                'Identity fixture lock does not match its reviewed license source revisions: ' + fixture)
     files = manifest['files']
     require(len(files) == 8 and len({item['path'] for item in files}) == 8,
             'Identity fixture must preserve eight distinct core license/notice files')

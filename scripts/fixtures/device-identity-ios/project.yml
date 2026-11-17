@@ -1,0 +1,58 @@
+name: MunieIdentityResearch
+options:
+  minimumXcodeGenVersion: 2.46.0
+  deploymentTarget:
+    iOS: '18.0'
+  developmentLanguage: en
+  knownRegions: [en, zh-Hans, Base]
+packages:
+  swift-certificates:
+    url: https://github.com/apple/swift-certificates.git
+    revision: 8789d7e78f996d56272836c8bf3590c5bd9c9754
+  swift-crypto:
+    url: https://github.com/apple/swift-crypto.git
+    exactVersion: 5.1.1
+  swift-asn1:
+    url: https://github.com/apple/swift-asn1.git
+    exactVersion: 1.7.4
+settings:
+  base:
+    SWIFT_VERSION: '6.0'
+    SWIFT_STRICT_CONCURRENCY: complete
+    SWIFT_TREAT_WARNINGS_AS_ERRORS: YES
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    CODE_SIGN_STYLE: Automatic
+    MARKETING_VERSION: 0.1.0
+    CURRENT_PROJECT_VERSION: 1
+targets:
+  MunieIdentityResearch:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+      - path: ../device-identity/Sources/MunieDeviceIdentityProbe/CSR.swift
+    dependencies:
+      - package: swift-certificates
+        product: X509
+      - package: swift-crypto
+        product: Crypto
+      - package: swift-asn1
+        product: SwiftASN1
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.munie.research.identity
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Munie Identity Research
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        TARGETED_DEVICE_FAMILY: '1,2'
+        SUPPORTS_MACCATALYST: NO
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: ''
+schemes:
+  MunieIdentityResearch:
+    build:
+      targets:
+        MunieIdentityResearch: all
+    run:
+      config: Release

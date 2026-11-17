@@ -106,6 +106,10 @@ class IdentityResearchArchiveTests(unittest.TestCase):
         fixture.mkdir(parents=True)
         self.lock = fixture / 'Package.resolved'
         shutil.copy2(source / 'scripts/fixtures/device-identity/Package.resolved', self.lock)
+        ios_fixture = self.root / 'scripts/fixtures/device-identity-ios'
+        ios_fixture.mkdir(parents=True)
+        self.ios_lock = ios_fixture / 'Package.resolved'
+        shutil.copy2(source / 'scripts/fixtures/device-identity-ios/Package.resolved', self.ios_lock)
 
     def test_reviewed_lock_and_original_notices_pass_offline(self):
         CHECKER.check_identity_research(self.root)
@@ -127,6 +131,13 @@ class IdentityResearchArchiveTests(unittest.TestCase):
             self.lock.write_text(json.dumps(lock))
             with self.subTest(duplicate=duplicate), self.assertRaisesRegex(ValueError, 'lock does not match'):
                 CHECKER.check_identity_research(self.root)
+
+    def test_separate_xcode_lock_cannot_drift_from_reviewed_revisions(self):
+        lock = json.loads(self.ios_lock.read_text())
+        lock['pins'][0]['state']['revision'] = '0' * 40
+        self.ios_lock.write_text(json.dumps(lock))
+        with self.assertRaisesRegex(ValueError, 'license source revisions: device-identity-ios'):
+            CHECKER.check_identity_research(self.root)
 
 
 if __name__ == "__main__":

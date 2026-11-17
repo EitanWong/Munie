@@ -66,6 +66,8 @@ Before invited beta: registered signing identity, monitored private feedback/sec
 
 Independent reviews covered performance/Release gates, protocol inventory and requirement consistency. Corrected code-example links being mistaken for navigation, boolean/integer equivalence in catalog comparison, overly strong duplicate-execution wording, and stale capture-first scope. No third-party runtime/source or model weights were adopted. Consolidated numbered decisions into topic files and repaired maintained links; historical source reports remain attributed archives.
 
+Apple-wide interaction review aligned HIG guidance with the Agent task goal, restored the stable task-state contract link, and added conditional Pencil/HomePod/CarPlay and authenticated cross-device continuation acceptance. These are requirements only; accessory entry and synchronization remain unimplemented and unverified.
+
 The Codex app daily heartbeat “维护 Munie 工程与文档” is configured ACTIVE and attached to this chat. It inspects actual state, avoids duplicate PRs and preserves user/uncommitted/reference data; this configuration is not evidence that a future scheduled run has executed. Per-change cleanup remains part of the engineering contract.
 
 ## PR maintenance

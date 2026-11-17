@@ -23,6 +23,8 @@ iPhone / Watch 原生入口（语音、文字；后续图片/视频）
 
 app 负责交互、权限请求、可恢复输入和设备凭据的安全保存；未来 gateway 负责授权、执行主机与项目映射、持久请求状态和受限事件流；Codex adapter 负责上游版本/schema 与错误映射。语音理解/视觉预处理是输入层，不能代替真实执行、伪造工具结果或绕过审批。原始音视频默认不进入执行日志。
 
+<a id="task-state-contract"></a>
+
 ## 协议契约（产品接入的验收要求）
 
 每个请求至少带 `protocolVersion`、`requestID`、`hostID`、`harnessID`、允许的 `projectID`、操作及受限 payload；建立会话后保存带 harness 命名空间的上游 `threadID`/`turnID` 映射。事件携带 gateway 的 `streamID`、单调 `sequence` 和 `requestID`；身份来自认证会话，不能相信 payload 自报的设备身份。具体 schema 由 F1 探针确认后实现，不能凭本文编造上游字段。

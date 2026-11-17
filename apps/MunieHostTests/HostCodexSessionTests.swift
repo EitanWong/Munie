@@ -654,16 +654,29 @@ private enum SessionFailure: Error, Equatable { case disconnected, ownerNotRelea
 
 private struct SessionLedgerRelease: Sendable {
   weak var ledger: HostSubmissionLedger?
+  let store: URL
 
   func wait() async throws {
-    // Swift's async call frame may retain the actor after its helper returns. Observe deallocation
-    // before reopening; never retry or weaken the production single-owner storage lock.
+    // Swift's async call frame may retain the actor after its helper returns. Weak references can
+    // clear before deinit finishes, so also observe release of this fixture's actual owner lock.
+    // Never retry or weaken the production single-owner storage initializer.
     let clock = ContinuousClock()
     let deadline = clock.now.advanced(by: .seconds(3))
     while ledger != nil {
       guard clock.now < deadline else { throw SessionFailure.ownerNotReleased }
       try await clock.sleep(for: .milliseconds(2))
     }
+    let descriptor = open(
+      store.appendingPathComponent(".owner").path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
+    guard descriptor >= 0 else { throw SessionFailure.ownerNotReleased }
+    defer { close(descriptor) }
+    while flock(descriptor, LOCK_EX | LOCK_NB) != 0 {
+      guard errno == EWOULDBLOCK || errno == EAGAIN, clock.now < deadline else {
+        throw SessionFailure.ownerNotReleased
+      }
+      try await clock.sleep(for: .milliseconds(2))
+    }
+    guard flock(descriptor, LOCK_UN) == 0 else { throw SessionFailure.ownerNotReleased }
   }
 }
 
@@ -840,7 +853,7 @@ private struct SessionFixture: Sendable {
     _ = try await ledger.accept(request, from: device)
     _ = try await ledger.claimForDispatch(request, from: device)
     try await ledger.observeStarted(requestID: request.requestID, upstream: upstream)
-    return SessionLedgerRelease(ledger: ledger)
+    return SessionLedgerRelease(ledger: ledger, store: store)
   }
   func seedLostStartResponse(_ request: TextSubmission) async throws -> SessionLedgerRelease {
     let ledger = try await ledger()
@@ -854,7 +867,7 @@ private struct SessionFixture: Sendable {
     #expect(unknown.submission.upstream == nil)
     #expect(await adapter.counts().starts == 1)
     _ = try await session.close()
-    return SessionLedgerRelease(ledger: ledger)
+    return SessionLedgerRelease(ledger: ledger, store: store)
   }
   func seedRevokedReceive() async throws -> SessionLedgerRelease {
     let ledger = try await ledger()
@@ -868,7 +881,7 @@ private struct SessionFixture: Sendable {
     await adapter.enqueue(terminal(request, status: .completed))
     await #expect(throws: SubmissionError.unauthorized) { try await reading.value }
     _ = try await session.close()
-    return SessionLedgerRelease(ledger: ledger)
+    return SessionLedgerRelease(ledger: ledger, store: store)
   }
   func observeTerminalCommitRace(revoke: Bool) async throws -> SessionLedgerRelease {
     let ledger = try await ledger()
@@ -908,7 +921,7 @@ private struct SessionFixture: Sendable {
       #expect(
         try await ledger.snapshot(requestID: request.requestID, from: device).phase == .completed)
     }
-    return SessionLedgerRelease(ledger: ledger)
+    return SessionLedgerRelease(ledger: ledger, store: store)
   }
   func phase() throws -> String? {
     let database = try SQLiteStorage(directoryURL: store)

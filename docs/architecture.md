@@ -36,13 +36,15 @@ The ledger pins locally administered project directories and device grants, bind
 
 `apps/MunieHost/NetworkProbe` is a separate Mac-only Foundation/Security executable for temporary loopback authentication research; it reuses the existing strict `CodexJSON` parser from the host module but never instantiates/calls the ledger or Codex adapter, and is not linked by shipping app targets. Its Python runner owns temporary certificates, the fixture server and process evidence. [Native network testing](testing.md#opt-in-native-apple-network-experiment) separates actual TLS/HTTP from offline callback/trust regressions.
 
-Authentication, mobile transport/presentation, media and a persistent host service remain future consumers. The native experiment uses a deterministic model provider and seeded trusted identity; this does not implement the full product capability inventory.
+`apps/MunieHost/LedgerNetworkProbe` now binds the TLS fixture server's verified peer-certificate fingerprint to a locally enrolled `AuthenticatedDevice` and calls the real ledger for each accept/snapshot. The Python bridge and private stdio channel are trusted local experiment control; HTTP accepts only submit/snapshot, while seed/revoke/claim remain local. Resume opens the existing schema without reseeding, preserving revoked devices and uncertain dispatch state. The native client distinguishes a real `ledger-snapshot` from the older in-memory fixture's acceptance ordinal. This remains a loopback research path, not production IPC, pairing, a gateway service or an app integration. See [authenticated-ledger testing](testing.md#opt-in-authenticated-ledger-network-experiment).
+
+Production authentication, mobile transport/presentation, media and a persistent host service remain future consumers. The native Codex experiment still uses a deterministic model provider and separately seeded trusted identity; the authenticated-ledger experiment does not call that adapter. Neither implements the full product capability inventory.
 
 Do not create empty packages for future platforms. Extract a package when a second real caller demonstrates shared policy, models or transport needs. Keep device APIs in their app/adapter targets.
 
 | Future concern | Intended owner / gate |
 |---|---|
-| Mac Codex gateway / task protocol | Local submission-ledger research module exists; a bounded Codex adapter subset exists only in local research; authenticated networking remains future work. Ownership, state and trust contract only in the [remote Agent decision](decisions/remote-agent-foundation.md) |
+| Mac Codex gateway / task protocol | Local submission ledger, bounded Codex adapter and an isolated authenticated network-to-ledger probe exist; production networking and their end-to-end combination remain future work. Ownership, state and trust contract only in the [remote Agent decision](decisions/remote-agent-foundation.md) |
 | Watch connectivity | Standalone native UI exists; transport, background work and pairing remain separate acceptance |
 | Glasses | Official SDK adapter isolated from domain and app presentation |
 | Search/memory | Start with local retrieval; adopt a mature indexed store when measured requirements justify it |

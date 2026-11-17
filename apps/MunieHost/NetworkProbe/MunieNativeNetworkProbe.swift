@@ -18,7 +18,7 @@ struct FixtureConfiguration: Decodable {
 
   func endpoint(path: String) throws -> URL {
     try validate()
-    guard ["submit", "redirect", "oversized", "slow"].contains(path),
+    guard ["submit", "snapshot", "redirect", "oversized", "slow"].contains(path),
       let url = URL(string: "https://127.0.0.1:\(port)/fixture/\(path)")
     else { throw ProbeFailure.invalidRequest }
     return url
@@ -301,9 +301,20 @@ func parseFixtureReply(_ data: Data) throws -> [String: Any] {
     return ["state": "fixture-accepted", "ordinal": Int(ordinal)]
   }
   if Set(object.keys) == ["error"], let error = object["error"]?.string,
-    ["device-denied", "project-denied", "request-conflict", "fixture-capacity"].contains(error)
+    [
+      "device-denied", "project-denied", "request-conflict", "fixture-capacity", "unauthorized",
+      "invalid-request", "unknown-request",
+    ].contains(error)
   {
     return ["fixtureError": error]
+  }
+  if Set(object.keys) == ["state", "requestID", "phase"],
+    object["state"]?.string == "ledger-snapshot", let requestID = object["requestID"]?.string,
+    let id = UUID(uuidString: requestID), id.uuidString == requestID,
+    let phase = object["phase"]?.string, SubmissionPhase(rawValue: phase) != nil
+  {
+    // Separate real ledger evidence from the original in-memory fixture's ordinal.
+    return ["state": "ledger-snapshot", "requestID": requestID, "phase": phase]
   }
   throw ProbeFailure.invalidResponse
 }
@@ -334,10 +345,14 @@ struct MunieNativeNetworkProbe {
           if command.cancel {
             request.setValue("after-response", forHTTPHeaderField: "X-Munie-Fixture-Cancel")
           }
-          request.httpBody = try JSONSerialization.data(withJSONObject: [
-            "requestID": command.requestID, "projectID": command.projectID,
-            "payload": command.payload,
-          ])
+          let body: [String: String] =
+            command.path == "snapshot"
+            ? ["requestID": command.requestID]
+            : [
+              "requestID": command.requestID, "projectID": command.projectID,
+              "payload": command.payload,
+            ]
+          request.httpBody = try JSONSerialization.data(withJSONObject: body)
           guard let requestBody = request.httpBody, requestBody.count <= 2048 else {
             throw ProbeFailure.inputLimit
           }

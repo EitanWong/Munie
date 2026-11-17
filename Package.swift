@@ -19,6 +19,13 @@ let package = Package(
     .executableTarget(
       name: "MunieNativeNetworkProbe", dependencies: ["MunieExecutionHost"],
       path: "apps/MunieHost/NetworkProbe"),
+    .executableTarget(
+      name: "MunieLedgerNetworkProbe", dependencies: ["MunieExecutionHost"],
+      path: "apps/MunieHost/LedgerNetworkProbe"),
+    .testTarget(
+      name: "MunieLedgerNetworkProbeTests",
+      dependencies: ["MunieLedgerNetworkProbe", "MunieExecutionHost"],
+      path: "apps/MunieLedgerNetworkProbeTests"),
     .testTarget(
       name: "MunieNativeNetworkProbeTests", dependencies: ["MunieNativeNetworkProbe"],
       path: "apps/MunieNetworkProbeTests"),

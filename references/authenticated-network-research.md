@@ -1,6 +1,6 @@
 # F1 认证网络与本机 mTLS 研究
 
-核对日期：2026-11-17。关联 R01/R02/R06/R07/R08/R09/R16。本文延续[协议研究](codex-protocol-research.md)；产品信任边界和网络候选顺序仍由[远程决策](../docs/decisions/remote-agent-foundation.md)维护。当前研究对象是**本机 loopback、临时证书、合成身份的 HTTPS 短请求夹具**，不接生产 ledger/Codex，不选服务、账号或公网域名。夹具通过不等于远程产品认证、F1/F2 完成或 Watch 可用；执行结果由[项目状态](../docs/project-status.md)记录。
+核对日期：2026-11-17。关联 R01/R02/R06/R07/R08/R09/R16。本文延续[协议研究](codex-protocol-research.md)；产品信任边界和网络候选顺序仍由[远程决策](../docs/decisions/remote-agent-foundation.md)维护。当前研究对象是**本机 loopback、临时证书、合成身份的 HTTPS 短请求夹具**，以及将连接身份接入真实 `HostSubmissionLedger` 的隔离实验设计；账本只使用新建的临时合成数据，不接生产 ledger/Codex，不选服务、账号或公网域名。夹具通过不等于远程产品认证、F1/F2 完成或 Watch 可用；执行结果由[项目状态](../docs/project-status.md)记录。
 
 ## 官方依据与 Apple 客户端边界
 
@@ -10,7 +10,7 @@
 | Apple [TN3135](https://developer.apple.com/documentation/technotes/tn3135-low-level-networking-on-watchos) | Watch 的 HTTPS 属高层网络；WebSocket/StreamTask、通用 TCP/SSH 属受限低层网络。普通 Agent 不能借音频/VoIP 例外常驻。模拟器放行不能代替真机；iPhone 在场和不可达分别验收 |
 | Apple [authentication challenge](https://developer.apple.com/documentation/foundation/handling-an-authentication-challenge)、[client certificate credential](https://developer.apple.com/documentation/foundation/urlcredential/init(identity:certificates:persistence:)) | `URLSession` 有客户端证书挑战与 `SecIdentity` 凭据 API，后者列出 watchOS 可用性；这只证明 API 入口，未验证本项目证书分发、Keychain、续期或 Watch 真机行为 |
 | Apple [server trust](https://developer.apple.com/documentation/foundation/performing-manual-server-trust-authentication) | 默认系统信任验证优先；自定义判断需真正验证预期服务。开发 CA 不能变成无条件接受 server trust，也不通过全局 ATS 例外掩盖失败 |
-| Python [ssl](https://docs.python.org/3.15/library/ssl.html) | 服务端显式 `CERT_REQUIRED`；客户端验证 CA 和 hostname；使用 `TLSVersion` 限制版本。`getpeercert(binary_form=True)` 提供对端 DER；CA 验证通过后才以其指纹查身份。默认不验证 CRL，不能假定证书或已有连接会自动撤销 |
+| Python [ssl](https://docs.python.org/3.15/library/ssl.html) | 服务端显式 `CERT_REQUIRED`，不能仅凭 `PROTOCOL_TLS_SERVER` 假定已启用客户端认证；客户端另验证 CA 和 hostname。使用 `TLSVersion` 限制版本；成功握手后从实际连接 `getpeercert(binary_form=True)` 取对端 DER，再以指纹查身份。未完成握手会报错，无 peer 时为 `None`；取得 DER 不证明已开启验证。默认不验证 CRL，不能假定证书或已有连接会自动撤销 |
 | OpenSSL [证书验证](https://docs.openssl.org/3.6/man1/openssl-verification-options/)、[X.509 扩展](https://docs.openssl.org/4.0/man5/x509v3_config/) | 临时 CA 与 leaf 分离；server SAN 匹配实际 loopback 地址/主机名；server/client 分别限定 `serverAuth`/`clientAuth` 用途。CA 签名有效与业务项目授权是两层检查 |
 | Python [http.server](https://docs.python.org/3.15/library/http.server.html) | 官方明确不推荐生产使用；本轮 stdlib HTTP/TLS 实现仅作有界实验，不由此选定产品 HTTP server |
 
@@ -27,7 +27,7 @@ Apple 客户端研究先做原生 `URLSession` HTTPS 小请求和有界状态读
 | 未认证或错误 CA 的客户端；伪服务端 | 无客户端证书、不受信证书、错误服务端 hostname/CA 均不能取得成功响应 | CA bootstrap、所有者确认、私钥存储与丢失设备恢复 |
 | 同 CA 的未知身份；payload 自报 `deviceID` | TLS leaf DER 指纹只映射到 host 预置的合成设备；未登记指纹拒绝。自报身份不能选择其他设备或扩大 grants | 真实配对、证书轮换、设备和所有者账户的关联 |
 | 撤销后复用已认证连接 | 已建 keepalive 连接先成功，撤销后下一请求拒绝；握手缓存身份不能绕过逐请求授权。返回内容前亦须避免跨 await 撤销窗口 | 多进程/多端撤销传播、待决审批和在途任务的处置；撤销不证明执行已取消 |
-| 跨项目、任意路径或配置注入 | 夹具只接受固定 route、project 与 `requestID/projectID/payload` 三字段；拒绝任意 cwd、config、自报身份和其他未知字段 | 尚无产品 protocolVersion/host/harness/operation 校验，也未集成真实 ledger、规范路径和 harness 能力 |
+| 跨项目、任意路径或配置注入 | 第一张夹具只接受固定 route、project 与 `requestID/projectID/payload` 三字段；拒绝任意 cwd、config、自报身份和其他未知字段 | 第一张夹具不集成真实 ledger；下面的桥接卡另验账本 host、grants、项目目录与请求身份，不由此冻结完整产品协议或证明 harness 能力 |
 | 重复或冲突请求 | 同 ID/设备/项目/内容返回已有合成接受记录，不增次数；跨设备/内容冲突拒绝，记录容量有界 | 夹具内存记录不跨重启，无有效期/nonce 协议；不能替代持久提交阶段、丢响应核对或上游 exactly-once |
 | 慢连接、超长帧、含糊 HTTP/JSON | TLS 握手与 body 总读取预算各 3 秒；HTTP 头仅有 stdlib parser 限制和 socket inactivity timeout。拒绝超长 body、歧义 framing、重复 JSON key 和无效类型；拒绝后不新增合成接受记录 | 尚无慢头/整次请求总 deadline；公网 DoS、生产解析器、速率/并发/存储策略、迁移和真实负载仍未解决 |
 
@@ -110,6 +110,31 @@ TLS min/max 限定为 1.3，同时以 [`negotiatedTLSProtocolVersion`](https://d
 
 清理核对 native process/session/tasks、Python server/listener、活动连接和临时材料，错误保留明确阶段及结构化原因。即使观察全部接受事件，也仅补 macOS Foundation/Security 到本机 fixture 的证据；不实现生产设备配对/Keychain 生命周期、持久网络授权或真实 ledger/harness 接入，不证明 iOS/watchOS、蜂窝、独立 Watch、后台、功耗或端到端产品流程。
 
+## TLS 连接身份到真实账本的桥接研究卡
+
+**问题与范围：**用临时 CA、合成设备、临时项目和真实 `HostSubmissionLedger` / SQLite，验证 `CERT_REQUIRED` 成功握手的实际 `SSLSocket` → `getpeercert(binary_form=True)` → leaf DER 的 SHA-256 → 本机预置映射 → `AuthenticatedDevice` → 每请求 ledger 授权。这是下一片隔离 loopback 实验的设计与接受事件，**不是已通过结果**。Python TLS/HTTP server 与 Swift stdio ledger driver 都是研究执行器，不是已选生产 gateway；不链接 shipping app，不调用 Codex/model/WAN，不执行请求正文。
+
+**可信边界：**DER 必须来自正在处理该 HTTP 请求的 TLS socket；不能从 body、header、URL、证书 display name 或对端自报 `deviceID` / fingerprint 生成可信 principal。CA 链验证及 TLS 私钥持有证明在前，本机 fingerprint→UUID 映射只负责选择已登记身份；证书 DER、pin 或其摘要本身不构成独立 TLS 认证。未知 fingerprint 拒绝，不按相同 subject、同 CA 或 payload 兜底。临时 registry 不实现所有者确认、持久配对、轮换、密钥恢复或证书撤销服务。
+
+bridge、私有 pipe、driver 和本机 registry 都属于此实验的可信主机边界。网络输入只进入固定业务操作及严格字段；driver 中的本地 `registerProject`、`authorizeDevice`、`revokeDevice`、`claimForDispatch` 和可信上游观察不能成为 HTTP route，也不能由 HTTP 的 operation 字段选择。pipe 上的身份是受信 bridge 根据连接生成的研究输入，不是可传给远端的 bearer token；本实验不证明能防同 UID 恶意进程、受损 bridge 或 root。
+
+**真实 ledger 不变量：**已重开[账本实现](../apps/MunieHost/Execution/HostSubmissionLedger.swift)及[存储研究](submission-ledger-research.md)：`accept`、`snapshot`、`claimForDispatch` 均复查 live `devices.enabled=1`、project grant、host 以及 canonical path/device/inode；`AuthenticatedDevice` 值不是永久授权。TLS identity 可随连接缓存，grants/revocation 不能由握手成功或 registry 缓存替代。重启必须重开同一临时 DB、保留 host/请求/撤销记录；bootstrap 与 reopen 分开，不能重新 seed 授权或删除 DB 来让试验通过。`revokeDevice` 对已知及未知 UUID 写持久 tombstone，`authorizeDevice` 拒绝重新启用同 UUID；未来重新配对需另设身份。
+
+[Swift actor 隔离](https://docs.swift.org/swift-book/documentation/the-swift-programming-language/concurrency/#Actors)不使多个 `await` 自动成为一个事务；[SQLite 事务](https://sqlite.org/lang_transaction.html)也不覆盖 HTTP 响应或外部执行。当前 ledger 在同步 actor 方法内使用短事务，单连接和 cooperating-process owner 锁、schema/host 验证及存储上限仍按存储研究约束。接受只表示真实账本存在 `accepted` 记录；本地 claim 只返回一次发送资格，不能据此称为已执行或 exactly-once。新增等待/队列后的授权变化、返回敏感结果前的撤销窗口需要单独屏障对照；未执行的交错保持未覆盖。
+
+| 实际输入 / 对照 | 必须观察的接受或拒绝证据 |
+|---|---|
+| 已登记 client、正确 host/project、精确重试与冲突 | TLS peer fingerprint 与本机映射关联真实 DB 请求；同一 request 的精确重试仍为同一记录，内容/目标冲突拒绝。记录 ledger phase/row count，不能只看 HTTP 2xx |
+| 无 client cert / 错误 CA；同 CA 未登记 cert | 前两者关联 TLS 双侧失败且无 ledger 接受；后者可通过 TLS，但映射拒绝且无新行。任意网络异常不单独算拒绝验收 |
+| 已登记设备自报另一 deviceID/fingerprint，伪造 header；越项目/host、任意 cwd/config | 网络 schema 或真实 ledger 拒绝；实际连接身份不变，没有越权 snapshot 或新接受记录。不得把客户端请求中的身份字段原样透传为可信 pipe 身份 |
+| 同一已建连接撤销；未知 UUID 先撤销后登记 | 已成功接受/读取后，由本地 admin 撤销，再经同一连接重试与读取均拒绝；本地 claim 亦拒绝。未知 UUID 的 tombstone 阻止后来登记；不声称此前执行已停止 |
+| 关闭并重启 driver，沿用同一 DB/registry | 原请求可被仍授权的原设备核对；撤销设备的新连接与原请求读取仍拒绝，重新 authorize 同 UUID 仍失败。既有 dispatching/running 保持 reconciling，无发送/副作用 |
+| HTTP 尝试 revoke、claim、登记项目/设备或报告上游终态；持久化/stdio 故障 | 固定网络 allowlist 拒绝所有管理/可信观察入口；driver 失败、超时或 DB 错误不能包装成成功接受，也不能自动重发未知提交 |
+
+**资源、记录与清理：**仅监听 `127.0.0.1` 临时端口，固定 TLS 1.3 和合成请求；握手/body、HTTP/stdio 帧、请求/连接/队列/总运行时间分别有界。报告记录实际工具/运行库版本与源码指纹、连接身份关联、业务拒绝、账本 phase/行数、重启前后状态与退出码；不保存正文、PEM、私钥、密码、原始 DER 或个人路径。fingerprint 与 ID 也是敏感关联元数据，本轮仅记录合成值。若复用上张 native 的 HTTP 200 error envelope，对拒绝仍核对无接受记录；协议候选及 legacy403 对照不变。
+
+接受还需观察关闭 HTTP 客户端及活动 TLS socket、停止 listener/server worker、关闭 driver stdin 并取得 stdout/stderr EOF、进程退出/组消失和 owner 锁释放，最后删除临时 CA/identity/registry/project/SQLite 及 journal/owner 文件；检查目录私有权限和临时路径确已移除。清理失败则实验失败，失败报告保留必要阶段且不删诊断依据。不由清理成功推断 Keychain 审计、可靠内存擦除或物理断电持久性；本卡不新增配对、生产服务、真实 harness、移动设备或蜂窝验收。
+
 ## 成熟替代与许可复查
 
 | 候选 | 用途与代价 | 当前决定 / 许可 |
@@ -117,7 +142,9 @@ TLS min/max 限定为 1.3，同时以 [`negotiatedTLSProtocolVersion`](https://d
 | 标准 HTTPS mTLS | 直接使用成熟 TLS/X.509；适合把通道身份与每请求应用授权分开测。代价是证书分发、轮换、撤销和 Apple identity 生命周期 | 仅选为本机研究机制，未选生产 PKI/server。Python 软件/文档为 [PSF License v2](https://docs.python.org/3.15/license.html)，文档示例另有 0BSD 双许可；本次不复制示例。OpenSSL 3.0 及后继主线为 [Apache-2.0](https://openssl-library.org/source/license/index.html)，历史版本/其他 TLS 实现另核对 |
 | 受限 OpenSSH 隧道 | 可给 iPhone 工程探针提供已有主机认证/加密转发；仍需 pin 主机身份、最小账号/转发范围和应用授权。建隧道不证明服务健康；不能作为普通 Watch 通道 | [官方 portable](https://www.openssh.org/portable.html)、[转发选项](https://man.openbsd.org/ssh_config#ExitOnForwardFailure)及上游 [LICENCE](https://github.com/openssh/openssh-portable/blob/master/LICENCE)已核对：按组件列 BSD 或更宽松许可，不能简写为统一某一 BSD。未启用 Remote Login、未装依赖或复制代码 |
 | 私有网络，例如 Tailscale | [官方连接类型](https://tailscale.com/docs/reference/connection-types)区分 direct/DERP/peer relay，均使用 WireGuard 端到端加密；路由可达不等于业务授权。需分别测中继性能与撤销；[平台列表](https://tailscale.com/docs/install)不能推出独立 Watch 或继承 iPhone VPN | 仅比较，没有选服务/账号。上游 client [LICENSE](https://github.com/tailscale/tailscale/blob/main/LICENSE)为 BSD-3-Clause；托管服务条款、各平台客户端及传递依赖须独立审查。正式复用前按引用规则固定 commit/许可 |
-| SwiftNIO / NIOSSL | [SwiftNIO](https://github.com/apple/swift-nio)提供低层异步协议构件，[NIOSSL](https://github.com/apple/swift-nio-ssl)以 BoringSSL 提供 TLS，适合未来 server/跨平台边界比较；不能替代 Foundation 的 Apple HTTP 生命周期，也不能绕过 Watch 平台网络限制 | 本轮优先官方 URLSession，不加依赖或复制代码。两仓库 root [NIO LICENSE](https://github.com/apple/swift-nio/blob/main/LICENSE.txt)/[NIOSSL LICENSE](https://github.com/apple/swift-nio-ssl/blob/main/LICENSE.txt)为 Apache-2.0；NIOSSL 的 [NOTICE](https://github.com/apple/swift-nio-ssl/blob/main/NOTICE.txt)另列 BoringSSL 及组件许可，正式复用须固定 commit、审阅 vendored license/notice 与传递依赖，不能只记 root 许可 |
+| SwiftNIO / NIOSSL | [SwiftNIO](https://github.com/apple/swift-nio)提供低层异步协议构件，[NIOSSL](https://github.com/apple/swift-nio-ssl)以 BoringSSL 提供 TLS。核对 [TLSConfiguration](https://github.com/apple/swift-nio-ssl/blob/2a439aff650ba63077cf7bed86677c739f76d782/Sources/NIOSSL/TLSConfiguration.swift)：普通 server 默认不验证 client；显式 `makeServerConfigurationWithMTLS` 接收 trust roots、验证 client 链且不做 server 角色不适用的 hostname 检查。连接侧 [SSLConnection](https://github.com/apple/swift-nio-ssl/blob/2a439aff650ba63077cf7bed86677c739f76d782/Sources/NIOSSL/SSLConnection.swift)读取实际 peer leaf；内部实现不是本项目已采用的公共 API。它仍需单独映射身份并查询 live ledger 授权，不自动提供配对或撤销；不能替代 Foundation 的 Apple HTTP 生命周期或绕过 Watch 限制 | 本轮 Apple client 优先 URLSession，Python bridge 仅用于研究；不加 NIO 依赖或复制代码。两仓库 root [NIO LICENSE](https://github.com/apple/swift-nio/blob/main/LICENSE.txt)/[NIOSSL LICENSE](https://github.com/apple/swift-nio-ssl/blob/2a439aff650ba63077cf7bed86677c739f76d782/LICENSE.txt)为 Apache-2.0；NIOSSL 的 [NOTICE](https://github.com/apple/swift-nio-ssl/blob/2a439aff650ba63077cf7bed86677c739f76d782/NOTICE.txt)另列 BoringSSL 及组件许可。此处为日期化只读比较，正式复用须固定 commit、审阅 vendored license/notice 与传递依赖，不能只记 root 许可 |
+
+本轮 NIOSSL 连接认证只读快照为 `2a439aff650ba63077cf7bed86677c739f76d782`；已读取该提交的上述两份源文件、LICENSE 和 NOTICE。根 LICENSE 为 11,358 bytes、SHA-256 `cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30`；NOTICE 为 1,984 bytes、SHA-256 `03e8ca5c65a3df21fe1ab48eef91bca7d370db56c290d8ef16eaaa09ba322abe`。这是研究来源，不是已采用依赖或安全认证。
 
 上述在线资料均在本页日期重开；未采用或复制上游产品实现，未新增移动端 runtime。Apple 文档为其版权资料，按[网站条款](https://www.apple.com/legal/internet-services/terms/site.html)引用链接和本项目摘要；不得套用 Munie 的开源许可证。未来源码复用先更新[引用清单](README.md)和固定版本许可快照。
 

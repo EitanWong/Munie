@@ -1,7 +1,8 @@
 import CryptoKit
 import Foundation
 
-/// Trusted authentication output. The experiment seeds this locally; no network authentication exists.
+/// Trusted authentication output. Research callers seed it locally or derive it from verified
+/// loopback TLS identity; production enrollment and authentication remain unimplemented.
 public struct AuthenticatedDevice: Sendable {
   public let id: UUID
 

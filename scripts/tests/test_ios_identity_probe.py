@@ -205,6 +205,17 @@ class RuntimeTests(unittest.TestCase):
 
 
 class CommandTests(unittest.TestCase):
+    def test_unclean_timeout_is_not_reported_as_retryable_timeout(self):
+        records = []
+        runner = probe.CommandRunner(records)
+        with patch.object(probe, 'group_gone', return_value=False):
+            with self.assertRaisesRegex(probe.ProbeFailure, 'command-cleanup-failed'):
+                runner.run('synthetic-unclean', [sys.executable, '-c', 'import time;time.sleep(30)'],
+                           time.monotonic() + 4, seconds=.05)
+        self.assertEqual(records[0]['priorFailure'], 'command-timeout')
+        self.assertEqual(records[0]['failure'], 'command-cleanup-failed')
+        self.assertFalse(records[0]['processGroupGone'])
+
     def run_python(self, code, *, seconds=2, private=False):
         self.records = []
         runner = probe.CommandRunner(self.records)

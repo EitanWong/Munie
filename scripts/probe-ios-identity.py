@@ -272,7 +272,11 @@ class CommandRunner:
                 if selector is not None:
                     selector.close()
                 if not (record['streamsReachedEOF'] and record['processGroupGone'] and not cleanup_errors):
-                    failure = failure or ProbeFailure('command-cleanup-failed')
+                    if failure is not None:
+                        record['priorFailure'] = failure_code(failure)
+                    # An unclean timed-out read is never safe to retry. Keep its
+                    # original cause as evidence, but make cleanup failure final.
+                    failure = ProbeFailure('command-cleanup-failed')
             else:
                 record['spawned'] = False
             for name in ('stdout', 'stderr'):

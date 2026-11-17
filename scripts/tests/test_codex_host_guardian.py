@@ -204,7 +204,9 @@ class GuardianTests(unittest.TestCase):
             'child=os.fork()\n'
             'if child==0:\n'
             '    while True: time.sleep(1)\n'
-            f'open({str(marker)!r},"w").write(json.dumps([os.getpid(),child]))\n'
+            f'with open({str(marker.with_suffix(".tmp"))!r},"w") as ready:\n'
+            '    ready.write(json.dumps([os.getpid(),child]))\n'
+            f'os.replace({str(marker.with_suffix(".tmp"))!r},{str(marker)!r})\n'
             'while True: time.sleep(1)\n'
         )
         host = self.host(child)

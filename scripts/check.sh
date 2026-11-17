@@ -8,7 +8,7 @@ python3 scripts/check-repository.py
 .tools/actionlint -shellcheck= -pyflakes=
 xcrun swift-format lint --strict --recursive apps packages/MunieCore/Sources \
   packages/MunieCore/Tests Package.swift packages/MunieCore/Package.swift \
-  scripts/fixtures/device-identity
+  scripts/fixtures/device-identity scripts/fixtures/device-identity-ios
 swift test --package-path packages/MunieCore --enable-code-coverage
 swift test --enable-code-coverage
 ./scripts/check-submissions.sh

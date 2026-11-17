@@ -197,10 +197,11 @@ struct SQLiteStorageTests {
     #expect(try python(code, arguments: [lock.path]) == 0)
   }
 
-  @Test func separatelyOwnedLockReturnsBusyAndReleasesAfterProcessExit() throws {
+  @Test func separatelyOwnedLockReturnsBusyAndReleasesAfterProcessExit() async throws {
     let fixture = try Fixture()
     defer { fixture.remove() }
-    do { _ = try SQLiteStorage(directoryURL: fixture.directory) }
+    try initializeStorage(in: fixture.directory)
+    try await HostFixtureOwnerRelease(store: fixture.directory).wait()
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
     process.arguments = [
@@ -315,11 +316,12 @@ struct SQLiteStorageTests {
     }
   }
 
-  @Test func unsafeJournalAndWALSidecarsAreRejectedBeforeSQLiteOpens() throws {
+  @Test func unsafeJournalAndWALSidecarsAreRejectedBeforeSQLiteOpens() async throws {
     for suffix in ["-journal", "-wal", "-shm"] {
       let fixture = try Fixture()
       defer { fixture.remove() }
-      do { _ = try SQLiteStorage(directoryURL: fixture.directory) }
+      try initializeStorage(in: fixture.directory)
+      try await HostFixtureOwnerRelease(store: fixture.directory).wait()
       let original = try Data(contentsOf: fixture.file())
       let target = fixture.parent.appendingPathComponent("outside-target")
       try Data("unchanged".utf8).write(to: target)
@@ -390,6 +392,12 @@ struct SQLiteStorageTests {
   }
 
   private enum MarkerError: Error, Equatable { case syntheticFailure }
+
+  private func initializeStorage(in directory: URL) throws {
+    // Keep the initial owner's lifetime out of the async test frame before observing its lock.
+    let storage = try SQLiteStorage(directoryURL: directory)
+    #expect(try storage.rows("SELECT 1") == [[.integer(1)]])
+  }
 
   private struct Fixture {
     let parent: URL

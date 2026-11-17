@@ -55,6 +55,7 @@ public actor HostCodexSession {
   private let adapter: any CodexExecutionAdapter
   private let approvalLifetime: Duration
   private let now: @Sendable () -> ContinuousClock.Instant
+  private let terminalCommitObserver: (@Sendable () async -> Void)?
   private var active: Active?
   private var closed = false
   private var closing = false
@@ -65,6 +66,18 @@ public actor HostCodexSession {
     approvalLifetime: Duration = .seconds(60),
     now: @escaping @Sendable () -> ContinuousClock.Instant = { ContinuousClock().now }
   ) throws {
+    try self.init(
+      ledger: ledger, adapter: adapter, approvalLifetime: approvalLifetime, now: now,
+      terminalCommitObserver: nil)
+  }
+
+  /// Internal barrier makes post-commit authorization races reproducible without changing storage.
+  init(
+    ledger: HostSubmissionLedger, adapter: any CodexExecutionAdapter,
+    approvalLifetime: Duration = .seconds(60),
+    now: @escaping @Sendable () -> ContinuousClock.Instant = { ContinuousClock().now },
+    terminalCommitObserver: (@Sendable () async -> Void)?
+  ) throws {
     guard approvalLifetime > .zero, approvalLifetime <= .seconds(300) else {
       throw HostCodexSessionError.invalidConfiguration
     }
@@ -72,6 +85,7 @@ public actor HostCodexSession {
     self.adapter = adapter
     self.approvalLifetime = approvalLifetime
     self.now = now
+    self.terminalCommitObserver = terminalCommitObserver
   }
 
   /// A repeated request validates its exact immutable identity and returns durable state only.
@@ -182,6 +196,9 @@ public actor HostCodexSession {
           event.threadID == upstream.threadID, event.turnID == upstream.turnID
         else { throw HostCodexSessionError.mismatchedEvent }
         try await persistTerminal(terminal, requestID: requestID, operation: current.operation)
+        // Committing terminal state suspends too; retain the evidence but recheck payload access.
+        _ = try await ledger.snapshot(requestID: requestID, from: device)
+        try requireOpen()
       }
       return event
     } catch {
@@ -407,6 +424,7 @@ public actor HostCodexSession {
         requestID: requestID, upstream: terminal.upstream, phase: phase(terminal.status))
       operation.terminalCommitted = true
       if active?.token == operation.token { active = nil }
+      await terminalCommitObserver?()
     } catch {
       if active?.token == operation.token { active?.stage = .reconciling }
       throw error

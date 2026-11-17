@@ -42,19 +42,8 @@ struct HostCodexSessionTests {
     let fixture = try SessionFixture()
     defer { fixture.remove() }
     let request = try fixture.request()
-    do {
-      let ledger = try await fixture.ledger()
-      let adapter = SessionAdapter(start: { _ in throw SessionFailure.disconnected })
-      let session = try HostCodexSession(ledger: ledger, adapter: adapter)
-      await #expect(throws: SessionFailure.disconnected) {
-        try await session.submit(request, from: fixture.device)
-      }
-      let unknown = try await session.submit(request, from: fixture.device)
-      #expect(unknown.submission.phase == .reconciling)
-      #expect(unknown.submission.upstream == nil)
-      #expect(await adapter.counts().starts == 1)
-      _ = try await session.close()
-    }
+    let previous = try await fixture.seedLostStartResponse(request)
+    try await previous.wait()
     let ledger = try fixture.reopen()
     let adapter = SessionAdapter()
     let reopened = try HostCodexSession(ledger: ledger, adapter: adapter)
@@ -513,21 +502,8 @@ struct HostCodexSessionTests {
   @Test func revocationDuringReceiveSuppressesPayloadAndMarksUncertain() async throws {
     let fixture = try SessionFixture()
     defer { fixture.remove() }
-    do {
-      let ledger = try await fixture.ledger()
-      let adapter = SessionAdapter(upstream: fixture.upstream)
-      let session = try HostCodexSession(ledger: ledger, adapter: adapter)
-      let request = try fixture.request()
-      _ = try await session.submit(request, from: fixture.device)
-      let reading = Task {
-        try await session.nextEvent(requestID: request.requestID, from: fixture.device)
-      }
-      await adapter.eventEntered.wait()
-      try await ledger.revokeDevice(id: fixture.device.id)
-      await adapter.enqueue(fixture.terminal(request, status: .completed))
-      await #expect(throws: SubmissionError.unauthorized) { try await reading.value }
-      _ = try await session.close()
-    }
+    let previous = try await fixture.seedRevokedReceive()
+    try await previous.wait()
     // Inspect only phase metadata through test storage; no revoked-device read bypass exists in API.
     #expect(try fixture.phase() == "reconciling")
   }
@@ -537,7 +513,8 @@ struct HostCodexSessionTests {
     let fixture = try SessionFixture()
     defer { fixture.remove() }
     let request = try fixture.request()
-    try await fixture.seedRunning(request)
+    let previous = try await fixture.seedRunning(request)
+    try await previous.wait()
     let ledger = try fixture.reopen()
     let adapter = SessionAdapter(read: { upstream in
       #expect(upstream == fixture.upstream)
@@ -560,7 +537,8 @@ struct HostCodexSessionTests {
       let fixture = try SessionFixture()
       defer { fixture.remove() }
       let request = try fixture.request()
-      try await fixture.seedRunning(request)
+      let previous = try await fixture.seedRunning(request)
+      try await previous.wait()
       let ledger = try fixture.reopen()
       let adapter = SessionAdapter(read: { _ in
         mismatch
@@ -588,7 +566,8 @@ struct HostCodexSessionTests {
     let fixture = try SessionFixture()
     defer { fixture.remove() }
     let request = try fixture.request()
-    try await fixture.seedRunning(request)
+    let previous = try await fixture.seedRunning(request)
+    try await previous.wait()
     let ledger = try fixture.reopen()
     let entered = SessionGate()
     let release = SessionGate()
@@ -606,6 +585,16 @@ struct HostCodexSessionTests {
     await release.open()
     await #expect(throws: SubmissionError.unauthorized) { try await reading.value }
     _ = try await session.close()
+  }
+
+  @Test(arguments: [false, true])
+  func terminalCommitDoesNotReturnPayloadAfterRevocationOrClose(revoke: Bool) async throws {
+    let fixture = try SessionFixture()
+    defer { fixture.remove() }
+    let previous = try await fixture.observeTerminalCommitRace(revoke: revoke)
+    try await previous.wait()
+    // The failed delivery must preserve positive terminal evidence, including after close.
+    #expect(try fixture.phase() == "completed")
   }
 
   @Test func closeDuringStartPersistsLateMappingWithoutReplaying() async throws {
@@ -661,7 +650,22 @@ struct HostCodexSessionTests {
   }
 }
 
-private enum SessionFailure: Error, Equatable { case disconnected }
+private enum SessionFailure: Error, Equatable { case disconnected, ownerNotReleased }
+
+private struct SessionLedgerRelease: Sendable {
+  weak var ledger: HostSubmissionLedger?
+
+  func wait() async throws {
+    // Swift's async call frame may retain the actor after its helper returns. Observe deallocation
+    // before reopening; never retry or weaken the production single-owner storage lock.
+    let clock = ContinuousClock()
+    let deadline = clock.now.advanced(by: .seconds(3))
+    while ledger != nil {
+      guard clock.now < deadline else { throw SessionFailure.ownerNotReleased }
+      try await clock.sleep(for: .milliseconds(2))
+    }
+  }
+}
 
 private actor SessionGate {
   private var opened = false
@@ -831,11 +835,80 @@ private struct SessionFixture: Sendable {
       threadID: upstream.threadID, turnID: upstream.turnID,
       kind: .terminal(CodexTurnSnapshot(upstream: upstream, status: status)), payload: .object([:]))
   }
-  func seedRunning(_ request: TextSubmission) async throws {
+  func seedRunning(_ request: TextSubmission) async throws -> SessionLedgerRelease {
     let ledger = try await ledger()
     _ = try await ledger.accept(request, from: device)
     _ = try await ledger.claimForDispatch(request, from: device)
     try await ledger.observeStarted(requestID: request.requestID, upstream: upstream)
+    return SessionLedgerRelease(ledger: ledger)
+  }
+  func seedLostStartResponse(_ request: TextSubmission) async throws -> SessionLedgerRelease {
+    let ledger = try await ledger()
+    let adapter = SessionAdapter(start: { _ in throw SessionFailure.disconnected })
+    let session = try HostCodexSession(ledger: ledger, adapter: adapter)
+    await #expect(throws: SessionFailure.disconnected) {
+      try await session.submit(request, from: device)
+    }
+    let unknown = try await session.submit(request, from: device)
+    #expect(unknown.submission.phase == .reconciling)
+    #expect(unknown.submission.upstream == nil)
+    #expect(await adapter.counts().starts == 1)
+    _ = try await session.close()
+    return SessionLedgerRelease(ledger: ledger)
+  }
+  func seedRevokedReceive() async throws -> SessionLedgerRelease {
+    let ledger = try await ledger()
+    let adapter = SessionAdapter(upstream: upstream)
+    let session = try HostCodexSession(ledger: ledger, adapter: adapter)
+    let request = try request()
+    _ = try await session.submit(request, from: device)
+    let reading = Task { try await session.nextEvent(requestID: request.requestID, from: device) }
+    await adapter.eventEntered.wait()
+    try await ledger.revokeDevice(id: device.id)
+    await adapter.enqueue(terminal(request, status: .completed))
+    await #expect(throws: SubmissionError.unauthorized) { try await reading.value }
+    _ = try await session.close()
+    return SessionLedgerRelease(ledger: ledger)
+  }
+  func observeTerminalCommitRace(revoke: Bool) async throws -> SessionLedgerRelease {
+    let ledger = try await ledger()
+    let adapter = SessionAdapter(upstream: upstream)
+    let committed = SessionGate()
+    let release = SessionGate()
+    let session = try HostCodexSession(
+      ledger: ledger, adapter: adapter,
+      terminalCommitObserver: {
+        await committed.open()
+        await release.wait()
+      })
+    let request = try request()
+    _ = try await session.submit(request, from: device)
+    // A real terminal event carries host-only text. Only its return leaks this fixture marker.
+    await adapter.enqueue(
+      CodexNativeEvent(
+        method: "turn/completed", requestID: request.requestID, threadID: upstream.threadID,
+        turnID: upstream.turnID,
+        kind: .terminal(CodexTurnSnapshot(upstream: upstream, status: .completed)),
+        payload: .object(["private": .string("MUNIE_TERMINAL_PRIVATE_PAYLOAD")])))
+    let reading = Task { try await session.nextEvent(requestID: request.requestID, from: device) }
+    await committed.wait()
+    #expect(
+      try await ledger.snapshot(requestID: request.requestID, from: device).phase == .completed)
+    if revoke {
+      try await ledger.revokeDevice(id: device.id)
+    } else {
+      #expect(try await session.close().complete)
+    }
+    await release.open()
+    if revoke {
+      await #expect(throws: SubmissionError.unauthorized) { try await reading.value }
+      _ = try await session.close()
+    } else {
+      await #expect(throws: HostCodexSessionError.closed) { try await reading.value }
+      #expect(
+        try await ledger.snapshot(requestID: request.requestID, from: device).phase == .completed)
+    }
+    return SessionLedgerRelease(ledger: ledger)
   }
   func phase() throws -> String? {
     let database = try SQLiteStorage(directoryURL: store)

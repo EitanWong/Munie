@@ -148,7 +148,7 @@ struct LedgerNetworkConfiguration: Sendable {
     else { throw LedgerNetworkProbeFailure.invalidConfiguration }
   }
 
-  private static func validatePrivateFile(_ url: URL, minimumBytes: Int, maximumBytes: Int) throws {
+  static func validatePrivateFile(_ url: URL, minimumBytes: Int, maximumBytes: Int) throws {
     var information = stat()
     guard url.path.hasPrefix("/"), canonicalPath(url.path) == url.path,
       lstat(url.path, &information) == 0, information.st_mode & S_IFMT == S_IFREG,

@@ -18,7 +18,12 @@ struct FixtureConfiguration: Decodable {
 
   func endpoint(path: String) throws -> URL {
     try validate()
-    guard ["submit", "snapshot", "redirect", "oversized", "slow"].contains(path),
+    guard
+      [
+        "submit", "snapshot", "events", "approval", "interrupt", "reconcile", "redirect",
+        "oversized",
+        "slow",
+      ].contains(path),
       let url = URL(string: "https://127.0.0.1:\(port)/fixture/\(path)")
     else { throw ProbeFailure.invalidRequest }
     return url
@@ -36,6 +41,8 @@ struct FixtureCommand: Decodable {
   let projectID: String
   let payload: String
   let cancel: Bool
+  let approvalToken: String?
+  let decision: String?
 }
 
 struct TransferResult: Sendable {
@@ -303,7 +310,7 @@ func parseFixtureReply(_ data: Data) throws -> [String: Any] {
   if Set(object.keys) == ["error"], let error = object["error"]?.string,
     [
       "device-denied", "project-denied", "request-conflict", "fixture-capacity", "unauthorized",
-      "invalid-request", "unknown-request",
+      "invalid-request", "unknown-request", "invalid-approval", "invalid-state",
     ].contains(error)
   {
     return ["fixtureError": error]
@@ -316,7 +323,68 @@ func parseFixtureReply(_ data: Data) throws -> [String: Any] {
     // Separate real ledger evidence from the original in-memory fixture's ordinal.
     return ["state": "ledger-snapshot", "requestID": requestID, "phase": phase]
   }
+  if object["state"]?.string == "codex-snapshot" {
+    return try parseCodexFixtureReply(object)
+  }
   throw ProbeFailure.invalidResponse
+}
+
+func parseCodexFixtureReply(_ object: [String: CodexJSON]) throws -> [String: Any] {
+  let required: Set<String> = [
+    "state", "requestID", "phase", "hasUpstream", "cancellationRequested", "pendingApproval",
+  ]
+  let optional: Set<String> = ["eventKind", "approvalToken", "agentMessageMatched"]
+  guard required.isSubset(of: Set(object.keys)),
+    Set(object.keys).isSubset(of: required.union(optional)),
+    let requestID = object["requestID"]?.string,
+    let id = UUID(uuidString: requestID), id.uuidString == requestID,
+    let phase = object["phase"]?.string, SubmissionPhase(rawValue: phase) != nil,
+    let upstream = object["hasUpstream"]?.bool,
+    let cancellation = object["cancellationRequested"]?.bool,
+    let pending = object["pendingApproval"]?.bool
+  else { throw ProbeFailure.invalidResponse }
+  var result: [String: Any] = [
+    "state": "codex-snapshot", "requestID": requestID, "phase": phase,
+    "hasUpstream": upstream, "cancellationRequested": cancellation, "pendingApproval": pending,
+  ]
+  if let value = object["eventKind"] {
+    guard let kind = value.string,
+      ["progress", "approval", "approval-resolved", "terminal", "none"].contains(kind)
+    else { throw ProbeFailure.invalidResponse }
+    result["eventKind"] = kind
+  }
+  if let value = object["approvalToken"] {
+    guard pending, let token = value.string, let id = UUID(uuidString: token),
+      id.uuidString == token
+    else { throw ProbeFailure.invalidResponse }
+    result["approvalToken"] = token
+  }
+  if let value = object["agentMessageMatched"] {
+    guard object["eventKind"] != nil, let matched = value.bool else {
+      throw ProbeFailure.invalidResponse
+    }
+    result["agentMessageMatched"] = matched
+  }
+  return result
+}
+
+func fixtureRequestBody(_ command: FixtureCommand) throws -> [String: String] {
+  if command.path == "approval" {
+    guard let token = command.approvalToken, let id = UUID(uuidString: token),
+      id.uuidString == token, let decision = command.decision,
+      ["accept", "cancel"].contains(decision)
+    else { throw ProbeFailure.invalidRequest }
+    return ["requestID": command.requestID, "approvalToken": token, "decision": decision]
+  }
+  guard command.approvalToken == nil, command.decision == nil else {
+    throw ProbeFailure.invalidRequest
+  }
+  if ["snapshot", "events", "interrupt", "reconcile"].contains(command.path) {
+    return ["requestID": command.requestID]
+  }
+  return [
+    "requestID": command.requestID, "projectID": command.projectID, "payload": command.payload,
+  ]
 }
 
 @main
@@ -345,13 +413,7 @@ struct MunieNativeNetworkProbe {
           if command.cancel {
             request.setValue("after-response", forHTTPHeaderField: "X-Munie-Fixture-Cancel")
           }
-          let body: [String: String] =
-            command.path == "snapshot"
-            ? ["requestID": command.requestID]
-            : [
-              "requestID": command.requestID, "projectID": command.projectID,
-              "payload": command.payload,
-            ]
+          let body = try fixtureRequestBody(command)
           request.httpBody = try JSONSerialization.data(withJSONObject: body)
           guard let requestBody = request.httpBody, requestBody.count <= 2048 else {
             throw ProbeFailure.inputLimit

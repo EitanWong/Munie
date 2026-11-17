@@ -494,6 +494,9 @@ struct HostSubmissionLedgerTests {
       return try storage.rows("SELECT id,identity,phase FROM requests")
     }
     #expect(throws: SubmissionError.unsupportedSchema) { try fixture.reopen() }
+    // A throwing actor initializer can release its storage after the expectation returns.
+    // Observe the real owner lock before the next connection inspects the unchanged store.
+    try await HostFixtureOwnerRelease(store: fixture.storeURL).wait()
     try await fixture.withReleasedStorage { storage in
       #expect(try storage.rows("PRAGMA user_version") == [[.integer(99)]])
       #expect(try storage.rows("SELECT id,identity,phase FROM requests") == before)

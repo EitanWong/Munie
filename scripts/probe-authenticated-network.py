@@ -81,6 +81,7 @@ class FixtureAuthorization:
 
 class FixtureHandler(BaseHTTPRequestHandler):
     protocol_version = 'HTTP/1.1'
+    allowed_paths = ('/fixture/submit',)
 
     def log_message(self, *_):
         pass  # No certificate, request path, content or header logging.
@@ -100,7 +101,7 @@ class FixtureHandler(BaseHTTPRequestHandler):
         self.wfile.flush()
 
     def do_POST(self):
-        if self.path != '/fixture/submit':
+        if self.path not in self.allowed_paths:
             self.send_result(404, {'error': 'fixture-route'}, close=True)
             return
         lengths = self.headers.get_all('Content-Length', [])
@@ -130,8 +131,11 @@ class FixtureHandler(BaseHTTPRequestHandler):
         self.connection.settimeout(IO_SECONDS)
         fingerprint = hashlib.sha256(self.connection.getpeercert(binary_form=True)).hexdigest()
         # Read the live deny policy for EVERY request, even on a pre-existing TLS connection.
-        status, result = self.server.policy.submit(fingerprint, bytes(body))
+        status, result = self.handle_submission(fingerprint, bytes(body))
         self.send_result(status, result, close=status == 403)
+
+    def handle_submission(self, fingerprint, body):
+        return self.server.policy.submit(fingerprint, body)
 
 
 class FixtureServer(HTTPServer):

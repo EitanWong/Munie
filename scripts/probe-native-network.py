@@ -193,7 +193,8 @@ def prepare_native_certificates(openssl, root):
 
 
 @contextmanager
-def native_peer(executable, root, port, password, report, name, identity='device-a', ca='ca'):
+def native_peer(executable, root, port, password, report, name, identity='device-a', ca='ca',
+                peer_class=None):
     configuration = {'port': port, 'caDERPath': str(root / (ca + '.der'))}
     if identity is not None:
         configuration.update(identityPKCS12Path=str(root / (identity + '.p12')), passphrase=password)
@@ -207,7 +208,7 @@ def native_peer(executable, root, port, password, report, name, identity='device
     peer, primary_error = None, None
     try:
         report['failureCode'] = 'native-startup'
-        peer = NativePeer([str(executable), str(config_path)], root, environment)
+        peer = (peer_class or NativePeer)([str(executable), str(config_path)], root, environment)
         peer.ready(identity is not None)
         record['memoryOnlyIdentity'] = identity is not None
         yield peer

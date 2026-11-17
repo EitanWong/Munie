@@ -144,3 +144,21 @@ Offline native tests cover credential challenge rejection, actual `SecTrust` hos
 The current macOS experiment has an explicit HTTP denial comparison: a legacy HTTP 403 control is observed as URL error `-1206` with no readable HTTP/body, while the candidate fixture returns domain denials as HTTP 200 with a fixed `error` envelope and keeps conflicts at 409. An HTTP 200 error envelope is a denial, never an accepted task; server acceptance counts must stay unchanged. This is a versioned research observation and candidate encoding, not the production protocol decision. The original Python-only 403 fixture remains unchanged. Untrusted client rejection additionally requires the server's certificate-verification failure, since a native connection-lost error alone is insufficient evidence.
 
 In-flight cancellation uses an authenticated response with a two-byte advertised body: the server sends headers and one prefix byte, then withholds completion. The native response callback cancels before delivering any body data to its delegate. Acceptance requires the server's request barrier, `cancelledOnResponse=true`, HTTP 200, cancellation error `-999`, zero retained body bytes and no new fixture acceptance; it is separate from the slow-response timeout. This is HTTP transfer cancellation, not evidence of cancelling an Agent task.
+
+## Opt-in authenticated ledger network experiment
+
+This separate Mac-only experiment connects the verified TLS peer identity to the actual `HostSubmissionLedger`, using temporary projects, certificates and SQLite files. The Python TLS server obtains the client leaf DER from the authenticated socket and sends its fingerprint over a trusted local pipe; the Swift driver maps it to the enrolled device. HTTP bodies cannot select trusted device identity, host, filesystem paths or administrative operations. The threat boundary and remaining production choices are maintained in [network research](../references/authenticated-network-research.md#tls-连接身份到真实账本的桥接研究卡).
+
+Build both products with `swift build -c release`; obtain their absolute paths from `swift build -c release --show-bin-path`:
+
+```sh
+/opt/homebrew/bin/python3 scripts/probe-ledger-network.py \
+  --native-executable NATIVE_TARGET --ledger-executable LEDGER_TARGET \
+  --openssl /opt/homebrew/bin/openssl --output build/ledger-network-probe.json
+```
+
+`NATIVE_TARGET` is `MunieNativeNetworkProbe`; `LEDGER_TARGET` is `MunieLedgerNetworkProbe`. The driver has strict, bounded configuration/JSONL frames and private canonical fixture directories. Bootstrap requires empty state; resume requires an existing schema-1 database, without reauthorizing devices or creating a missing ledger. A nonempty schema-0 file must be refused unchanged. Local `claim` only tests durable dispatch permission; it does not execute an Agent/tool.
+
+Acceptance requires the runner's exact named case sequence, all cases passed, native TLS 1.3/no-proxy evidence, independently read SQLite request identity/phase/counts, and live per-request authorization. Cover unknown certificates, cross-project/cross-device denial, body/header identity spoofing, duplicate JSON, forbidden HTTP administration, retry/conflict, same-connection revocation, new-connection revocation and driver SIGKILL/reopen. The revoked device stays disabled; previously dispatching records become `reconciling` without another send permission, while the unclaimed record stays `accepted`. Read and retry must refer to the original IDs. Neither state means execution completed. Domain denial over HTTP200 remains the research encoding, not authorization success.
+
+Require normal driver exit 0 or the deliberate SIGKILL exit -9 as appropriate, EOF/group disappearance, native session invalidation/exit0, stopped server/listener and removal of all temporary credentials/projects/ledger files. Reports invalidate prior success and record source/executable hashes and bounded structural evidence without plaintext/keys/certificates. Offline validation and failure/cleanup regressions run separately in the repository checks. The trusted fixture pipe is not a production IPC security boundary or a general backpressure implementation; slow-header defense and host service supervision remain open. No Codex/model, real account, WAN/cellular, iOS/Watch, voice or hardware acceptance is performed.

@@ -36,6 +36,14 @@
 
 本轮通过 metadata-only `thread/read` 加 `thread/turns/list(itemsView:"full")` 读取持久历史。直接 `thread/read(includeTurns:true)` 在运行时触发 deprecation notice；full/summary/notLoaded 及 `thread/items/list` 支持须按实际 history backing store 判断，不能把空摘要解释为丢失，或将某个 Unsupported 分支泛化为全版本不支持。参见[固定历史测试](https://github.com/openai/codex/blob/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs/app-server/tests/suite/v2/thread_read.rs#L457)。
 
+## 账本集成与观察到的协议差异
+
+固定 0.162.1 实际 notification envelope 附带整数 `emittedAtMs`，但生成 schema 未描述该 envelope 扩展。第一次 strict Swift 握手因未知字段拒绝；只读隔离握手核对后，client 显式接受该字段类型，未知 envelope 字段仍拒绝。不能把这个特例扩展成忽略任意消息差异。
+
+`HostCodexSession` 现通过 `CodexAppServer` 接入真实 ledger、thread/turn 与 bounded stdio。启动/恢复强制 canonical project cwd、`on-request`、`read-only` 和 user reviewer；移动端不能提供配置/路径。原生参数与事件保留在授权 host 内，日志仅记录结构。POSIX `realpath` 用于比较原始 UTF-8，避免 Foundation 路径标准化将 `/private/var` 改为 `/var` 后破坏 NOFOLLOW 目录访问。
+
+[八项本机集成实验](../docs/testing.md#ledger-integrated-native-codex-experiment)已执行合成 provider 下的真实工具、审批、执行中取消和特定故障窗口。pending approval 被杀后新进程读到同一 turn 为 interrupted；已持久 completed turn 可在 ledger 未提交终态时恢复；主机丢失上游映射时保留未知、不重发。它不证明恢复旧审批、任意中断点、真实模型或蜂窝路径。启动前登记的 fixture guardian 补上 host 在 native group frame 前死亡的清理窗口；具体进程原语与成熟替代见[进程研究](host-process-research.md)。当前观察结果由项目状态维护，能力清单仍全部为产品未实现。
+
 ## 第一条远程路径比较
 
 以下均是候选，未部署。共同执行端保留 Mac 本机 stdio adapter 和 Munie 的项目/设备授权；网络只解决到达与通道认证，不能替代应用授权。
@@ -60,8 +68,8 @@
 
 1. 固定 binary/schema；先用临时合成项目、独立状态目录、精简环境和可验证的操作系统限制做 no-turn stdio 探针。记录握手元数据、错误请求、有界脱敏 stdout/stderr 证据与退出状态；这一步不能证明模型、审批、取消或网络可用。可执行命令与隔离/清理契约见[测试](../docs/testing.md#opt-in-local-codex-protocol-experiment)。
 2. 用离线故障夹具验证 gateway 项目授权、双设备审批、撤销、去重、事件缺口及未知提交窗口；夹具输出必须标为模拟，不能算真实 Codex 行为。
-3. 本机确定性 provider 的原生生命周期子集已运行；接着在合成项目中补真实模型、执行中工具取消、断连/崩溃和 pending approval 恢复。先明确模型/网络和费用范围，固定 thread/turn、输入、权限和终态证据，不从合成模型推断真实模型可用。
+3. 本机确定性 provider 的原生生命周期、运行中工具取消及账本集成的特定崩溃窗口已运行；接着在合成项目中补真实模型、其他断连/异常窗口及审批重新核对策略。先明确模型/网络和费用范围，固定 thread/turn、输入、权限和终态证据，不从合成模型推断真实模型可用。
 4. 对选定的首个认证通道做 iPhone 蜂窝→清醒 Mac 测试：拒绝未知/已撤销设备、限制项目、切网恢复、响应丢失、不确定提交核对；记录 transport、直连/中继、耗时、状态与失败。
 5. 在 Watch 真机验证 HTTPS 独立路径、后台/通知与语音短交互，再决定是否需要公网 relay。每项失败有下一动作，未经验证不扩大可用性声明。
 
-请求账本须在发往上游前持久记录本地 request ID、不可变目标/输入及提交阶段。若 `turn/start` 已写出但上游 ID 尚未落盘就崩溃，仍可能已经开始执行；schema 中没有已证实能消除该窗口的幂等保证。进入 `reconciling` 并读取可用会话/事件证据，无法确认时保持未知，禁止自动重发副作用。这是必须验证的恢复设计，当前没有实际崩溃恢复结果。
+请求账本须在发往上游前持久记录本地 request ID、不可变目标/输入及提交阶段。若 `turn/start` 已写出但上游 ID 尚未落盘就崩溃，仍可能已经开始执行；schema 中没有已证实能消除该窗口的幂等保证。进入 `reconciling` 并读取可用会话/事件证据，无法确认时保持未知，禁止自动重发副作用。账本集成已实际执行这一映射丢失窗口并保持 reconciling；它未提供上游 exactly-once 保证或未知 ID 的自动恢复。

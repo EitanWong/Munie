@@ -59,7 +59,7 @@ CI 无需安装 Codex；运行 `python3 scripts/catalog-codex.py --validate-cata
 
 实施前先按[测试入口](../testing.md#opt-in-local-codex-protocol-experiment)运行固定版本、系统隔离的 no-turn 探针，读取[协议研究](../../references/codex-protocol-research.md)。握手及不存在任务的拒绝只说明这些协议边界；不得据此把清单状态改为已实现，或声称真实审批、取消与恢复通过。
 
-其后的 native lifecycle 夹具验证真实 app-server 状态、单次命令审批及优雅重启后的已知 thread 读取/继续；模型内容来自合成 provider。它仍不能证明真实模型、执行中子进程取消、未知提交/崩溃恢复或手机访问，也不改变清单的 `unimplemented` 状态。审批回复必须核对本次 `availableDecisions`、实际动作及原 request/thread/turn/item；终态、恢复方式与测试范围不得被统一成一个“通过”。
+其后的 native lifecycle 夹具验证真实 app-server 状态、单次命令审批及优雅重启后的已知 thread 读取/继续；模型内容来自合成 provider。后续[账本集成实验](../testing.md#ledger-integrated-native-codex-experiment)另外执行了运行中工具取消和特定崩溃窗口。两者均不能证明真实模型、所有恢复情况或手机访问，也不改变产品清单的 `unimplemented` 状态。审批回复必须核对本次 `availableDecisions`、实际动作及原 request/thread/turn/item；终态、恢复方式与测试范围不得被统一成一个“通过”。
 
 以下按能力组织验收，机器清单仍保留全部原始方法，不能用这个摘要替代逐项范围。
 
@@ -80,4 +80,4 @@ Codex app-server 的版本化协议范围不等于 Codex Desktop 所有 UI、云
 
 ## 官方依据与使用边界
 
-2026-11-17 核对 [Codex app-server](https://learn.chatgpt.com/docs/app-server)的协议导出、初始化、实验协商与双向消息规则；真实方法范围来自本机 CLI 生成物。文档只保存链接、API 标识与本项目规范，不复制官方正文或第三方实现。协议来源与现有连接机制研究见[入口研究](../../references/entry-point-research.md)；新增运行时依赖仍须按[引用登记](../../references/README.md)复核。本轮没有引入运行时 SDK、adapter 或账号凭据。
+2026-11-17 核对 [Codex app-server](https://learn.chatgpt.com/docs/app-server)的协议导出、初始化、实验协商与双向消息规则；真实方法范围来自本机 CLI 生成物。文档只保存链接、API 标识与本项目规范，不复制官方正文或第三方实现。协议来源与现有连接机制研究见[入口研究](../../references/entry-point-research.md)；新增运行时依赖仍须按[引用登记](../../references/README.md)复核。本轮增加仅供本机研究的固定版本 adapter 子集；未引入第三方运行时 SDK 或账号凭据。

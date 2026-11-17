@@ -219,11 +219,113 @@ class DiagnosticTests(unittest.TestCase):
                 probe.validate_progress(dict(value, **changes), RUN, 'create', NONCE)
 
     def test_log_hints_never_export_messages_paths_or_other_process_lines(self):
-        raw = (f'{probe.BUNDLE} signature invalid /private/secret\n'
-               'other-app signature invalid /private/other\n'
-               'MunieIdentityResearch startup failed token=private\n').encode()
+        raw = json.dumps([
+            {'process': 'SpringBoard', 'eventMessage':
+             f'{probe.BUNDLE} signature invalid /private/secret token=private'},
+            {'process': 'unrelated-app', 'eventMessage':
+             'other-app signature invalid /private/other', 'bundle': probe.BUNDLE},
+            {'process': 'MunieIdentityResearch', 'eventMessage': 'startup failed token=private'},
+        ]).encode()
         self.assertEqual(probe.log_hints(raw), {'matchingLines': 2,
-                         'signatureRejectionHintLines': 1, 'launchFailureHintLines': 1})
+                         'signatureRejectionHintLines': 1, 'launchFailureHintLines': 1,
+                         'frontBoardRejectionHintLines': 0, 'errorDomains': []})
+
+    def test_frontboard_and_nested_error_domains_keep_only_signed_numeric_codes(self):
+        raw = json.dumps([
+            {'process': 'SpringBoard', 'eventMessage':
+             f'{probe.BUNDLE} request denied by SBMainWorkspace '
+             '(domain=FBSOpenApplicationServiceErrorDomain, code=1); '
+             'Error Domain=RBSRequestErrorDomain Code=-5 "private detail" '
+             'NSUnderlyingError=Error Domain=NSPOSIXErrorDomain Code=13 /private/token'},
+            {'process': 'MunieIdentityResearch', 'eventMessage':
+             'Error Domain=NSOSStatusErrorDomain Code=-2147483648 '
+             'Error Domain=NSOSStatusErrorDomain Code=2147483647 '
+             'Error Domain=NSOSStatusErrorDomain Code=-2147483649 '
+             'Error Domain=NSOSStatusErrorDomain Code=2147483648 '
+             'Error Domain=PrivateTokenDomain Code=42'},
+            {'process': 'unrelated-app', 'eventMessage':
+             'Error Domain=NSPOSIXErrorDomain Code=99', 'privateMetadata': probe.BUNDLE},
+        ]).encode()
+        result = probe.log_hints(raw)
+        domains = {item['domain']: item['codes'] for item in result['errorDomains']}
+        self.assertEqual(domains, {'FBSOpenApplicationServiceErrorDomain': [1],
+                                  'RBSRequestErrorDomain': [-5], 'NSPOSIXErrorDomain': [13],
+                                  'NSOSStatusErrorDomain': [-(2**31), 2**31 - 1]})
+        self.assertEqual(result['matchingLines'], 2)
+        self.assertEqual(result['frontBoardRejectionHintLines'], 1)
+        self.assertEqual(set(result), {'matchingLines', 'signatureRejectionHintLines',
+                                     'launchFailureHintLines', 'frontBoardRejectionHintLines',
+                                     'errorDomains'})
+        encoded = json.dumps(result)
+        for private in ('private detail', '/private/', 'PrivateTokenDomain', 'NSUnderlyingError'):
+            self.assertNotIn(private, encoded)
+
+    def test_error_domain_allowlist_deduplicates_and_bounds_each_sorted_code_list(self):
+        allowed = ('FBSOpenApplicationServiceErrorDomain', 'FBProcessExit',
+                   'FBApplicationInfoErrorDomain', 'RBSRequestErrorDomain',
+                   'RBSAssertionErrorDomain', 'NSPOSIXErrorDomain', 'NSOSStatusErrorDomain',
+                   'NSCocoaErrorDomain', 'LSApplicationWorkspaceErrorDomain',
+                   'MIInstallerErrorDomain', 'IXUserPresentableErrorDomain')
+        records = [{'process': 'MunieIdentityResearch',
+                    'eventMessage': f'Error Domain={domain} Code=-7 Error Domain={domain} Code=-7'}
+                   for domain in allowed]
+        records.extend({'process': 'MunieIdentityResearch',
+                        'eventMessage': f'Error Domain=NSPOSIXErrorDomain Code={code}'}
+                       for code in (12, 3, -4, 18, 8, 1, 2, 9, 7, 5, 4))
+        result = probe.log_hints(json.dumps(records).encode())
+        domains = {item['domain']: item['codes'] for item in result['errorDomains']}
+        self.assertEqual(set(domains), set(allowed))
+        for domain, codes in domains.items():
+            self.assertEqual(codes, sorted(set(codes)))
+            self.assertLessEqual(len(codes), 8)
+            self.assertTrue(all(type(code) is int for code in codes))
+            if domain != 'NSPOSIXErrorDomain':
+                self.assertEqual(codes, [-7])
+        self.assertEqual(len(domains['NSPOSIXErrorDomain']), 8)
+        self.assertTrue(set(domains['NSPOSIXErrorDomain']) <= {-7, 12, 3, -4, 18, 8, 1, 2, 9, 7, 5, 4})
+
+    def test_only_message_and_supported_process_identity_fields_correlate_log_records(self):
+        raw = json.dumps([
+            {'process': 'other-app', 'eventMessage': 'ordinary text',
+             'bundleID': probe.BUNDLE,
+             'metadata': 'Error Domain=NSPOSIXErrorDomain Code=77'},
+            {'process': 'MunieIdentityResearch', 'eventMessage': 'ordinary text',
+             'metadata': 'Error Domain=NSPOSIXErrorDomain Code=88'},
+            {'processImagePath': '/private/fixture/MunieIdentityResearch',
+             'eventMessage': 'ordinary text'},
+            {'processImagePath': '/private/fixture/OtherProcess', 'process': 'MunieIdentityResearch',
+             'eventMessage': 'Error Domain=NSPOSIXErrorDomain Code=99'},
+        ]).encode()
+        result = probe.log_hints(raw)
+        self.assertEqual(result['matchingLines'], 2)
+        self.assertEqual(result['errorDomains'], [])
+        self.assertNotIn('/private/', json.dumps(result))
+
+    def test_malformed_or_oversized_json_logs_fail_without_exposing_raw_text(self):
+        invalid = (b'private malformed text', b'\xff', b'{"eventMessage":"private"}',
+                   b'[', b'["private record"]', json.dumps([{}] * 2049).encode(),
+                   b'[{"process":false}]', b'[{"eventMessage":2}]',
+                   b'[{"eventMessage":"first","eventMessage":"private"}]',
+                   b'[{"eventMessage":NaN}]')
+        for raw in invalid:
+            with self.subTest(size=len(raw)), self.assertRaises(probe.ProbeFailure) as caught:
+                probe.log_hints(raw)
+            self.assertEqual(caught.exception.code, 'diagnostic-log-schema')
+            self.assertEqual(str(caught.exception), 'diagnostic-log-schema')
+
+    def test_empty_and_exactly_bounded_log_lists_are_valid(self):
+        for records in ([], [{'process': 'other-app', 'eventMessage': 'unrelated'}] * 2048):
+            with self.subTest(count=len(records)):
+                result = probe.log_hints(json.dumps(records).encode())
+                self.assertEqual(result['matchingLines'], 0)
+                self.assertEqual(result['errorDomains'], [])
+
+    def test_noninteger_code_tokens_never_become_numeric_error_evidence(self):
+        for token in ('1.5', '-2.5', '1e3', '7private', 'true', '9_000'):
+            with self.subTest(token=token):
+                raw = json.dumps([{'process': 'MunieIdentityResearch',
+                                   'eventMessage': f'Error Domain=NSPOSIXErrorDomain Code={token}'}]).encode()
+                self.assertEqual(probe.log_hints(raw)['errorDomains'], [])
 
 
 class CommandTests(unittest.TestCase):
@@ -516,15 +618,52 @@ class FakeTools:
             self.state = 'Shutdown'
         elif stage == 'simulator-delete' and not self.retain_simulator:
             self.created = False
+        elif stage == 'diagnostic-app-logs':
+            return b'[]', b'', 0
         return b'', b'', 0
 
 
+class DiagnosticFixtureTools:
+    """Bounded, inspectable responses for direct diagnostics; never Apple tools."""
+
+    def __init__(self, *, inventory=None, inventory_error=None, log_error=None, logs=None):
+        self.calls = []
+        self.inventory_error, self.log_error = inventory_error, log_error
+        self.inventory = {'devices': {RUNTIME: [{'udid': OWN,
+                          'name': 'MunieIdentityResearch-' + RUN, 'state': 'Booted'}]}}
+        if inventory is not None:
+            self.inventory = inventory
+        self.logs = [] if logs is None else logs
+
+    def run(self, stage, command, deadline, seconds, **options):
+        self.calls.append({'stage': stage, 'argv': command, 'deadline': deadline,
+                           'seconds': seconds, **options})
+        if stage == 'diagnostic-owned-inventory':
+            if self.inventory_error is not None:
+                raise probe.ProbeFailure(self.inventory_error)
+            return json.dumps(self.inventory).encode(), b'', 0
+        if stage == 'diagnostic-app-logs':
+            if self.log_error is not None:
+                raise probe.ProbeFailure(self.log_error)
+            return json.dumps(self.logs).encode(), b'', 0
+        if stage == 'diagnostic-launchd':
+            return f'41001 0 UIKitApplication:{probe.BUNDLE}\n'.encode(), b'', 0
+        raise AssertionError('unexpected offline diagnostic stage: ' + stage)
+
+
 class ExperimentTests(unittest.TestCase):
+    def diagnostic_experiment(self, tools, root=Path('/unused')):
+        report = {}
+        experiment = probe.Experiment(root, report, tools, RUN)
+        experiment.simulator, experiment.ownership_verified = OWN, True
+        experiment.selection = {'runtimeID': RUNTIME}
+        experiment.owned_identity = (OWN, experiment.name, RUNTIME, RUN)
+        return experiment, report
+
     def test_diagnostic_skips_when_process_cleanup_margin_is_unavailable(self):
         with tempfile.TemporaryDirectory() as directory:
-            tools, report = FakeTools(Path(directory)), {}
-            experiment = probe.Experiment(Path(directory), report, tools, RUN)
-            experiment.simulator, experiment.ownership_verified = OWN, True
+            tools = FakeTools(Path(directory))
+            experiment, report = self.diagnostic_experiment(tools, Path(directory))
             experiment.work_end = time.monotonic() + 2
             experiment.diagnose_failure()
             self.assertEqual(report['failureDiagnostics']['skipped'], 'insufficient-work-budget')
@@ -548,6 +687,7 @@ class ExperimentTests(unittest.TestCase):
         experiment = probe.Experiment(Path('/unused'), report, DiagnosticTools(), RUN)
         experiment.simulator, experiment.ownership_verified = OWN, True
         experiment.selection = {'runtimeID': RUNTIME}
+        experiment.owned_identity = (OWN, experiment.name, RUNTIME, RUN)
         experiment.work_end = time.monotonic() + 5
         experiment.diagnose_failure()
         self.assertLess(time.monotonic(), experiment.work_end)
@@ -574,7 +714,8 @@ class ExperimentTests(unittest.TestCase):
                 if stage == 'diagnostic-launchd':
                     return f'41001 0 UIKitApplication:{probe.BUNDLE}\n'.encode(), b'', 0
                 if stage == 'diagnostic-app-logs':
-                    return f'{probe.BUNDLE} signature invalid private-text\n'.encode(), b'', 0
+                    return json.dumps([{'process': 'MunieIdentityResearch', 'eventMessage':
+                                        f'{probe.BUNDLE} signature invalid private-text'}]).encode(), b'', 0
                 return result
 
         with tempfile.TemporaryDirectory() as directory:
@@ -589,10 +730,16 @@ class ExperimentTests(unittest.TestCase):
             self.assertEqual(diagnostic['progress']['milestone'], 'report-saved')
             self.assertTrue(diagnostic['launchd']['researchAppJobPresent'])
             self.assertEqual(diagnostic['appLogHints']['signatureRejectionHintLines'], 1)
+            self.assertEqual(diagnostic['phaseContext']['phase'], 'create')
+            self.assertEqual(diagnostic['phaseContext']['nonce'], diagnostic['progress']['nonce'])
+            self.assertEqual(experiment.phase_context['phase'], 'cleanup')
+            self.assertNotEqual(diagnostic['phaseContext']['nonce'], experiment.phase_context['nonce'])
             self.assertEqual([item['phase'] for item in report['phases']], ['cleanup'])
             self.assertTrue(report['cleanup']['createdSimulatorAbsent'])
             calls = [call for call in tools.calls if call['stage'].startswith('diagnostic-')]
-            self.assertEqual(len(calls), 3)
+            self.assertEqual([call['stage'] for call in calls],
+                             ['diagnostic-owned-inventory', 'diagnostic-app-logs', 'diagnostic-launchd'])
+            self.assertEqual(len({call['deadline'] for call in calls}), 1)
             for call in calls:
                 self.assertTrue(call['private'])
                 self.assertLessEqual(call['deadline'], experiment.work_end)
@@ -600,21 +747,31 @@ class ExperimentTests(unittest.TestCase):
                 if 'spawn' in call['argv']:
                     self.assertEqual(call['argv'][3], OWN)
 
-    def test_failed_diagnostic_ownership_read_never_spawns_or_masks_failure(self):
-        _, report, tools, failure = self.exercise_diagnostic_failure('command-timeout')
+    def test_clean_diagnostic_inventory_timeout_continues_logs_first_without_masking_failure(self):
+        experiment, report, tools, failure = self.exercise_diagnostic_failure('command-timeout')
         self.assertEqual(failure, 'fixture-app-launch-create')
         self.assertTrue(report['cleanup']['createdSimulatorAbsent'])
-        self.assertNotIn('launchd', report['failureDiagnostics'])
-        self.assertFalse(any(call['stage'] in ('diagnostic-launchd', 'diagnostic-app-logs')
-                             for call in tools.calls))
+        diagnostic = report['failureDiagnostics']
+        self.assertEqual(diagnostic['ownedState'], 'unknown')
+        self.assertTrue(diagnostic['usingInitiallyVerifiedSimulator'])
+        self.assertFalse(diagnostic['acceptedAsLifecycleEvidence'])
+        calls = [call for call in tools.calls if call['stage'].startswith('diagnostic-')]
+        self.assertEqual([call['stage'] for call in calls],
+                         ['diagnostic-owned-inventory', 'diagnostic-app-logs', 'diagnostic-launchd'])
+        self.assertEqual(len({call['deadline'] for call in calls}), 1)
+        self.assertTrue(all(call['private'] for call in calls))
+        for call in calls[1:]:
+            self.assertEqual(call['argv'][3], experiment.owned_identity[0])
+            self.assertNotIn(EXISTING, call['argv'])
 
     def exercise_diagnostic_failure(self, code):
         class FailedDiagnostic(FakeTools):
-            def run(self, stage, *args, **kwargs):
+            def run(self, stage, command, deadline, seconds, **kwargs):
                 if stage == 'diagnostic-owned-inventory':
-                    self.calls.append({'stage': stage})
+                    self.calls.append({'stage': stage, 'argv': command, 'deadline': deadline,
+                                       'seconds': seconds, **kwargs})
                     raise probe.ProbeFailure(code)
-                return super().run(stage, *args, **kwargs)
+                return super().run(stage, command, deadline, seconds, **kwargs)
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             tools = FailedDiagnostic(root, fail_stage='app-launch-create')
@@ -626,6 +783,195 @@ class ExperimentTests(unittest.TestCase):
             except probe.ProbeFailure as error:
                 failure = error.code
             return experiment, report, tools, failure
+
+    def test_diagnostic_hard_inventory_failures_absence_mismatch_and_nonbooted_stop(self):
+        own_entry = {'udid': OWN, 'name': 'MunieIdentityResearch-' + RUN, 'state': 'Booted'}
+        cases = [
+            ('unclean-timeout', {'inventory_error': 'command-cleanup-failed'}),
+            ('output-overflow', {'inventory_error': 'command-output-limit'}),
+            ('tool-exit', {'inventory_error': 'command-exit-diagnostic-owned-inventory'}),
+            ('invalid-schema', {'inventory': {'devices': []}}),
+            ('absent', {'inventory': {'devices': {RUNTIME: []}}}),
+            ('wrong-name', {'inventory': {'devices': {RUNTIME: [dict(own_entry, name='other-owner')]}}}),
+            ('wrong-runtime', {'inventory': {'devices': {'other-runtime': [own_entry]}}}),
+            ('shutdown', {'inventory': {'devices': {RUNTIME: [dict(own_entry, state='Shutdown')]}}}),
+            ('unknown-state', {'inventory': {'devices': {RUNTIME: [dict(own_entry, state='unknown')]}}}),
+        ]
+        for name, options in cases:
+            with self.subTest(case=name):
+                tools = DiagnosticFixtureTools(**options)
+                experiment, report = self.diagnostic_experiment(tools)
+                experiment.diagnose_failure()
+                self.assertEqual([call['stage'] for call in tools.calls], ['diagnostic-owned-inventory'])
+                diagnostic = report['failureDiagnostics']
+                self.assertNotIn('usingInitiallyVerifiedSimulator', diagnostic)
+                self.assertNotIn('appLogHints', diagnostic)
+                self.assertNotIn('launchd', diagnostic)
+                self.assertFalse(diagnostic['acceptedAsLifecycleEvidence'])
+                self.assertEqual(experiment.history, [])
+                if name not in ('shutdown', 'unknown-state'):
+                    self.assertEqual(diagnostic['errors'][0]['stage'], 'ownedState')
+
+    def test_unclean_log_command_stops_launchd_but_clean_errors_can_continue(self):
+        for code in ('command-cleanup-failed', 'command-timeout', 'diagnostic-log-schema'):
+            with self.subTest(code=code):
+                tools = DiagnosticFixtureTools(inventory_error='command-timeout', log_error=code)
+                experiment, report = self.diagnostic_experiment(tools)
+                experiment.diagnose_failure()
+                expected = ['diagnostic-owned-inventory', 'diagnostic-app-logs']
+                if code != 'command-cleanup-failed':
+                    expected.append('diagnostic-launchd')
+                self.assertEqual([call['stage'] for call in tools.calls], expected)
+                diagnostic = report['failureDiagnostics']
+                self.assertIn({'stage': 'appLogHints', 'failure': code}, diagnostic['errors'])
+                self.assertEqual(diagnostic['ownedState'], 'unknown')
+                self.assertEqual(experiment.history, [])
+                self.assertEqual(report['phases'], [])
+
+    def test_invalid_structured_logs_remain_private_and_do_not_hide_launchd_state(self):
+        tools = DiagnosticFixtureTools(logs={'private': '/private/account/token'})
+        experiment, report = self.diagnostic_experiment(tools)
+        experiment.diagnose_failure()
+        self.assertEqual([call['stage'] for call in tools.calls],
+                         ['diagnostic-owned-inventory', 'diagnostic-app-logs', 'diagnostic-launchd'])
+        diagnostic = report['failureDiagnostics']
+        self.assertIn({'stage': 'appLogHints', 'failure': 'diagnostic-log-schema'}, diagnostic['errors'])
+        self.assertTrue(diagnostic['launchd']['researchAppJobPresent'])
+        self.assertNotIn('/private/', json.dumps(diagnostic))
+        self.assertTrue(all(call['private'] for call in tools.calls))
+        log_call = tools.calls[1]
+        self.assertEqual(log_call['argv'][log_call['argv'].index('--style') + 1], 'json')
+        self.assertEqual(log_call['argv'][3], OWN)
+
+    def test_owned_identity_is_claimed_once_and_repeated_lookup_preserves_the_lock(self):
+        tools = DiagnosticFixtureTools()
+        experiment = probe.Experiment(Path('/unused'), {}, tools, RUN)
+        self.assertIsNone(experiment.owned_identity)
+        experiment.simulator = OWN
+        experiment.selection = {'runtimeID': RUNTIME}
+        first = experiment.find_owned(tools.inventory['devices'])
+        expected = (OWN, experiment.name, RUNTIME, RUN)
+        self.assertEqual(experiment.owned_identity, expected)
+        self.assertTrue(experiment.ownership_verified)
+        self.assertEqual(experiment.find_owned(deepcopy(tools.inventory['devices'])), first)
+        self.assertEqual(experiment.owned_identity, expected)
+
+    def test_later_lookup_cannot_replace_any_part_of_the_owned_identity(self):
+        for changed in ('simulator', 'name', 'runtime', 'run_id'):
+            with self.subTest(changed=changed):
+                tools = DiagnosticFixtureTools()
+                experiment, _ = self.diagnostic_experiment(tools)
+                original = experiment.owned_identity
+                if changed == 'simulator':
+                    experiment.simulator = EXISTING
+                elif changed == 'name':
+                    experiment.name += '-replacement'
+                elif changed == 'runtime':
+                    experiment.selection = {'runtimeID': 'replacement-runtime'}
+                else:
+                    experiment.run_id = NONCE
+                devices = {experiment.selection['runtimeID']: [
+                    {'udid': experiment.simulator, 'name': experiment.name, 'state': 'Booted'}]}
+                with self.assertRaises(probe.ProbeFailure) as caught:
+                    experiment.find_owned(devices)
+                self.assertEqual(caught.exception.code, 'created-simulator-identity-changed')
+                self.assertEqual(experiment.owned_identity, original)
+                self.assertEqual(tools.calls, [])
+
+    def test_diagnostics_require_the_original_identity_lock_before_any_tool_or_file_read(self):
+        for changed in ('simulator', 'name', 'runtime', 'run_id', 'missing-lock'):
+            with self.subTest(changed=changed):
+                tools = DiagnosticFixtureTools()
+                experiment, _ = self.diagnostic_experiment(tools)
+                if changed == 'simulator':
+                    experiment.simulator = EXISTING
+                elif changed == 'name':
+                    experiment.name += '-replacement'
+                elif changed == 'runtime':
+                    experiment.selection = {'runtimeID': 'replacement-runtime'}
+                elif changed == 'run_id':
+                    experiment.run_id = NONCE
+                else:
+                    experiment.owned_identity = None
+                with patch.object(probe, 'read_phase_file') as read, self.assertRaises(probe.ProbeFailure) as caught:
+                    experiment.diagnose_failure()
+                self.assertEqual(caught.exception.code, 'diagnostic-simulator-identity-changed')
+                read.assert_not_called()
+                self.assertEqual(tools.calls, [])
+
+    def test_diagnostic_phase_context_is_a_copy_and_never_counts_as_lifecycle_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            tools = DiagnosticFixtureTools()
+            root = Path(directory)
+            experiment, report = self.diagnostic_experiment(tools, root)
+            context = {'phase': 'create', 'nonce': NONCE}
+            experiment.phase_context = context
+            experiment.container = root
+            experiment.diagnose_failure()
+            context.update(phase='cleanup', nonce=OWN)
+            self.assertEqual(report['failureDiagnostics']['phaseContext'],
+                             {'phase': 'create', 'nonce': NONCE})
+            self.assertIsNot(report['failureDiagnostics']['phaseContext'], context)
+            self.assertFalse(report['failureDiagnostics']['acceptedAsLifecycleEvidence'])
+            self.assertEqual(report['phases'], [])
+            self.assertEqual(experiment.history, [])
+
+    def test_unknown_state_commands_share_one_original_deadline_and_leave_cleanup_margin(self):
+        for remaining, expected_deadline in ((100, 127), (18, 115)):
+            with self.subTest(remaining=remaining):
+                tools = DiagnosticFixtureTools(inventory_error='command-timeout')
+                experiment, report = self.diagnostic_experiment(tools)
+                experiment.work_end = 100 + remaining
+                now = {'value': 100}
+                original = tools.run
+
+                def advancing_tool(*args, **kwargs):
+                    try:
+                        return original(*args, **kwargs)
+                    finally:
+                        now['value'] += 4
+
+                with patch.object(probe.time, 'monotonic', side_effect=lambda: now['value']), \
+                        patch.object(tools, 'run', side_effect=advancing_tool):
+                    experiment.diagnose_failure()
+                self.assertEqual([call['stage'] for call in tools.calls],
+                                 ['diagnostic-owned-inventory', 'diagnostic-app-logs', 'diagnostic-launchd'])
+                self.assertEqual({call['deadline'] for call in tools.calls}, {expected_deadline})
+                self.assertTrue(all(call['deadline'] <= experiment.work_end - 3 for call in tools.calls))
+                self.assertEqual([call['seconds'] for call in tools.calls], [5, 10, 10])
+
+    def test_diagnostic_interruptions_stop_reads_preserve_original_failure_and_finish_cleanup(self):
+        for interrupt in ('KeyboardInterrupt', 'runner-terminated'):
+            with self.subTest(interrupt=interrupt), tempfile.TemporaryDirectory() as directory:
+                class InterruptedDiagnostic(FakeTools):
+                    def run(self, stage, command, deadline, seconds, **kwargs):
+                        if stage in ('diagnostic-owned-inventory', 'diagnostic-app-logs'):
+                            self.calls.append({'stage': stage, 'argv': command, 'deadline': deadline,
+                                               'seconds': seconds, **kwargs})
+                            if stage == 'diagnostic-app-logs':
+                                if interrupt == 'KeyboardInterrupt':
+                                    raise KeyboardInterrupt()
+                                raise probe.ProbeFailure('runner-terminated')
+                            return json.dumps({'devices': {RUNTIME: [
+                                {'udid': OWN, 'name': self.name, 'state': 'Booted'}]}}).encode(), b'', 0
+                        return super().run(stage, command, deadline, seconds, **kwargs)
+
+                root = Path(directory)
+                tools = InterruptedDiagnostic(root, fail_stage='app-launch-create')
+                report = {}
+                experiment = probe.Experiment(root / 'Research.app', report, tools, RUN)
+                with self.assertRaises(probe.ProbeFailure) as caught:
+                    experiment.execute()
+                self.assertEqual(caught.exception.code, 'fixture-app-launch-create')
+                self.assertEqual(report['diagnosticFailure'], interrupt)
+                self.assertEqual([call['stage'] for call in tools.calls
+                                  if call['stage'].startswith('diagnostic-')],
+                                 ['diagnostic-owned-inventory', 'diagnostic-app-logs'])
+                self.assertTrue(report['cleanup']['keychainCleanupConfirmed'])
+                self.assertTrue(report['cleanup']['createdSimulatorAbsent'])
+                self.assertEqual(report['cleanup']['errors'], [])
+                self.assertEqual([item['phase'] for item in report['phases']], ['cleanup'])
+                self.assert_only_owned_operations(tools)
 
     def exercise(self, root, *, fault_case=None, **options):
         report = {'commands': []}

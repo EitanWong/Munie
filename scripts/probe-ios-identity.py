@@ -42,6 +42,11 @@ DIAGNOSTIC_REAP_SECONDS = 3
 MAX_STREAM = 262_144
 MAX_DIAGNOSTIC = 8192
 MAX_PHASE_REPORT = 16_384
+LOG_ERROR_DOMAINS = ('FBSOpenApplicationServiceErrorDomain', 'FBProcessExit',
+                     'FBApplicationInfoErrorDomain', 'RBSRequestErrorDomain',
+                     'RBSAssertionErrorDomain', 'NSPOSIXErrorDomain', 'NSOSStatusErrorDomain',
+                     'NSCocoaErrorDomain', 'LSApplicationWorkspaceErrorDomain',
+                     'MIInstallerErrorDomain', 'IXUserPresentableErrorDomain')
 CHECKS = {
     'create': {'keyPublicMatched': True, 'identityLeafMatched': True,
                'identityPossessionVerified': True, 'privateKeyPermanent': True,
@@ -95,7 +100,7 @@ def canonical_uuid(value):
         raise ProbeFailure('invalid-uuid') from error
 
 
-def strict_json(value):
+def strict_json(value, *, root_type=dict):
     def unique(pairs):
         result = {}
         for key, item in pairs:
@@ -108,7 +113,7 @@ def strict_json(value):
                                 ProbeFailure('nonfinite-json')))
     except (UnicodeError, ValueError, RecursionError) as error:
         raise ProbeFailure('invalid-json') from error
-    require(type(result) is dict, 'json-object-required')
+    require(type(result) is root_type, 'json-object-required' if root_type is dict else 'json-array-required')
     return result
 
 
@@ -360,10 +365,33 @@ def validate_progress(frame, run_id, phase, nonce):
 
 
 def log_hints(raw):
-    # Raw diagnostic logs may contain private OS details. Retain only these
-    # coarse counts; a textual hint cannot establish the cause of a launch stall.
-    lines = raw.decode('utf-8', errors='replace').lower().splitlines()
-    matching = [line for line in lines if BUNDLE in line or 'munieidentityresearch' in line]
+    # Structured log messages stay private. Export only fixed categories and
+    # allowlisted domain/code hints, never paths, free text or arbitrary domains.
+    try:
+        records = strict_json(raw, root_type=list)
+    except ProbeFailure as error:
+        raise ProbeFailure('diagnostic-log-schema') from error
+    require(type(records) is list and len(records) <= 2048 and
+            all(type(item) is dict for item in records), 'diagnostic-log-schema')
+    matching = []
+    for item in records:
+        message = item.get('eventMessage', '')
+        process = item.get('processImagePath', item.get('process', ''))
+        require(type(message) is str and type(process) is str, 'diagnostic-log-schema')
+        if BUNDLE in message.lower() or Path(process).name == 'MunieIdentityResearch':
+            matching.append(message.lower())
+    domains = []
+    for domain in LOG_ERROR_DOMAINS:
+        pattern = (r'(?<![a-z0-9_])' + re.escape(domain.lower()) +
+                   r'\s*(?:[,;]\s*)?(?:code\s*[=:]\s*|[:=]\s*)(-?[0-9]+)(?![\w.])')
+        codes = set()
+        for message in matching:
+            for value in re.findall(pattern, message):
+                # Bound parsing as well as output, even for malicious numeric text.
+                if len(value) <= 11 and -(2 ** 31) <= int(value) < 2 ** 31:
+                    codes.add(int(value))
+        if codes:
+            domains.append({'domain': domain, 'codes': sorted(codes)[:8]})
     return {'matchingLines': len(matching),
             'signatureRejectionHintLines': sum(
                 any(word in line for word in ('signature', 'codesign', 'amfi')) and
@@ -371,7 +399,12 @@ def log_hints(raw):
                 for line in matching),
             'launchFailureHintLines': sum(
                 any(word in line for word in ('error', 'failed', 'failure', 'denied'))
-                for line in matching)}
+                for line in matching),
+            'frontBoardRejectionHintLines': sum(
+                any(word in line for word in ('fbsopenapplication', 'sbmainworkspace', 'frontboard')) and
+                any(word in line for word in ('denied', 'reject', 'error'))
+                for line in matching),
+            'errorDomains': domains}
 
 
 def read_phase_file(path):
@@ -460,6 +493,7 @@ class Experiment:
         self.name = 'MunieIdentityResearch-' + self.run_id
         self.simulator = None
         self.ownership_verified = False
+        self.owned_identity = None
         self.creation_attempted = False
         self.install_attempted = False
         self.container = None
@@ -501,6 +535,11 @@ class Experiment:
         require(len(candidates) <= 1, 'ambiguous-created-simulator')
         if candidates:
             self.simulator = canonical_uuid(candidates[0]['udid'])
+            identity = (self.simulator, self.name, self.selection['runtimeID'], self.run_id)
+            require(self.owned_identity is None or self.owned_identity == identity,
+                    'created-simulator-identity-changed')
+            if self.owned_identity is None:
+                self.owned_identity = identity
             self.ownership_verified = True
             return candidates[0]
         return None
@@ -539,6 +578,9 @@ class Experiment:
         """Observe only this newly created simulator without retrying app work."""
         if self.simulator is None or not self.ownership_verified:
             return
+        require(self.owned_identity ==
+                (self.simulator, self.name, self.selection['runtimeID'], self.run_id),
+                'diagnostic-simulator-identity-changed')
         diagnostic = {'acceptedAsLifecycleEvidence': False, 'errors': []}
         self.report['failureDiagnostics'] = diagnostic
         # CommandRunner can spend another 2.6s terminating/reaping a timed-out
@@ -552,12 +594,17 @@ class Experiment:
             try:
                 diagnostic[name] = action()
             except Exception as error:
+                if failure_code(error) == 'runner-terminated':
+                    raise
                 diagnostic['errors'].append({'stage': name, 'failure': failure_code(error)})
+                return failure_code(error)
+            return None
 
         # Files are strictly bounded and correlated, but their PID is not the
         # simctl-confirmed launch PID. Never append these to accepted phases.
         if self.container is not None and self.phase_context is not None:
-            context = self.phase_context
+            context = dict(self.phase_context)
+            diagnostic['phaseContext'] = context
             observe('progress', lambda: validate_progress(
                 read_phase_file(research_file_path(self.container, 'progress.json')),
                 self.run_id, context['phase'], context['nonce']))
@@ -576,8 +623,14 @@ class Experiment:
             current = self.find_owned(devices['devices'])
             require(current is not None, 'diagnostic-owned-simulator-absent')
             return current.get('state')
-        observe('ownedState', owned_state)
-        if diagnostic.get('ownedState') != 'Booted':
+        ownership_error = observe('ownedState', owned_state)
+        if ownership_error == 'command-timeout':
+            # A clean read timeout says nothing about current state. The UUID
+            # was already claimed and locked after creation. Read only that
+            # fixed simulator; never discover, substitute or boot a replacement.
+            diagnostic['ownedState'] = 'unknown'
+            diagnostic['usingInitiallyVerifiedSimulator'] = True
+        elif ownership_error is not None or diagnostic.get('ownedState') != 'Booted':
             return
 
         def launchd():
@@ -585,16 +638,15 @@ class Experiment:
                                      self.simulator, 'launchctl', 'list', deadline=deadline,
                                      seconds=10, private=True)
             return {'responded': True, 'researchAppJobPresent': BUNDLE.encode() in raw}
-        observe('launchd', launchd)
-
         def app_logs():
             raw, _, _ = self.command('diagnostic-app-logs', 'xcrun', 'simctl', 'spawn',
-                                     self.simulator, 'log', 'show', '--style', 'compact',
+                                     self.simulator, 'log', 'show', '--style', 'json',
                                      '--last', '2m', '--info', '--predicate',
                                      'process == "MunieIdentityResearch" OR eventMessage CONTAINS "' +
                                      BUNDLE + '"', deadline=deadline, seconds=10, private=True)
             return log_hints(raw)
-        observe('appLogHints', app_logs)
+        if observe('appLogHints', app_logs) != 'command-cleanup-failed':
+            observe('launchd', launchd)
 
     def phase(self, name, cleanup=False):
         deadline = min(self.end if cleanup else self.work_end, time.monotonic() + PHASE_SECONDS)
@@ -688,7 +740,7 @@ class Experiment:
             # reserve, and cannot turn this original failure into success.
             try:
                 self.diagnose_failure()
-            except Exception as diagnostic_error:
+            except BaseException as diagnostic_error:
                 self.report['diagnosticFailure'] = failure_code(diagnostic_error)
         finally:
             errors = self.report['cleanup']['errors']

@@ -9,9 +9,13 @@
 | macOS | `Munie` 的原生 macOS destination | 窗口调整、菜单与快捷键、键盘遍历、指针选择、当前单窗口约束；开放多窗口前验证草稿和数据所有权 | [macOS](https://developer.apple.com/design/human-interface-guidelines/designing-for-macos) |
 | watchOS | 独立 `MunieWatch` target | 单次短任务、浅层导航、Digital Crown 滚动、系统文本输入、锁屏与中断、独立启动 | [watchOS](https://developer.apple.com/design/human-interface-guidelines/designing-for-watchos) |
 | tvOS | `Munie` 的原生 tvOS destination；当前数据位于可清除缓存 | Siri Remote 焦点可达性、返回、文本输入、跨房间可读性、共享屏幕隐私、清除缓存后的空状态与提示 | [tvOS](https://developer.apple.com/design/human-interface-guidelines/designing-for-tvos) |
-| visionOS | `Munie` 的原生 visionOS destination | 标准窗口大小、眼手间接输入、可访问输入、控件选择及视觉舒适度 | [visionOS](https://developer.apple.com/design/human-interface-guidelines/designing-for-visionos) |
+| visionOS | `Munie` 的原生 visionOS destination | 标准窗口大小、眼手间接输入、可访问输入、控件选择、视觉舒适度与展示/共享时的内容隐私 | [visionOS](https://developer.apple.com/design/human-interface-guidelines/designing-for-visionos) |
 
 watchOS 优先短而明确的操作，不复制桌面分栏；tvOS 使用系统焦点而非依赖触控手势；visionOS 的文本与列表工作优先标准窗口，新增沉浸体验需有具体场景及舒适性验证。各平台只复用适合的 UI 与领域逻辑；“通用”不意味着每个平台提供完全相同的交互。
+
+每个平台按[最小入口目标](entry-points.md#一次明确的任务)记录实际动作数：已配对后的新任务、继续和查询分别测量；计入系统解锁、权限与审批，不把“打开同名 app”算作已抵达正确任务。tvOS 默认隐藏私密正文；TV/Vision 展示、共享与退出展示分别检查披露范围和返回路径，完整审批无法私密、完整呈现时转到个人设备，不能通过截断后果来保留原地批准。
+
+Watch 网络至少分开验收 iPhone 在场可用、iPhone 不可达而 Watch 使用 Wi-Fi、iPhone 不可达而 Watch 使用蜂窝（仅支持机型/套餐）。按 [TN3135](https://developer.apple.com/documentation/technotes/tn3135-low-level-networking-on-watchos)，使手机不可达需在 iPhone「设置」中关闭 Wi-Fi 与蓝牙，不能用控制中心切换替代。每条路径分别验证 HTTPS 提交、权威状态恢复及设备撤销；注明实际传输路径，不能用缓存结果、模拟器或手机 VPN/蜂窝成功推断 Watch 独立成功。无对应硬件/网络的分支记为未执行。
 
 ## 配件与硬件入口
 
@@ -28,6 +32,8 @@ watchOS 优先短而明确的操作，不复制桌面分栏；tvOS 使用系统�
 ## 跨设备任务接续
 
 这是受认证状态同步实现后的准入检查，当前尚未实现。以同一真实任务运行“设备 A 发起 → 设备 B 找回/继续 → A 重连”：两端指向相同主机、项目和任务，显示权威状态与相同权限范围；接续本身不重新提交或重复执行。覆盖源设备离线、目标设备未配对/被撤销、入口不可用与状态过期，明确失败和可用替代路径，不自动扩大权限。复杂审批必须在目标设备完整展示对象与后果；无法展示时保留待审批并提供明确转交路径。以真实 request/thread/turn、状态事件与副作用次数核对，不能用同名界面或共享代码作为接续证据。
+
+首轮具体运行“手机提交 → Mac 前台打开原任务 → 手机重连”，Mac 打开动作不得另建任务。再运行同一待审批动作的双端展示：一端回答后另一端失效，过期、撤销与重连不能复活旧批准；以原生审批 ID、动作与可选决定核对，而非仅比较文案。多端收到同一完成事件只按用户选择的反馈路由提醒，不因接续再次执行、重复弹出审批或同时多处朗读。
 
 ## 分开记录三层证据
 

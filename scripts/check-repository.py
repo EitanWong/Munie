@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Check repository contracts without downloading or executing reference code."""
 
+import hashlib
 import json
 from pathlib import Path
 import plistlib
@@ -167,12 +168,36 @@ def check_xcode_project(root):
     validate_xcode_project(json.loads(result.stdout))
 
 
+def check_identity_research(root):
+    """Verify the opt-in fixture lock and archived notices without resolving packages."""
+    archive = root / 'references/licenses/device-identity'
+    manifest = json.loads((archive / 'manifest.json').read_text())
+    lock = json.loads((root / 'scripts/fixtures/device-identity/Package.resolved').read_text())
+    packages = manifest['packages']
+    pins = lock['pins']
+    expected = {item['identity']: (item['repository'], item['revision']) for item in packages}
+    actual = {item['identity']: (item['location'], item['state']['revision']) for item in pins}
+    require(len(expected) == len(packages) == len(actual) == len(pins) == 3 and expected == actual,
+            'Identity fixture lock does not match its reviewed license source revisions')
+    files = manifest['files']
+    require(len(files) == 8 and len({item['path'] for item in files}) == 8,
+            'Identity fixture must preserve eight distinct core license/notice files')
+    for item in files:
+        name = item['path']
+        require(Path(name).name == name and name.endswith('.txt'), 'Invalid license archive path')
+        data = (archive / name).read_bytes()
+        require(type(item['bytes']) is int and len(data) == item['bytes'] and
+                hashlib.sha256(data).hexdigest() == item['sha256'],
+                f'Identity license archive bytes changed: {name}')
+
+
 def main():
     for name in ('README.md', 'README.zh-Hans.md', 'AGENTS.md', 'CONTRIBUTING.md',
                  'SECURITY.md', 'docs/project-status.md', 'references/manifest.json'):
         require((ROOT / name).is_file(), f'Missing maintained file: {name}')
 
     validate_documentation(ROOT)
+    check_identity_research(ROOT)
     subprocess.run([sys.executable, str(ROOT / 'scripts/catalog-codex.py'),
                     '--validate-catalog', str(ROOT / 'references/codex-capabilities.json')], check=True)
     check_swift_packages(ROOT)

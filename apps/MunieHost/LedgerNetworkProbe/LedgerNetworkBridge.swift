@@ -120,7 +120,7 @@ struct LedgerNetworkBridge: Sendable {
     }
   }
 
-  private func authenticatedDevice(_ fingerprint: String) throws -> AuthenticatedDevice {
+  func authenticatedDevice(_ fingerprint: String) throws -> AuthenticatedDevice {
     guard let device = registry[fingerprint] else { throw SubmissionError.unauthorized }
     return device
   }

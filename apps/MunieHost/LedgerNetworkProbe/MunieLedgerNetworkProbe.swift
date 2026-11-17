@@ -25,6 +25,10 @@ enum LedgerNetworkWire {
 @main
 struct MunieLedgerNetworkProbe {
   static func main() async {
+    if CommandLine.arguments.count == 6 {
+      await runCodexMode()
+      return
+    }
     do {
       guard CommandLine.arguments.count == 2 else {
         throw LedgerNetworkProbeFailure.invalidConfiguration
@@ -34,6 +38,31 @@ struct MunieLedgerNetworkProbe {
       try LedgerNetworkWire.emit(.object(["event": .string("closed")]))
     } catch {
       // No raw errors, storage paths, identities, certificate data or request text in diagnostics.
+      try? FileHandle.standardError.write(contentsOf: Data("Ledger network probe failed\n".utf8))
+      exit(1)
+    }
+  }
+
+  private static func runCodexMode() async {
+    var runtime: LedgerCodexRuntime?
+    do {
+      let configuration = try LedgerNetworkConfiguration.load(path: CommandLine.arguments[1])
+      runtime = try LedgerCodexRuntime(
+        configuration: configuration, arguments: Array(CommandLine.arguments.dropFirst(2)))
+      guard let cleanup = try await runtime?.run() else {
+        throw LedgerCodexFailure.invalidConfiguration
+      }
+      try LedgerNetworkWire.emit(
+        .object([
+          "event": .string("closed"), "cleanup": LedgerCodexRuntime.cleanupJSON(cleanup),
+        ]))
+    } catch {
+      let (cleanup, cleanupError) = await runtime?.cleanupAfterFailure() ?? (.null, .null)
+      try? LedgerNetworkWire.emit(
+        .object([
+          "event": .string("failure"), "code": .string(LedgerCodexRuntime.safeCode(error)),
+          "cleanup": cleanup, "cleanupError": cleanupError,
+        ]))
       try? FileHandle.standardError.write(contentsOf: Data("Ledger network probe failed\n".utf8))
       exit(1)
     }

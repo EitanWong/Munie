@@ -162,3 +162,44 @@ Build both products with `swift build -c release`; obtain their absolute paths f
 Acceptance requires the runner's exact named case sequence, all cases passed, native TLS 1.3/no-proxy evidence, independently read SQLite request identity/phase/counts, and live per-request authorization. Cover unknown certificates, cross-project/cross-device denial, body/header identity spoofing, duplicate JSON, forbidden HTTP administration, retry/conflict, same-connection revocation, new-connection revocation and driver SIGKILL/reopen. The revoked device stays disabled; previously dispatching records become `reconciling` without another send permission, while the unclaimed record stays `accepted`. Read and retry must refer to the original IDs. Neither state means execution completed. Domain denial over HTTP200 remains the research encoding, not authorization success.
 
 Require normal driver exit 0 or the deliberate SIGKILL exit -9 as appropriate, EOF/group disappearance, native session invalidation/exit0, stopped server/listener and removal of all temporary credentials/projects/ledger files. Reports invalidate prior success and record source/executable hashes and bounded structural evidence without plaintext/keys/certificates. Offline validation and failure/cleanup regressions run separately in the repository checks. The trusted fixture pipe is not a production IPC security boundary or a general backpressure implementation; slow-header defense and host service supervision remain open. No Codex/model, real account, WAN/cellular, iOS/Watch, voice or hardware acceptance is performed.
+
+## Opt-in authenticated network to native Codex experiment
+
+This separate Mac-only experiment connects actual URLSession/Security, authenticated loopback TLS peer identity, the live SQLite ledger and the fixed-version native Codex adapter. The deterministic provider, projects, identities and tool effects are synthetic; shipping apps do not link the research executables. The design and remaining production decisions have one source in [network research](../references/authenticated-network-research.md#认证网络到原生-codex-的合成闭环研究卡).
+
+Export and check both schema bundles using the [Harness workflow](standards/harness-integration.md#codex-范围清单与漂移). Select the absolute native Mach-O binary for `codex-cli 0.162.1`, rather than an npm/shell wrapper; the runner checks it against the saved schemas and capability catalog. It requires macOS, a Python runtime with TLS 1.3, an explicit OpenSSL executable and `/usr/bin/sandbox-exec`. It never installs/logs in to Codex or falls back to unrestricted execution. For the current local environment:
+
+```sh
+CODEX_NATIVE=/absolute/path/to/native/codex
+swift build -c release --product MunieNativeNetworkProbe
+swift build -c release --product MunieLedgerNetworkProbe
+MUNIE_PROBE_BIN="$(swift build -c release --show-bin-path)"
+/opt/homebrew/bin/python3 scripts/probe-network-codex.py \
+  --native-executable "$MUNIE_PROBE_BIN/MunieNativeNetworkProbe" \
+  --ledger-executable "$MUNIE_PROBE_BIN/MunieLedgerNetworkProbe" \
+  --codex "$CODEX_NATIVE" \
+  --schema-dir "$PWD/build/codex-schema-experimental" \
+  --default-schema-dir "$PWD/build/codex-schema-stable" \
+  --catalog "$PWD/references/codex-capabilities.json" \
+  --openssl /opt/homebrew/bin/openssl \
+  --output "$PWD/build/network-codex-probe.json"
+```
+
+Acceptance requires all six scenarios in this exact order, with native TLS 1.3/no-proxy metrics, independent SQLite identity/phase checks and no unexpected provider retry or tool effect:
+
+| Scenario | Required observation |
+|---|---|
+| `text` | Exact synthetic input reaches the provider; matching native terminal is completed and the final assistant marker matches. |
+| `approval-cancel` | The token maps to the complete fixed native command approval; one-time cancel reaches cancelled with no marker effect. |
+| `approval-accept` | One-time accept reaches completed, with command exit 0 and exactly one append effect. |
+| `running-interrupt` | PID barriers prove the shell and child started. Interrupt acknowledgement remains running with cancellation requested; a later terminal is cancelled, both tool processes disappear before native transport close and `after-interrupt` is absent. |
+| `pending-crash` | SIGKILL stops the Swift bridge/host while approval is pending; the guardian cleans up native Codex. Reopen the same database/native state: exact retry is reconciling, the old token is invalid and matching known-ID native history reconciles to cancelled without resend/effect. |
+| `revoked-pending` | A trusted local-pipe operation revokes device A; snapshot, approval, events and interrupt are then denied over the same TLS connection without new acceptance/effect. Revocation itself is not proof of upstream cancellation. |
+
+Shared controls reject an unknown device, unauthorized project, changed-content retry, cross-device read/replay, wrong token and duplicate approval. An exact retry returns the existing phase; a terminal retry must add no provider request or effect. Pending approval survives a native-client/TLS reconnection by the same device, but its token does not survive host restart. Raw HTTPS attempts to supply trusted `deviceID`/`peerFingerprint` are rejected; `/fixture/revoke`, `/fixture/claim` and `/fixture/rpc` return 404. Only `submit`, `snapshot`, `events`, `approval`, `interrupt` and `reconcile` are mapped, with strict fields and actual TLS-socket peer identity. HTTP 200 with an error envelope remains a domain denial.
+
+The fixture operator knows and validates the fixed synthetic commands before approving them. The token response does not present actual command/cwd for informed user approval, so it is not a releasable approval experience. There is one active coordinator task and a synchronous HTTP driver, without product event replay/cursor/backpressure or a production IPC guarantee. No real model/account, personal credentials, WAN/cellular, mobile app, pairing/gateway, voice, Watch, hardware or power measurement is covered; neither the complete uncertain-submission/mapping-loss matrix nor network-to-model service behavior is established. HTTP disconnect, URLSession cancellation, interrupt acknowledgement and process cleanup must not be treated as an upstream terminal.
+
+Each scenario uses a separate `CODEX_HOME`, minimal environment, on-request/read-only permissions, one allowed loopback provider port and the same six sandbox denial guards. A separate same-profile control probe denies content reads/writes to TLS keys/identities/passphrase, host/client configurations, the ledger/registry and another project; it verifies unchanged control-file hashes and successful workspace/Codex-data/scratch roundtrips. The private guardian registry is published before native launch and its parent/group identity is checked; it remains fixture cleanup, not a product daemon or security boundary. HTTP requests/responses are capped at 2,048 bytes, driver input at 4,096 bytes and output at 2,048 bytes. Bridge startup/calls have 12-second waits and each bridge peer a 90-second lifetime; native transport has 20-second read and 60-second session limits. An event pump is capped at 128 observations and the facade at 256 events per request. These are diagnostic bounds, not measured product budgets or one total deadline for all six scenarios.
+
+The selected private atomic report first replaces earlier success with failed/starting. A pass requires every scenario/check plus cleanup: native Apple client sessions invalidated with exit 0/EOF/group disappearance, bridge exit 0 or deliberate SIGKILL -9, guardian group disappearance, TLS server/provider stopped and temporary credentials/projects/ledger removed. Normal bridge closure additionally requires native Codex exit 0 with stdout/stderr EOF and its process group gone; after the deliberate host crash, the driver independently requires the guardian-owned native group to disappear. Cleanup failure remains failure evidence. The report keeps binary/schema/runner/source hashes, native metrics, SQLite phase/mapping, provider/effect counts, stream digests and structural cleanup; approval tokens are replaced with presence flags. Preserve the same-run Release build command/status and binary hash, then rebuild/rerun after source or runner changes; a report alone cannot prove which source built a binary. Record observed results and limits in [project status](project-status.md); offline regressions do not replace this opt-in run.

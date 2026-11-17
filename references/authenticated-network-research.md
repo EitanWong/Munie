@@ -1,6 +1,6 @@
 # F1 认证网络与本机 mTLS 研究
 
-核对日期：2026-11-17。关联 R01/R02/R06/R07/R08/R09/R16。本文延续[协议研究](codex-protocol-research.md)；产品信任边界和网络候选顺序仍由[远程决策](../docs/decisions/remote-agent-foundation.md)维护。当前研究对象是**本机 loopback、临时证书、合成身份的 HTTPS 短请求夹具**，以及将连接身份接入真实 `HostSubmissionLedger` 的隔离实验设计；账本只使用新建的临时合成数据，不接生产 ledger/Codex，不选服务、账号或公网域名。夹具通过不等于远程产品认证、F1/F2 完成或 Watch 可用；执行结果由[项目状态](../docs/project-status.md)记录。
+核对日期：2026-11-17。关联 R01/R02/R06/R07/R08/R09/R16。本文延续[协议研究](codex-protocol-research.md)；产品信任边界和网络候选顺序仍由[远程决策](../docs/decisions/remote-agent-foundation.md)维护。当前研究对象是**本机 loopback、临时证书、合成身份的 HTTPS 短请求夹具**及真实 `HostSubmissionLedger`；下一张卡将认证边界接入固定版本 Codex 与合成 provider。账本、项目、输入和工具效果均限临时合成材料，不接生产数据、个人账号或真实模型，不选服务、账号或公网域名。夹具通过不等于远程产品认证、F1/F2 完成或 Watch 可用；执行结果由[项目状态](../docs/project-status.md)记录。
 
 ## 官方依据与 Apple 客户端边界
 
@@ -112,7 +112,7 @@ TLS min/max 限定为 1.3，同时以 [`negotiatedTLSProtocolVersion`](https://d
 
 ## TLS 连接身份到真实账本的桥接研究卡
 
-**问题与范围：**用临时 CA、合成设备、临时项目和真实 `HostSubmissionLedger` / SQLite，验证 `CERT_REQUIRED` 成功握手的实际 `SSLSocket` → `getpeercert(binary_form=True)` → leaf DER 的 SHA-256 → 本机预置映射 → `AuthenticatedDevice` → 每请求 ledger 授权。这是下一片隔离 loopback 实验的设计与接受事件，**不是已通过结果**。Python TLS/HTTP server 与 Swift stdio ledger driver 都是研究执行器，不是已选生产 gateway；不链接 shipping app，不调用 Codex/model/WAN，不执行请求正文。
+**问题与范围：**用临时 CA、合成设备、临时项目和真实 `HostSubmissionLedger` / SQLite，验证 `CERT_REQUIRED` 成功握手的实际 `SSLSocket` → `getpeercert(binary_form=True)` → leaf DER 的 SHA-256 → 本机预置映射 → `AuthenticatedDevice` → 每请求 ledger 授权。本卡定义这片隔离 loopback 实验的设计与接受事件，实际结果只由项目状态维护。Python TLS/HTTP server 与 Swift stdio ledger driver 都是研究执行器，不是已选生产 gateway；这张卡不链接 shipping app，不调用 Codex/model/WAN，不执行请求正文。
 
 **可信边界：**DER 必须来自正在处理该 HTTP 请求的 TLS socket；不能从 body、header、URL、证书 display name 或对端自报 `deviceID` / fingerprint 生成可信 principal。CA 链验证及 TLS 私钥持有证明在前，本机 fingerprint→UUID 映射只负责选择已登记身份；证书 DER、pin 或其摘要本身不构成独立 TLS 认证。未知 fingerprint 拒绝，不按相同 subject、同 CA 或 payload 兜底。临时 registry 不实现所有者确认、持久配对、轮换、密钥恢复或证书撤销服务。
 
@@ -134,6 +134,37 @@ bridge、私有 pipe、driver 和本机 registry 都属于此实验的可信主�
 **资源、记录与清理：**仅监听 `127.0.0.1` 临时端口，固定 TLS 1.3 和合成请求；握手/body、HTTP/stdio 帧、请求/连接/队列/总运行时间分别有界。报告记录实际工具/运行库版本与源码指纹、连接身份关联、业务拒绝、账本 phase/行数、重启前后状态与退出码；不保存正文、PEM、私钥、密码、原始 DER 或个人路径。fingerprint 与 ID 也是敏感关联元数据，本轮仅记录合成值。若复用上张 native 的 HTTP 200 error envelope，对拒绝仍核对无接受记录；协议候选及 legacy403 对照不变。
 
 接受还需观察关闭 HTTP 客户端及活动 TLS socket、停止 listener/server worker、关闭 driver stdin 并取得 stdout/stderr EOF、进程退出/组消失和 owner 锁释放，最后删除临时 CA/identity/registry/project/SQLite 及 journal/owner 文件；检查目录私有权限和临时路径确已移除。清理失败则实验失败，失败报告保留必要阶段且不删诊断依据。不由清理成功推断 Keychain 审计、可靠内存擦除或物理断电持久性；本卡不新增配对、生产服务、真实 harness、移动设备或蜂窝验收。
+
+## 认证网络到原生 Codex 的合成闭环研究卡
+
+**问题与范围：**在上一卡的真实 TLS 连接身份与 live ledger 授权上，接入现有 [HostCodexSession](../apps/MunieHost/Execution/HostCodexSession.swift) → [CodexAppServer](../apps/MunieHost/Execution/CodexAppServer.swift) → 固定 native app-server → 本机确定性 provider，验证提交、真实事件、必要审批、取消及恢复在同一请求上闭环。独立 macOS native client、Python TLS bridge、私有 stdio driver 均是研究执行器；只使用合成文本、临时项目/SQLite/证书和明确的标记效果，不配置真实账号、模型、shipping app、WAN 或生产服务。此卡维护设计与接受条件；已执行子集只由[项目状态](../docs/project-status.md)记录，不代表完整 Codex 支持。
+
+**固定来源与隔离复用：**复用[协议研究](codex-protocol-research.md#确定性-provider-与原生生命周期)已核对的 `codex-cli 0.162.1`、默认/实验 schema 与官方提交 `092d3acd6bec3e3a14bdc7e7a2810ab628ab759d` 的 Responses fixture 依据/Apache-2.0 记录；不由最新网页替代固定 binary/schema 的实际差异。沿用 [native host runner](../scripts/probe-codex-host.py) 的精简环境、独立 `CODEX_HOME`、临时 project、`on-request/read-only` 与 user reviewer；每次 start/resume/turn 都限制 canonical cwd 和权限。上游 model 响应仅来自一个显式放行的 loopback fixture 端口，拒绝其他网络/个人目录/Keychain/fixture 外写入，并实际复跑 sandbox guards。证书私钥和 TLS bridge 属独立进程职责，不因复用临时目录就扩大 native Codex 的可读范围。
+
+复用 [fixture guardian](../scripts/codex-host-guardian.py) 的启动前私有登记及有界进程组回收；guardian、registry、sandbox 配置不能由 HTTP 选择。进程组不是安全沙箱，退出也不等于 EOF 或所有后代消失；沿用[进程研究](host-process-research.md)的限制及已固定 swift-subprocess 替代比较，本片不换底层进程方案、不添加依赖。guardian 仍非产品 daemon 或一般系统进程发现接口。
+
+外层 sandbox 在 fixture 内仅放行当前项目、独立 Codex data 与 scratch 的内容读写，其他 TLS 身份/口令、driver/client 配置、账本、guardian registry 与另一项目均禁止内容读取及写入。每次实际启动后，以相同 sandbox 运行独立合成读写对照并核对控制文件摘要；同时确认必要目录可往返。系统运行时所需的路径元数据访问仍允许；此边界是 macOS 研究隔离，不替代未来主机服务/IPC 权限设计。
+
+**网络操作白名单：**只显式映射“提交已授权项目中的文本请求、读取该请求状态/有界事件、回答该请求待审批、请求取消、核对同一持久请求”这些业务语义；实际 wire 名称与字段由实现固定。每次操作从实际 TLS socket 重建映射后的 principal 并复查 ledger；client 不可提供可信 device/fingerprint、任意 native method、cwd/config、sandbox、provider、shell 或上游终态。`claimForDispatch`、登记/撤销、数据库恢复、进程启动和 native 观察均是本机内部职责，不能成为 HTTP route。相同 request 的精确重试返回原状态，冲突/越权/未知操作拒绝，不增加 provider 调用或副作用。现有 coordinator 一次仅有一个 active task，超出明确返回 busy，不自动排队执行。
+
+**审批 token 与实际动作：**host 从当前真实 `CodexCommandApproval` 创建会话内 opaque token，绑定连接映射后的设备、host/project/request、会话代际及完整原生审批：保留类型的 RPC ID、thread/turn/item、command、cwd、reason、全部 `availableDecisions` 与 payload。token 只索引 host 保存的完整对象，不接收客户端重建的 command/payload，不作为独立身份凭据或持久授权。经授权的设备须能审阅实际动作及后果；网络仅投影必要字段，完整 raw native payload 留 host，不能用截断展示后的同意扩大范围。
+
+回答只接受本次实际提供的单次 `accept` / `cancel`，保持现有 coordinator/adapter 对完整动作的精确校验；不提供 session/persistent grant，不把不存在的选项映射为同意。host 在第一次回应的 `await` 前耗用 token，重放、跨设备、改 request、过期、已 resolved/terminal、取消中及会话重启的 token 均拒绝且不再次回复 native RPC；无回答不等于批准。审批中撤销以及等待后的权限变化仍须查 live ledger；HTTP 回执丢失时先查询权威状态，不为求恢复而重新批准。token、命令正文与原始审批 payload 不进入诊断报告。
+
+**事件、取消与恢复：**native 事件由 host 单一 consumer 驱动，向有权设备提供有界、可核对顺序的状态/事件投影；多次 HTTP poll 不竞争消费原生流，不伪造 progress 或 terminal，缺口/过期游标明确返回恢复查询路径。关联 request/thread/turn/item、事件方法及真实 `turn/completed`；`turn/start` 或 HTTP 2xx 不是完成。coordinator 通过 live ledger 在原生事件等待和终态持久化后复查授权，网络投影也需覆盖自己的等待窗口；撤销设备不能取得新事件正文或回答旧审批。
+
+取消的 HTTP/native interrupt 回执仅表示取消意图；仍等待匹配 turn 的 interrupted/failed/completed 终态，不能把 URLSession cancel、socket 关闭或 transport cleanup 显示为上游已停止。掉线、超时、HTTP 丢响应与 native/host 死亡分层记录；重连先用稳定 request ID 查询/核对，既有 dispatching/running 转 reconciling。已持久 thread/turn 仅以真实匹配历史更新；映射丢失、历史缺失或仍在运行时保留未知，禁止再次 `turn/start`。重启继续复用同一 DB/host/registry，不 seed 复活撤销，也不重建 pending approval 或取消意图来冒充原生恢复。
+
+| 实际对照 | 必须共同观察的证据 |
+|---|---|
+| 正向文本、相同请求重试、冲突 | native provider 核对精确合成 user input；真实 thread/turn/event 与 ledger phase 对应，最终 assistant 标记匹配；精确重试无新 provider 请求/副作用，冲突拒绝 |
+| 单次批准 / 取消审批；token 重放、替换或错误设备 | 完整 native 动作/可选决定匹配、对应 resolved 与终态；批准后固定 marker 恰有一次效果且 command exit 0，取消无效果。错误回应不能发出第二次 native response |
+| 等待 provider 与已运行工具分别取消 | 前者有匹配 interrupted；后者先证明 shell/child 已启动，再取消并核对终态、最终效果未发生、工具进程在 transport close 前消失；不以 teardown 杀死工具代替取消证据 |
+| 未登记/撤销设备、跨项目/请求、任意 RPC 或管理路由 | 实际 TLS principal/ledger 拒绝与 HTTP 结果可关联；无新 provider 调用、未授权事件/审批泄露或额外标记效果 |
+| HTTP 响应丢失/重连；native 或 host 在提交/映射/终态窗口死亡 | 使用明确 barrier 重现；同一 DB 保留阶段与撤销，已知 IDs 核对匹配历史，无映射保持 reconciling；provider 请求/真实标记计数证明没有盲发。旧审批 token 失效 |
+| 事件/stdio/HTTP 超限或 deadline、启动登记前后失败 | 有界失败且不包装为成功/取消；保留原失败阶段；guardian 与 host 清理各自产物和进程，不能拿旧报告或只见 EOF 当通过 |
+
+**记录与完成边界：**报告只留版本、binary/schema/runner/guardian 指纹、合成关联 ID、方法/计数、phase、标记匹配/效果次数、退出码及清理结构；不记录用户正文、凭据、证书、审批 token、命令/path 或 raw native payload。接受同时要求 native URLSession session/tasks 失效、HTTP/TLS socket/listener/worker 与 synthetic provider 关闭、driver/native/tool/guardian leader/EOF/group 清理、owner 锁释放及临时状态/身份/项目移除；失败清理亦需证据。真实工具效果仅在临时合成项目内。实际结果引用项目状态，不在此另维护完成计数；全部通过也仅是固定版本的隔离合成端到端子集，不证明真实模型、生产 gateway/配对、全能力清单、蜂窝/Watch、功耗或 Apple app 体验可用。
 
 ## 成熟替代与许可复查
 

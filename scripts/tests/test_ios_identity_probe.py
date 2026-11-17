@@ -357,6 +357,8 @@ class FileTests(unittest.TestCase):
             (fixture / 'App').mkdir(parents=True)
             (fixture / 'Tests').mkdir()
             (fixture / 'Tests/OwnershipChecks.swift').write_text('// offline fixture\n')
+            (fixture / 'Simulator.entitlements').write_bytes(plistlib.dumps({
+                'application-identifier': probe.BUNDLE, 'keychain-access-groups': [probe.BUNDLE]}))
             for name in ('A', 'B', 'C'):
                 (fixture / 'App' / (name + '.swift')).write_text('// offline fixture\n')
             (root / 'scripts/build-ios-identity-probe.sh').write_text('#!/bin/sh\nexit 0\n')
@@ -376,7 +378,8 @@ class FileTests(unittest.TestCase):
             paths = [item['path'] for item in observed['files']]
             self.assertIn(str(fixture / 'Tests/OwnershipChecks.swift'), paths)
             self.assertIn(str(root / 'scripts/build-ios-identity-probe.sh'), paths)
-            self.assertEqual(len(paths), 9)
+            self.assertIn(str(fixture / 'Simulator.entitlements'), paths)
+            self.assertEqual(len(paths), 10)
             pins[0]['state']['revision'] = 'unreviewed-revision'
             (fixture / 'Package.resolved').write_text(json.dumps({'pins': pins}))
             with self.assertRaises(probe.ProbeFailure) as caught:

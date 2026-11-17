@@ -392,6 +392,7 @@ def source_snapshot(repo):
     fixture = repo / 'scripts/fixtures/device-identity-ios'
     paths = [Path(__file__).resolve(), repo / 'scripts/build-ios-identity-probe.sh',
              fixture / 'Tests/OwnershipChecks.swift', fixture / 'project.yml', fixture / 'Package.resolved',
+             fixture / 'Simulator.entitlements',
              repo / 'scripts/fixtures/device-identity/Sources/MunieDeviceIdentityProbe/CSR.swift']
     paths.extend(sorted((fixture / 'App').glob('*.swift')))
     require(len(paths) >= 9, 'research-source-missing')

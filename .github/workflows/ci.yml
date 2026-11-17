@@ -68,6 +68,8 @@ jobs:
             build/ios-identity-*.json
             build/identity-ios/build.log
             build/identity-ios/ownership-checks.log
+            build/identity-ios/simulator-signing.log
+            build/identity-ios/effective-entitlements.plist
             build/identity-ios/MunieIdentityResearch.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
           if-no-files-found: error
           retention-days: 14

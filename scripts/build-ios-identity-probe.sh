@@ -57,4 +57,30 @@ xcodebuild "${OPTIONS[@]}" CODE_SIGNING_ALLOWED=NO build > "$OUTPUT/build.log" 2
 verify_lock "$LOCK"
 APP="$OUTPUT/DerivedData/Build/Products/Release-iphonesimulator/MunieIdentityResearch.app"
 test -d "$APP"
+# A linker-only signature has no application identifier; actual simulator
+# Security queries reject it with -34018. Seal only this research simulator app
+# with its exact private group. No signing account, team or profile is involved.
+python3 - "$APP/Info.plist" <<'PY'
+import plistlib
+import sys
+with open(sys.argv[1], 'rb') as stream:
+    info = plistlib.load(stream)
+assert info['CFBundleIdentifier'] == 'app.munie.research.identity'
+assert info['CFBundleSupportedPlatforms'] == ['iPhoneSimulator']
+PY
+codesign --force --sign - --entitlements "$FIXTURE/Simulator.entitlements" \
+  "$APP" > "$OUTPUT/simulator-signing.log" 2>&1
+codesign --verify --strict "$APP" >> "$OUTPUT/simulator-signing.log" 2>&1
+codesign --display --entitlements - --xml "$APP" > "$OUTPUT/effective-entitlements.plist" \
+  2>> "$OUTPUT/simulator-signing.log"
+python3 - "$FIXTURE/Simulator.entitlements" "$OUTPUT/effective-entitlements.plist" <<'PY'
+import plistlib
+import sys
+with open(sys.argv[1], 'rb') as stream:
+    expected = plistlib.load(stream)
+with open(sys.argv[2], 'rb') as stream:
+    actual = plistlib.load(stream)
+assert actual == expected, 'Effective research simulator entitlements differ'
+print('Research simulator signature and exact private Keychain group verified')
+PY
 printf 'iOS identity research app: %s\n' "$APP"

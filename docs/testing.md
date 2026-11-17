@@ -170,6 +170,8 @@ All nine sessions must invalidate, driver streams must reach EOF with exit 0 and
 
 The independent `MunieIdentityResearch` app is built only by the research job; it is not part of the shipping app or root package graph. It uses the same reviewed three dependency revisions and license archive as the Mac fixture, with its own committed lock. The build helper runs 15 Foundation-only ownership/protocol checks without Security calls, checks both the source lock and Xcode's effective lock, and disables automatic package resolution. Unclaimed collision/failed-add entries cannot become cleanup claims; armed entries require the pre-recorded public-key or certificate hash before exact recovery.
 
+The helper verifies the exact research bundle and `iPhoneSimulator` platform before applying an ad hoc simulator signature with only its own application identifier and private Keychain group. It verifies the sealed signature and reopens the effective entitlements for exact comparison. No personal signing identity, team or provisioning profile is used. The effective plist and signing log are evidence; this simulator-only permission setup is not a physical-device signing configuration. A linker-only unsigned build previously reached the app but returned `-34018` at its first exact Keychain query.
+
 ```sh
 ./scripts/build-ios-identity-probe.sh
 python3 scripts/probe-ios-identity.py \

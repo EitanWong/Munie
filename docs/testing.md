@@ -147,6 +147,8 @@ In-flight cancellation uses an authenticated response with a two-byte advertised
 
 ## Opt-in local-key identity experiment
 
+The separate `Apple identity SDK evidence` CI job runs `python3 scripts/probe-identity-sdk.py --output-dir build/identity-sdk` with the selected hosted Xcode. It preserves current public header/export evidence, project-minimum target triples and literal Swift 6 compile/link results for five device SDKs plus the iPhone simulator. Generated libraries are never executed. `probeCompleted` means the observation finished; `allAvailable` and each SDK's `available` separately require a public declaration, exported symbol and successful link. An unavailable API is recorded as unavailable, while tool execution/timeout/output-limit errors fail the probe. This diagnostic does not establish runtime, Keychain, simulator or hardware behavior. Use a fresh output directory with an existing parent for local runs.
+
 This independent macOS fixture generates a volatile P-256 `SecKey`, signs a PKCS#10 CSR with pinned Apple X509 APIs and combines the synthetic returned certificate with the original key through public `SecIdentityCreate`. It exercises actual native URLSession/Security against two temporary loopback TLS listeners. The package is outside the root dependency graph and all shipping targets; default CI runs its offline Python regressions, license/pin checks and formatting, not its dependency build or actual network experiment.
 
 ```sh

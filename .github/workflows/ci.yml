@@ -13,6 +13,27 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  identity-sdk:
+    name: Apple identity SDK evidence
+    runs-on: macos-26
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # This compiles and links a minimal public API probe; it never runs the
+      # product, generated library, Keychain or network. Unavailable API evidence
+      # is distinct from a probe execution error and is retained in report.json.
+      - name: Record public identity API compilation and linkage
+        run: |
+          mkdir -p build
+          python3 scripts/probe-identity-sdk.py --output-dir build/identity-sdk
+      - name: Upload identity SDK evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: identity-sdk-evidence
+          path: build/identity-sdk/
+          if-no-files-found: error
+          retention-days: 14
   quality:
     name: Quality, build and tests
     runs-on: macos-26

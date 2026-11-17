@@ -4,7 +4,7 @@
 
 | 平台 | 工程边界 | 至少执行的交互检查 | 官方 HIG |
 |---|---|---|---|
-| iOS / iPhone | `Munie` 的 iOS destination，iPhone 设备族 | 触控记录/找回/删除、系统返回、键盘遮挡、旋转、冷启动与后台恢复 | [iOS](https://developer.apple.com/design/human-interface-guidelines/designing-for-ios) |
+| iOS / iPhone | 主产品 `MunieRemodex`；`Munie` 保留为早期原生检查点 | 配对与授权项目、文字/主动短语音、真实进度/审批/取消/续聊、断线恢复；系统返回、键盘遮挡、旋转、冷启动与后台恢复；保留检查点另验记录/找回/删除 | [iOS](https://developer.apple.com/design/human-interface-guidelines/designing-for-ios) |
 | iPadOS | 同一 iOS target，iPad 设备族 | 窄/宽窗口及多任务尺寸、列表/详情切换、触控与键盘/指针、大字及输入法 | [iPadOS](https://developer.apple.com/design/human-interface-guidelines/designing-for-ipados) |
 | macOS | `Munie` 的原生 macOS destination | 窗口调整、菜单与快捷键、键盘遍历、指针选择、当前单窗口约束；开放多窗口前验证草稿和数据所有权 | [macOS](https://developer.apple.com/design/human-interface-guidelines/designing-for-macos) |
 | watchOS | 独立 `MunieWatch` target | 单次短任务、浅层导航、Digital Crown 滚动、系统文本输入、锁屏与中断、独立启动 | [watchOS](https://developer.apple.com/design/human-interface-guidelines/designing-for-watchos) |

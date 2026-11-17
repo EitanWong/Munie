@@ -14,10 +14,11 @@ struct OnboardingCommandCard: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            Text("$ ")
+            Text(verbatim: "$ ")
+                .accessibilityHidden(true)
                 .foregroundStyle(.white.opacity(0.3))
 
-            Text(command)
+            Text(verbatim: command)
                 .foregroundStyle(.white.opacity(0.8))
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
@@ -49,7 +50,11 @@ struct OnboardingCommandCard: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(copied ? String(localized: "Copied") : String(localized: "Copy Command"))
+            .accessibilityHint(String(localized: "Copies this command for Terminal on your Mac."))
+            .accessibilityIdentifier("munie.onboarding.copyCommand")
         }
+        .accessibilityElement(children: .contain)
         .font(AppFont.mono(.caption))
         .padding(.leading, 18)
         .padding(.trailing, 10)

@@ -11,9 +11,13 @@ import SwiftUI
 enum MunieAppLaunchRoute: Equatable {
     case production
     case timelineFixture
+    case onboardingFixture
     case hostedTests
 
     static func resolve(arguments: [String], isHostedTest: Bool) -> Self {
+        if arguments.contains("-CodexUITestsOnboardingFixture") {
+            return .onboardingFixture
+        }
         if arguments.contains("-CodexUITestsFixture") {
             return .timelineFixture
         }
@@ -24,11 +28,14 @@ enum MunieAppLaunchRoute: Equatable {
     func makeRoot<Root>(
         production: () -> Root,
         timelineFixture: () -> Root,
-        hostedTests: () -> Root
+        hostedTests: () -> Root,
+        onboardingFixture: (() -> Root)? = nil
     ) -> Root {
         switch self {
         case .production: production()
         case .timelineFixture: timelineFixture()
+        // Older test callers omit this factory; fail closed without constructing production stores.
+        case .onboardingFixture: onboardingFixture?() ?? hostedTests()
         case .hostedTests: hostedTests()
         }
     }
@@ -51,7 +58,8 @@ struct CodexMobileApp: App {
             ).makeRoot(
                 production: { AnyView(MunieProductionRootView()) },
                 timelineFixture: { AnyView(MunieTimelineFixtureView()) },
-                hostedTests: { AnyView(Color.clear) }
+                hostedTests: { AnyView(Color.clear) },
+                onboardingFixture: { AnyView(MunieOnboardingFixtureView()) }
             )
             #else
             MunieProductionRootView()
@@ -59,6 +67,37 @@ struct CodexMobileApp: App {
         }
     }
 }
+
+#if DEBUG
+@MainActor
+private struct MunieOnboardingFixtureView: View {
+    private let preferences: UserDefaults
+
+    init() {
+        let suiteName = "app.munie.onboarding-ui-fixture"
+        guard let preferences = UserDefaults(suiteName: suiteName) else {
+            preconditionFailure("Unable to create isolated onboarding fixture preferences")
+        }
+        preferences.removePersistentDomain(forName: suiteName)
+        self.preferences = preferences
+
+        // AppFont reads standard defaults directly. Override only its keys in the in-memory
+        // argument domain, preserving language arguments and every persisted user preference.
+        var arguments = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
+        arguments[AppFont.storageKey] = AppFont.defaultStyle.rawValue
+        arguments[AppFont.legacyStorageKey] = false
+        UserDefaults.standard.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain)
+    }
+
+    var body: some View {
+        // Exercise the actual five-page flow without constructing CodexService, Keychain stores,
+        // scanner or pairing dependencies. External links and terminal callbacks cannot escape.
+        OnboardingView(onScanQRCode: {}, onPairWithCode: {})
+            .defaultAppStorage(preferences)
+            .environment(\.openURL, OpenURLAction { _ in .discarded })
+    }
+}
+#endif
 
 @MainActor
 private struct MunieProductionRootView: View {

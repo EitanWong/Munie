@@ -35,6 +35,7 @@ SAFE_TESTS = ("MunieTests/CaptureModelTests", "MunieTests/ShortVoiceInputTests",
 REMODEX_SAFE_TESTS = (
     "MunieRemodexTests",
     "MunieRemodexUITests/MunieRemodexSmokeTests",
+    "MunieRemodexUITests/MunieOnboardingUITests",
 )
 
 

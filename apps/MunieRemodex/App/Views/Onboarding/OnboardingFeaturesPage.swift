@@ -1,3 +1,4 @@
+// Munie modification: localize the first-run feature descriptions and clarify the Mac execution boundary.
 // FILE: OnboardingFeaturesPage.swift
 // Purpose: Compact feature highlights page shown after the welcome splash.
 // Layer: View
@@ -13,11 +14,12 @@ struct OnboardingFeaturesPage: View {
 
             VStack(spacing: 40) {
                 VStack(spacing: 10) {
-                    Text("What you get")
+                    Text(String(localized: "What you get"))
+                        .accessibilityIdentifier("munie.onboarding.features.title")
                         .font(AppFont.system(size: 28, weight: .bold))
                         .foregroundStyle(.white)
 
-                    Text("Everything runs on your device.\nYour phone is the remote.")
+                    Text(String(localized: "Codex runs on your Mac.\nYour iPhone is the remote."))
                         .font(AppFont.subheadline())
                         .foregroundStyle(.white.opacity(0.45))
                         .multilineTextAlignment(.center)
@@ -28,32 +30,32 @@ struct OnboardingFeaturesPage: View {
                     featureRow(
                         icon: "hare.fill",
                         color: .yellow,
-                        title: "Fast mode",
-                        subtitle: "Lower-latency turns for quick interactions"
+                        title: String(localized: "Fast mode"),
+                        subtitle: String(localized: "Lower-latency turns for quick interactions")
                     )
                     featureRow(
                         icon: "arrow.triangle.branch",
                         color: .green,
-                        title: "Git from your phone",
-                        subtitle: "Commit, push, pull, and switch branches"
+                        title: String(localized: "Git from your phone"),
+                        subtitle: String(localized: "Commit, push, pull, and switch branches")
                     )
                     featureRow(
                         icon: "lock.shield.fill",
                         color: .cyan,
-                        title: "End-to-end encrypted",
-                        subtitle: "The relay never sees your prompts or code"
+                        title: String(localized: "End-to-end encrypted"),
+                        subtitle: String(localized: "The relay never sees your prompts or code")
                     )
                     featureRow(
                         icon: "waveform",
                         color: .purple,
-                        title: "Voice mode",
-                        subtitle: "Talk to Codex with speech-to-text"
+                        title: String(localized: "Voice mode"),
+                        subtitle: String(localized: "Talk to Codex with speech-to-text")
                     )
                     featureRow(
                         icon: "point.3.connected.trianglepath.dotted",
                         color: .orange,
-                        title: "Subagents, skills and /commands",
-                        subtitle: "Spawn and monitor parallel agents from your phone"
+                        title: String(localized: "Subagents, skills and /commands"),
+                        subtitle: String(localized: "Spawn and monitor parallel agents from your phone")
                     )
                 }
                 .padding(.horizontal, 4)
@@ -69,6 +71,7 @@ struct OnboardingFeaturesPage: View {
         HStack(spacing: 16) {
             RemodexIcon.image(systemName: icon)
                 .font(.system(size: 14, weight: .semibold))
+                .accessibilityHidden(true)
                 .foregroundStyle(color)
                 .frame(width: 40, height: 40)
                 .background(

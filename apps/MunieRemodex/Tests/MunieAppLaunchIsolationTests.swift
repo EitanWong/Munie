@@ -70,4 +70,69 @@ final class MunieAppLaunchIsolationTests: XCTestCase {
       MunieAppLaunchRoute.resolve(
         arguments: ["Munie", "-CodexUITestsFixtureExtra"], isHostedTest: false), .production)
   }
+
+  func testOnboardingFixtureOnlyConstructsItsRootIncludingHostedLaunches() {
+    for isHostedTest in [false, true] {
+      let route = MunieAppLaunchRoute.resolve(
+        arguments: ["Munie", "-CodexUITestsOnboardingFixture"], isHostedTest: isHostedTest)
+      var factoryCalls: [String] = []
+      let root = route.makeRoot(
+        production: {
+          XCTFail(
+            "An onboarding fixture must not construct production stores or Keychain dependencies")
+          factoryCalls.append("production")
+          return "production"
+        },
+        timelineFixture: {
+          factoryCalls.append("timeline")
+          return "timeline"
+        },
+        hostedTests: {
+          factoryCalls.append("hosted")
+          return "hosted"
+        },
+        onboardingFixture: {
+          factoryCalls.append("onboarding")
+          return "onboarding"
+        })
+      XCTAssertEqual(route, .onboardingFixture)
+      XCTAssertEqual(root, "onboarding")
+      XCTAssertEqual(factoryCalls, ["onboarding"])
+    }
+  }
+
+  func testOnboardingFixtureWithoutFactoryFailsClosedToHostedRoot() {
+    let route = MunieAppLaunchRoute.resolve(
+      arguments: ["Munie", "-CodexUITestsOnboardingFixture"], isHostedTest: false)
+    var factoryCalls: [String] = []
+    let root = route.makeRoot(
+      production: {
+        XCTFail("A missing fixture factory must not initialize production dependencies")
+        factoryCalls.append("production")
+        return "production"
+      },
+      timelineFixture: {
+        factoryCalls.append("timeline")
+        return "timeline"
+      },
+      hostedTests: {
+        factoryCalls.append("hosted")
+        return "hosted"
+      })
+    XCTAssertEqual(root, "hosted")
+    XCTAssertEqual(factoryCalls, ["hosted"])
+  }
+
+  func testOnboardingFixtureUsesExactFlagAndWinsOverTimelineFlag() {
+    for isHostedTest in [false, true] {
+      XCTAssertEqual(
+        MunieAppLaunchRoute.resolve(
+          arguments: ["Munie", "-CodexUITestsOnboardingFixtureExtra"], isHostedTest: isHostedTest),
+        isHostedTest ? .hostedTests : .production)
+      XCTAssertEqual(
+        MunieAppLaunchRoute.resolve(
+          arguments: ["Munie", "-CodexUITestsFixture", "-CodexUITestsOnboardingFixture"],
+          isHostedTest: isHostedTest), .onboardingFixture)
+    }
+  }
 }

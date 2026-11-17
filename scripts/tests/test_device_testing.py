@@ -124,7 +124,8 @@ class AvailableDeviceTests(unittest.TestCase):
         self.assertNotIn('OnlyTestIdentifiers', unit)
         self.assertEqual(unit['SkipTestIdentifiers'], ['ExistingSkip', 'MunieRemodexDeviceAcceptanceTests'])
         self.assertEqual(unit['EnvironmentVariables'], {'SAFE': 'yes'})
-        self.assertEqual(clone['MunieRemodexUITests']['OnlyTestIdentifiers'], ['MunieRemodexSmokeTests'])
+        self.assertEqual(clone['MunieRemodexUITests']['OnlyTestIdentifiers'],
+                         ['MunieRemodexSmokeTests', 'MunieOnboardingUITests'])
         self.assertEqual(clone['__xctestrun_metadata__']['ContainerInfo']['SchemeName'], 'MunieRemodex')
         self.assertTrue(report['testConfiguration']['originalUnchanged'])
 

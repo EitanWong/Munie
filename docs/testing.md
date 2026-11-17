@@ -11,9 +11,11 @@ python3 scripts/test-available-ios.py --product remodex --dry-run
 python3 scripts/test-available-ios.py --product remodex
 ```
 
-The safe profile runs the full adopted offline unit target plus `MunieRemodexSmokeTests`; opt-in real-account tests are explicitly excluded and inherited `MUNIE_`, `REMODEX_` and `PHODEX_` variables are stripped. It clones generated test configuration in the same directory, verifies the original hash, preserves existing skips and only repairs an app suffix if the actual app directory exists. When a phone is ready and explicitly signed, a failed device build/install/test remains a device failure; simulator success never hides it.
+The safe profile runs the full adopted offline unit target plus `MunieRemodexSmokeTests` and `MunieOnboardingUITests`; opt-in real-account tests are explicitly excluded and inherited `MUNIE_`, `REMODEX_` and `PHODEX_` variables are stripped. It clones generated test configuration in the same directory, verifies the original hash, preserves existing skips and only repairs an app suffix if the actual app directory exists. When a phone is ready and explicitly signed, a failed device build/install/test remains a device failure; simulator success never hides it.
 
 `MunieRemodexSmokeTests` launches a DEBUG deterministic fixture using the real `TurnTimelineView`; it displays synthetic messages without network/model, microphone, Keychain or persisted user-history access. This establishes rendering and gestures only. Hosted simulator builds are ad-hoc signed so actual Keychain tests can run. App-hosted tests use a separate DEBUG XCTest Keychain namespace, while opt-in acceptance additionally isolates each UUID. Production Keychain service names remain unchanged.
+
+`MunieOnboardingUITests` uses a separate DEBUG route selected before production services/stores are constructed. It renders the real five-page `OnboardingView` with isolated preferences and inactive external-link, scan and pairing callbacks. English/Simplified Chinese cases check the visible pages, both install-reminder branches, verbatim Mac commands and final entry buttons, retaining screenshots. They do not open the camera, record, follow links, copy to the clipboard or execute commands. Route tests require only the selected factory to run; this is offline UI coverage, separate from actual pairing/device acceptance.
 
 With the existing explicit real-model authorization, first create a signed `MunieRemodex` build-for-testing, then invoke:
 

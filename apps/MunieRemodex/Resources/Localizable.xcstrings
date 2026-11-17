@@ -4064,6 +4064,502 @@
           }
         }
       }
+    },
+    "Control Codex from your iPhone.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Control Codex from your iPhone."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用 iPhone 远程控制 Codex。"
+          }
+        }
+      }
+    },
+    "What you get": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What you get"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "功能一览"
+          }
+        }
+      }
+    },
+    "Codex runs on your Mac.\nYour iPhone is the remote.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codex runs on your Mac.\nYour iPhone is the remote."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codex 在 Mac 上执行。\niPhone 用于远程控制。"
+          }
+        }
+      }
+    },
+    "Lower-latency turns for quick interactions": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lower-latency turns for quick interactions"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "以更低延迟快速交互"
+          }
+        }
+      }
+    },
+    "Git from your phone": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Git from your phone"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在手机上使用 Git"
+          }
+        }
+      }
+    },
+    "Commit, push, pull, and switch branches": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Commit, push, pull, and switch branches"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提交、推送、拉取和切换分支"
+          }
+        }
+      }
+    },
+    "The relay never sees your prompts or code": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The relay never sees your prompts or code"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中继无法读取你的提示词或代码"
+          }
+        }
+      }
+    },
+    "Voice mode": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voice mode"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "语音模式"
+          }
+        }
+      }
+    },
+    "Talk to Codex with speech-to-text": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Talk to Codex with speech-to-text"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将语音转成文字，与 Codex 对话"
+          }
+        }
+      }
+    },
+    "Subagents, skills and /commands": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subagents, skills and /commands"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "子 Agent、技能与 /commands"
+          }
+        }
+      }
+    },
+    "Spawn and monitor parallel agents from your phone": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spawn and monitor parallel agents from your phone"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在手机上启动并监控并行 Agent"
+          }
+        }
+      }
+    },
+    "Install Codex CLI": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Install Codex CLI"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安装 Codex CLI"
+          }
+        }
+      }
+    },
+    "Codex runs in Terminal on your Mac. Munie lets you control it from your iPhone.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codex runs in Terminal on your Mac. Munie lets you control it from your iPhone."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codex 在 Mac 的终端中运行。Munie 让你通过 iPhone 远程控制它。"
+          }
+        }
+      }
+    },
+    "Prepare Munie on your Mac": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prepare Munie on your Mac"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Mac 上准备 Munie"
+          }
+        }
+      }
+    },
+    "From your Munie repository on the Mac, prepare the pinned local bridge.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "From your Munie repository on the Mac, prepare the pinned local bridge."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Mac 的 Munie 仓库目录中准备已固定版本的本地桥接。"
+          }
+        }
+      }
+    },
+    "Run from the Munie repository. The relay endpoint is configured locally and is not an upstream hosted service.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Run from the Munie repository. The relay endpoint is configured locally and is not an upstream hosted service."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Munie 仓库目录中运行。中继地址在本地配置，不使用上游托管服务。"
+          }
+        }
+      }
+    },
+    "Start Pairing": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start Pairing"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始配对"
+          }
+        }
+      }
+    },
+    "On your Mac, choose the Codex executable and authorized project. Scan the pairing QR code shown by the local bridge.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On your Mac, choose the Codex executable and authorized project. Scan the pairing QR code shown by the local bridge."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Mac 上选择 Codex 可执行文件与已授权项目，再扫描本地桥接显示的配对二维码。"
+          }
+        }
+      }
+    },
+    "STEP %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "STEP %lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第 %lld 步"
+          }
+        }
+      }
+    },
+    "Get Started": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Get Started"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始使用"
+          }
+        }
+      }
+    },
+    "Set Up": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set Up"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始设置"
+          }
+        }
+      }
+    },
+    "Continue": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continue"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "继续"
+          }
+        }
+      }
+    },
+    "Scan with QR Code": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scan with QR Code"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "扫描二维码"
+          }
+        }
+      }
+    },
+    "Install Codex CLI First": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Install Codex CLI First"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请先安装 Codex CLI"
+          }
+        }
+      }
+    },
+    "Stay Here": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stay Here"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "留在此页"
+          }
+        }
+      }
+    },
+    "Understood": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Understood"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "知道了"
+          }
+        }
+      }
+    },
+    "Before continuing, run \"%@\" in Terminal on your Mac. Munie needs Codex CLI installed and available in your Mac's PATH.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Before continuing, run \"%@\" in Terminal on your Mac. Munie needs Codex CLI installed and available in your Mac's PATH."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "继续前，请在 Mac 的终端中运行“%@”。Munie 需要先在 Mac 上安装 Codex CLI，并将其加入 PATH。"
+          }
+        }
+      }
+    },
+    "Copies this command for Terminal on your Mac.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copies this command for Terminal on your Mac."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制此命令，以便在 Mac 的终端中运行。"
+          }
+        }
+      }
+    },
+    "Open source": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open source"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开源项目"
+          }
+        }
+      }
+    },
+    "Open source on GitHub": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open source on GitHub"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 GitHub 上查看开源项目"
+          }
+        }
+      }
+    },
+    "Page %lld of %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Page %lld of %lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第 %lld 页，共 %lld 页"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

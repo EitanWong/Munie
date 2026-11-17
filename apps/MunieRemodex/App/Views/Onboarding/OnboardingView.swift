@@ -33,8 +33,8 @@ struct OnboardingView: View {
                     OnboardingStepPage(
                         stepNumber: 1,
                         icon: "terminal",
-                        title: "Install Codex CLI",
-                        description: "The AI coding agent that lives in your terminal. Munie connects to it from your iPhone.",
+                        title: String(localized: "Install Codex CLI"),
+                        description: String(localized: "Codex runs in Terminal on your Mac. Munie lets you control it from your iPhone."),
                         command: codexInstallCommand
                     )
                     .tag(2)
@@ -42,18 +42,18 @@ struct OnboardingView: View {
                     OnboardingStepPage(
                         stepNumber: 2,
                         icon: "link",
-                        title: "Prepare Munie on your Mac",
-                        description: "From your Munie repository on the Mac, prepare the pinned local bridge.",
+                        title: String(localized: "Prepare Munie on your Mac"),
+                        description: String(localized: "From your Munie repository on the Mac, prepare the pinned local bridge."),
                         command: "./scripts/setup-remodex.sh",
-                        commandCaption: "Run from the Munie repository. The relay endpoint is configured locally and is not an upstream hosted service."
+                        commandCaption: String(localized: "Run from the Munie repository. The relay endpoint is configured locally and is not an upstream hosted service.")
                     )
                     .tag(3)
 
                     OnboardingStepPage(
                         stepNumber: 3,
                         icon: "qrcode.viewfinder",
-                        title: "Start Pairing",
-                        description: "On your Mac, choose the Codex executable and authorized project. Scan the pairing QR code shown by the local bridge.",
+                        title: String(localized: "Start Pairing"),
+                        description: String(localized: "On your Mac, choose the Codex executable and authorized project. Scan the pairing QR code shown by the local bridge."),
                         command: "./scripts/run-remodex-local.sh --codex /absolute/codex --project /absolute/authorized/project"
                     )
                     .tag(4)
@@ -64,13 +64,16 @@ struct OnboardingView: View {
             }
         }
         .preferredColorScheme(.dark)
-        .alert("Install Codex CLI First", isPresented: $isShowingCodexInstallReminder) {
-            Button("Stay Here", role: .cancel) {}
-            Button("Understood") {
+        .alert(String(localized: "Install Codex CLI First"), isPresented: $isShowingCodexInstallReminder) {
+            Button(String(localized: "Stay Here"), role: .cancel) {}
+                .accessibilityIdentifier("munie.onboarding.install.stay")
+            Button(String(localized: "Understood")) {
                 advanceToNextPage()
             }
+            .accessibilityIdentifier("munie.onboarding.install.understood")
         } message: {
-            Text("Copy and paste \"\(codexInstallCommand)\" on your device before moving on. Munie will not work until Codex CLI is installed and available in your PATH.")
+            Text(String(localized: "Before continuing, run \"\(codexInstallCommand)\" in Terminal on your Mac. Munie needs Codex CLI installed and available in your Mac's PATH."))
+                .accessibilityIdentifier("munie.onboarding.install.message")
         }
     }
 
@@ -87,6 +90,9 @@ struct OnboardingView: View {
                 }
             }
             .animation(.spring(response: 0.35, dampingFraction: 0.8), value: currentPage)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(String(localized: "Page \(currentPage + 1) of \(pageCount)"))
+            .accessibilityIdentifier("munie.onboarding.pageIndicator")
 
             finalPageActions
 
@@ -113,22 +119,25 @@ struct OnboardingView: View {
         if currentPage == pageCount - 1 {
             VStack(spacing: 10) {
                 PrimaryCapsuleButton(
-                    title: "Scan with QR Code",
+                    title: String(localized: "Scan with QR Code"),
                     systemImage: "qrcode",
                     action: handleContinue
                 )
+                .accessibilityIdentifier("munie.onboarding.scan")
 
                 secondaryCapsuleButton(
-                    title: "Pair with Code",
+                    title: String(localized: "Pair with Code"),
                     systemImage: "keyboard",
                     action: onPairWithCode
                 )
+                .accessibilityIdentifier("munie.onboarding.pairWithCode")
             }
         } else {
             PrimaryCapsuleButton(
                 title: buttonTitle,
                 action: handleContinue
             )
+            .accessibilityIdentifier("munie.onboarding.continue")
         }
     }
 
@@ -159,9 +168,9 @@ struct OnboardingView: View {
 
     private var buttonTitle: String {
         switch currentPage {
-        case 0: return "Get Started"
-        case 1: return "Set Up"
-        default: return "Continue"
+        case 0: return String(localized: "Get Started")
+        case 1: return String(localized: "Set Up")
+        default: return String(localized: "Continue")
         }
     }
 

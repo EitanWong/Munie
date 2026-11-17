@@ -23,8 +23,9 @@ struct OpenSourceBadge: View {
                     .resizable()
                     .scaledToFit()
                     .frame(width: 14, height: 14)
+                    .accessibilityHidden(true)
 
-                Text("Open source")
+                Text(String(localized: "Open source"))
                     .font(AppFont.caption(weight: .medium))
             }
             .foregroundStyle(foregroundColor)
@@ -40,7 +41,8 @@ struct OpenSourceBadge: View {
             )
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Open source on GitHub")
+        .accessibilityLabel(String(localized: "Open source on GitHub"))
+        .accessibilityIdentifier("munie.onboarding.openSource")
     }
 
     private var foregroundColor: Color {

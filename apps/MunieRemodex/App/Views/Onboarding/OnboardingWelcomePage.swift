@@ -18,6 +18,7 @@ struct OnboardingWelcomePage: View {
                     .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
                     .clipped()
                     .ignoresSafeArea()
+                    .accessibilityHidden(true)
 
                 // Gradient fade to black — subtle, only at the bottom
                 LinearGradient(
@@ -37,6 +38,7 @@ struct OnboardingWelcomePage: View {
                         .resizable()
                         .scaledToFit()
                         .frame(width: 72, height: 72)
+                        .accessibilityHidden(true)
                         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                         .overlay(
                             RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -51,10 +53,11 @@ struct OnboardingWelcomePage: View {
                         )
 
                     VStack(spacing: 8) {
-                        Text("Munie")
+                        Text(verbatim: "Munie")
                             .font(AppFont.system(size: 32, weight: .bold))
 
-                        Text("Control Codex from your iPhone.")
+                        Text(String(localized: "Control Codex from your iPhone."))
+                            .accessibilityIdentifier("munie.onboarding.welcome.subtitle")
                             .font(AppFont.subheadline(weight: .regular))
                             .foregroundStyle(.white.opacity(0.5))
                     }
@@ -62,7 +65,8 @@ struct OnboardingWelcomePage: View {
                     HStack(spacing: 6) {
                         RemodexIcon.image(systemName: "lock.shield.fill")
                             .font(.system(size: 11, weight: .medium))
-                        Text("End-to-end encrypted")
+                            .accessibilityHidden(true)
+                        Text(String(localized: "End-to-end encrypted"))
                             .font(AppFont.caption(weight: .medium))
                     }
                     .foregroundStyle(.white.opacity(0.5))

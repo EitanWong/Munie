@@ -30,25 +30,6 @@
       "We'll only show this once for each app version.",
       "What's New"
     ],
-    "apps/MunieRemodex/App/Views/Onboarding/OnboardingCommandCard.swift": [
-      "$ "
-    ],
-    "apps/MunieRemodex/App/Views/Onboarding/OnboardingFeaturesPage.swift": [
-      "What you get"
-    ],
-    "apps/MunieRemodex/App/Views/Onboarding/OnboardingView.swift": [
-      "Install Codex CLI First",
-      "Stay Here",
-      "Understood"
-    ],
-    "apps/MunieRemodex/App/Views/Onboarding/OnboardingWelcomePage.swift": [
-      "Control Codex from your iPhone.",
-      "Remodex"
-    ],
-    "apps/MunieRemodex/App/Views/OpenSourceBadge.swift": [
-      "Open source",
-      "Open source on GitHub"
-    ],
     "apps/MunieRemodex/App/Views/Payments/RevenueCatPaywallView.swift": [
       " · ",
       "37% OFF",

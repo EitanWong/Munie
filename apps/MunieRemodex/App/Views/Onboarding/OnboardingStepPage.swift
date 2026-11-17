@@ -54,6 +54,7 @@ struct OnboardingStepPage: View {
 
                         RemodexIcon.image(systemName: icon)
                             .font(.system(size: 32, weight: .light))
+                            .accessibilityHidden(true)
                             .foregroundStyle(.white)
                             .frame(width: 80, height: 80)
                             .background(
@@ -68,12 +69,13 @@ struct OnboardingStepPage: View {
 
                     VStack(spacing: 12) {
                         // Step label
-                        Text("STEP \(stepNumber)")
+                        Text(String(localized: "STEP \(stepNumber)"))
                             .font(AppFont.caption2(weight: .bold))
                             .foregroundStyle(Color(.plan).opacity(0.7))
                             .kerning(1.5)
 
                         Text(title)
+                            .accessibilityIdentifier("munie.onboarding.step.title.\(stepNumber)")
                             .font(AppFont.system(size: 28, weight: .bold))
 
                         Text(description)
@@ -87,6 +89,7 @@ struct OnboardingStepPage: View {
                     if let command {
                         VStack(alignment: .leading, spacing: 10) {
                             OnboardingCommandCard(command: command)
+                                .accessibilityIdentifier("munie.onboarding.command.\(stepNumber)")
 
                             if let commandCaption, !commandCaption.isEmpty {
                                 Text(commandCaption)
@@ -113,8 +116,8 @@ struct OnboardingStepPage: View {
         OnboardingStepPage(
             stepNumber: 1,
             icon: "terminal",
-            title: "Install Codex CLI",
-            description: "The AI coding agent that lives in your terminal. Munie connects to it from your iPhone.",
+            title: String(localized: "Install Codex CLI"),
+            description: String(localized: "Codex runs in Terminal on your Mac. Munie lets you control it from your iPhone."),
             command: "npm install -g @openai/codex@0.162.1"
         )
     }
@@ -127,10 +130,10 @@ struct OnboardingStepPage: View {
         OnboardingStepPage(
             stepNumber: 2,
             icon: "link",
-            title: "Prepare Munie on your Mac",
-            description: "From your Munie repository on the Mac, prepare the pinned local bridge.",
+            title: String(localized: "Prepare Munie on your Mac"),
+            description: String(localized: "From your Munie repository on the Mac, prepare the pinned local bridge."),
             command: "./scripts/setup-remodex.sh",
-            commandCaption: "Run from the Munie repository. The relay endpoint is configured locally and is not an upstream hosted service."
+            commandCaption: String(localized: "Run from the Munie repository. The relay endpoint is configured locally and is not an upstream hosted service.")
         )
     }
     .preferredColorScheme(.dark)
@@ -142,8 +145,8 @@ struct OnboardingStepPage: View {
         OnboardingStepPage(
             stepNumber: 3,
             icon: "qrcode.viewfinder",
-            title: "Start Pairing",
-            description: "On your Mac, choose the Codex executable and authorized project. Scan the pairing QR code shown by the local bridge.",
+            title: String(localized: "Start Pairing"),
+            description: String(localized: "On your Mac, choose the Codex executable and authorized project. Scan the pairing QR code shown by the local bridge."),
             command: "./scripts/run-remodex-local.sh --codex /absolute/codex --project /absolute/authorized/project"
         )
     }

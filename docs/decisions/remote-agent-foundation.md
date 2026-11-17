@@ -1,6 +1,6 @@
 # 随身 Agent 前台与自有 Codex 执行端
 
-日期：2026-11-17。状态：接受产品方向与设计边界；本机提交授权/账本已接固定版本 Codex adapter 子集用于 F1 故障实验，认证远程协议尚未实现。产品范围以[需求](../requirements.md)为准；工程结构选择见[原生工程决策](native-apple-foundation.md)。
+日期：2026-11-17。状态：接受产品方向与设计边界；本机 TLS 身份、真实账本与固定 Codex adapter 已在合成 F1 闭环连接，产品配对/主机服务/移动协议及外网仍未实现。产品范围以[需求](../requirements.md)为准；工程结构选择见[原生工程决策](native-apple-foundation.md)。
 
 ## 背景与依据
 
@@ -48,7 +48,7 @@ app 负责交互、权限请求、可恢复输入和设备凭据的安全保存�
 
 2026-11-17 的[固定版本与网络研究](../../references/codex-protocol-research.md)确认本机 0.162.1 有可选 WS Bearer 认证，但默认非 loopback 监听仍可能未认证，WS 传输也仍标实验。继续采用 Mac 本机 stdio adapter 边界；不把“CLI 有认证选项”当成可以直接开放公网。优先顺序为本机无模型协议探针 → 私有网络或受限 SSH 的 iPhone 工程探针 → Watch HTTPS 真机路径；公开 HTTPS/WSS gateway 或出站 relay 保留候选，当前未选服务、未配置网络。
 
-F1 先用[本机 mTLS 短请求研究](../../references/authenticated-network-research.md)隔离端点认证与设备授权：临时 CA/证书、仅 loopback、合成策略，逐请求复核撤销和请求身份。它不选择公网服务/生产 PKI，不接当前 ledger/Codex；真实网络选型还需原生 URLSession、配对/凭据生命周期、实际路由与设备证据。真实模型另按研究卡明确账户、模型、外联、权限、次数和费用后才运行。
+F1 的[本机 mTLS 短请求研究](../../references/authenticated-network-research.md)已从临时合成策略推进到原生 URLSession→实际 TLS 连接身份→真实 ledger/coordinator→固定 native Codex 的隔离闭环；执行结果唯一见[项目状态](../project-status.md)。它没有选择公网服务/生产 PKI。下一原型按[设备信任与主机服务](device-trust-and-host-service.md)验证本地私钥/CSR/回签 identity、Mac 确认、续期撤销和 owner/project 授权，再落实实际路由与设备证据。真实模型另按研究卡明确账户、模型、外联、权限、次数和费用后才运行。
 
 私有网络/SSH 需要端点信任、最小设备/端口授权及 NAT 可达性证据，不能因隧道建立就显示任务可执行。普通 Watch app 的 WebSocket/低层连接受平台限制，因此网关应评估 HTTPS 短请求与有界状态读取；不能要求 Watch 套用 iPhone VPN 或长流。iPhone 在场与 Watch 独立 Wi-Fi/蜂窝分别验收。网络选择须同时满足设备能力、撤销、延迟/功耗和部署成本，缺证据时保持未决定。
 
@@ -56,13 +56,13 @@ F1 先用[本机 mTLS 短请求研究](../../references/authenticated-network-re
 
 ## 信任与数据
 
-配对需在可信主机确认设备身份、短期一次性凭据、过期与撤销；每次执行校验主机和项目范围。网络层须提供端点认证和传输机密性；若引入非可信 relay，还需经评审的端到端保护及密钥轮换，不自创密码协议。禁止裸露 app-server 到公网，禁止把 Codex 登录或模型凭据复制到手机/relay，首版不提供任意 shell 透传或由输入指定任意工作目录。
+配对、credential 生命周期、跨设备 owner/project 授权、知情审批与每用户服务的详细设计唯一见[设备信任与主机服务](device-trust-and-host-service.md)。每次执行校验主机和项目范围。网络层须提供端点认证和传输机密性；若引入非可信 relay，还需经评审的端到端保护及密钥轮换，不自创密码协议。禁止裸露 app-server 到公网，禁止把 Codex 登录或模型凭据复制到手机/relay，首版不提供任意 shell 透传或由输入指定任意工作目录。
 
 项目授权由 gateway 的规范路径和 thread 归属映射决定，不能相信 payload 自报的 `cwd`。固定 schema 允许 `turn/start` 覆盖工作目录、审批和 sandbox，并影响后续 turn；每次执行均校验允许范围，拒绝移动端提升权限或注入任意 `config`。路径检查还须覆盖符号链接与授权后目标变化；项目范围不替代执行沙箱。设备撤销不仅拒绝新握手，还须终止或重新授权已连会话及待决审批；撤销本身不证明上游任务已取消。
 
 项目范围不是完整执行沙箱；保留 Codex 权限策略，显式审批额外后果。任务输入、文档、网页和模型总结都是数据，不能扩展授权。日志只保留必要 ID、状态、时间和脱敏错误，明确保留期限；内容、媒体、token 默认不记录。新账本/共享容器在实现前决定单写者、版本迁移、备份恢复和导出/删除；不能让 extension 并发写当前 JSON 文件。
 
-本机 F1 模块现已实现其中的项目/设备授权、不可变请求、持久发送资格、可信映射/终态和重启 reconciling；真实认证由 fixture 代替，现已通过本机 adapter 接入固定 Codex，未接入移动端。撤销创建持久 tombstone，已存在或尚未注册的 UUID 都不能重新启用；重配身份与既有任务仍须产品层设计。项目 path/device/inode 在接受及领取时复核，最终交接后替换不是本轮已解决的原子路径问题，仍须保持执行沙箱。Schema 1、单 host、单 owner、资源上限及合成数据限定见[账本研究](../../references/submission-ledger-research.md)。真实数据接入前补迁移、备份/导出/删除与去重生命周期，不将删除重建账本当安全恢复。
+本机 F1 模块现已实现其中的项目/设备授权、不可变请求、持久发送资格、可信映射/终态和重启 reconciling；实际 loopback TLS 认证使用 fixture 预置身份，尚无产品配对。它已通过本机 adapter 接入固定 Codex，未接入移动端。撤销创建持久 tombstone，已存在或尚未注册的 UUID 都不能重新启用；当前仅原设备能读控任务，跨设备接续须先实现新的授权层与迁移。项目 path/device/inode 在接受及领取时复核，最终交接后替换不是本轮已解决的原子路径问题，仍须保持执行沙箱。Schema 1、单 host、单 owner、资源上限及合成数据限定见[账本研究](../../references/submission-ledger-research.md)。真实数据接入前补迁移、备份/导出/删除与去重生命周期，不将删除重建账本当安全恢复。
 
 ## 替代、代价与复查点
 

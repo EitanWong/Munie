@@ -6,5 +6,6 @@
 |---|---|
 | [原生 Apple 工程](native-apple-foundation.md) | 接受；target、package、生成器与小范围依赖边界 |
 | [随身 Agent 与 Codex 执行端](remote-agent-foundation.md) | 设计接受；远程实现待执行，任务状态/信任/失败恢复契约 |
+| [设备信任与主机服务](device-trust-and-host-service.md) | 下一原型设计；配对/密钥生命周期、跨设备授权、知情审批、服务与资源准入；尚未实现 |
 
 需求归[需求基线](../requirements.md)，当前实现归[架构](../architecture.md)，完成证据归[项目状态](../project-status.md)，操作规范归[标准索引](../standards/README.md)。不在决策文档再维护第二份状态或需求清单。

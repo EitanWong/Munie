@@ -28,7 +28,7 @@ xcodebuild -project Munie.xcodeproj -scheme Munie -configuration Debug \
   -destination-timeout 90 \
   CODE_SIGNING_ALLOWED=NO build-for-testing 2>&1 | tee build/ios-tests.log
 TEST_RUN="$(python3 scripts/test-available-ios.py \
-  --prepare-config "$RUN_PATH/DerivedData/Build/Products" --test-scope default \
+  --prepare-config "$RUN_PATH/DerivedData/Build/Products" --test-scope default --product legacy \
   --report "$RUN_PATH/test-configuration.json" 2> >(tee -a build/ios-tests.log >&2))"
 python3 - "$ROOT/scripts/test-available-ios.py" -xctestrun "$TEST_RUN" -destination "$DESTINATION" \
   -resultBundlePath "$RESULT_PATH" -parallel-testing-enabled NO \

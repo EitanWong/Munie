@@ -11,7 +11,15 @@ open Munie.xcodeproj
 
 `project.yml` is authoritative; regenerate after configuration changes. Do not hand-edit or commit the generated `Munie.xcodeproj`. Choose a unique bundle identifier and your signing team for real devices. Simulator/generic builds do not require production signing credentials.
 
-In Xcode, choose scheme `Munie` for native iPhone, iPad, Mac, Apple TV or Apple Vision Pro destinations. Choose `MunieHost` for the Mac remote-execution companion, and `MunieWatch` for the standalone local Watch app. iPadOS shares the iOS target and device family; Mac uses native macOS, without Catalyst. No device sync or Watch connectivity is implied. tvOS cache may be purged. Platform interaction and distribution gates are in the [acceptance matrix](standards/platform-acceptance.md).
+In Xcode, choose `MunieRemodex` for the primary iPhone product. The retained `Munie` checkpoint supports native iPhone, iPad, Mac, Apple TV and Apple Vision Pro destinations; its `MunieHost` scheme builds the earlier Mac companion. Choose `MunieWatch` for the standalone local Watch app. iPadOS shares the retained iOS target and device family; Mac uses native macOS, without Catalyst. No device sync or Watch connectivity is implied. tvOS cache may be purged. Platform interaction and distribution gates are in the [acceptance matrix](standards/platform-acceptance.md).
+
+## Primary adopted iPhone target
+
+Use `MunieRemodex` for the primary iPhone client, `scripts/setup-remodex.sh` for locked bridge/relay dependencies, and `scripts/run-remodex-local.sh` for the explicit foreground Mac process. Full setup and current limits are in [README](../README.md) and [adoption](../references/remodex-adoption.md). `Munie`, `MunieHost` and their tests remain the earlier native checkpoint; their results do not transfer to the fork.
+
+`config/Remodex.Package.resolved` is copied into the generated project at bootstrap. All builds use `-onlyUsePackageVersionsFromResolvedFile`; update the reviewed lock and dependency notices together. Simulator execution uses ad-hoc signing because actual Security/Keychain tests require entitlements. Device builds use the existing ignored signing configuration. Imported Swift keeps upstream language mode and formatting; the [source manifest](../references/licenses/remodex-source-manifest.json) is the precise exception scope. New Swift files still pass strict formatting.
+
+The existing upstream UI literals detected by the repository checker are enumerated per source path in [localization debt](../references/licenses/remodex-localization-debt.json). This is a migration exception, never bilingual acceptance. New literals in the same source files and all new catalog entries remain subject to English/Simplified Chinese checks. The full upstream UI and its voice policy still require migration against the unchanged product requirements.
 
 ## Daily workflow
 
@@ -27,7 +35,7 @@ Work inside the new checkout, keep its scope focused, and run the relevant check
 ./scripts/test-ios.sh
 ```
 
-`check.sh` runs repository/localization checks, Swift formatting, core and host presentation/submission tests with coverage, the Release submission crash experiment, actionlint, core smoke, Release core performance budgets and builds for all five SDK families, including iOS test bundles plus an unsigned iOS Release build. `test-ios.sh` selects an available iPhone simulator; set `IOS_TEST_DESTINATION` for an explicit Xcode destination. UI tests and iOS execution of the app tests need a simulator; presentation tests also run on macOS. See [testing](testing.md) for commands and precise evidence requirements. Keep outputs and caches in ignored paths. References are optional local checkouts managed by the registry workflow; they are not runtime dependencies.
+`check.sh` runs source-adoption, repository/localization checks, Swift formatting, core and host presentation/submission tests with coverage, the Release submission crash experiment, actionlint, core smoke, Release core performance budgets and builds for all five SDK families, including both retained and adopted iOS test bundles/Release builds, and the bridge/relay Node tests. `test-remodex-ios.sh` executes the adopted offline unit suite and deterministic native UI smoke. `test-ios.sh` retains the native checkpoint suite and selects an available iPhone simulator; set `IOS_TEST_DESTINATION` for an explicit Xcode destination. UI tests and iOS execution of the app tests need a simulator; presentation tests also run on macOS. See [testing](testing.md) for commands and precise evidence requirements. Keep outputs and caches in ignored paths. References are optional local checkouts managed by the registry workflow; they are not runtime dependencies.
 
 Review subagent work as normal code: path ownership, API agreement, diff review, relevant tests, then integration. Update status and decisions with the final implementation. Release changes go from `dev` to `main` by PR; no routine feature development on `main`.
 

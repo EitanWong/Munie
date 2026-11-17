@@ -47,4 +47,9 @@ if [ ! -f config/Signing.xcconfig ]; then
   cp config/Signing.xcconfig.example config/Signing.xcconfig
 fi
 "$BINARY" generate --spec project.yml
+if [ -f config/Remodex.Package.resolved ]; then
+  LOCK_DIRECTORY=Munie.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
+  mkdir -p "$LOCK_DIRECTORY"
+  cp config/Remodex.Package.resolved "$LOCK_DIRECTORY/Package.resolved"
+fi
 printf 'Open %s/Munie.xcodeproj\n' "$ROOT"

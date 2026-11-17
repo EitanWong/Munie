@@ -18,3 +18,6 @@ Munie.xcodeproj/
 __pycache__/
 *.pyc
 config/Signing.xcconfig
+config/Remodex.local.xcconfig
+node_modules/
+default.profraw

@@ -23,6 +23,14 @@ def manifest():
 
 
 class PackageContractTests(unittest.TestCase):
+    def test_upstream_debt_does_not_waive_new_strings_or_other_files(self):
+        debt = {'apps/Vendor/View.swift': ['Existing']}
+        check = CHECKER.localized_or_recorded_debt
+        self.assertTrue(check('apps/Vendor/View.swift', 'Existing', {}, debt))
+        self.assertFalse(check('apps/Vendor/View.swift', 'New copy', {}, debt))
+        self.assertFalse(check('apps/New/View.swift', 'Existing', {}, debt))
+        self.assertTrue(check('apps/New/View.swift', 'New copy', {'New copy': {}}, debt))
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)

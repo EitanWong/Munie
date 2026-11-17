@@ -29,7 +29,7 @@ Apple 使用 project、target、scheme、build configuration 和资源 membershi
 
 遵循 [Swift API Design Guidelines](https://www.swift.org/documentation/api-design-guidelines/)：名字说明职责，调用点清楚，公开 API 说明输入、结果及错误。优先小范围、具体的类型；只有出现真实共享行为才抽包。
 
-项目采用 Swift 6 完整并发检查。UI 状态明确归属 `MainActor`，共享可变存储按 actor 隔离，通过 `async` 边界注入依赖。检查跨 actor 值的 `Sendable` 与任务取消；不要为消除诊断直接添加 `@unchecked Sendable`、`nonisolated(unsafe)` 或无证据的 `try?`。actor 并不自动解决多进程或跨设备数据一致性。
+项目自有模块采用 Swift 6 完整并发检查。当前 `MunieRemodex` 移植 target 暂保留上游 Swift 5 language mode、MainActor 默认隔离与原有格式，使用 Swift 6 编译器构建；固定源码例外范围和迁移缺口见[移植记录](../../references/remodex-adoption.md)。新增文件继续严格格式与生命周期检查，此例外不等于已完成 Swift 6 或双语验收。UI 状态明确归属 `MainActor`，共享可变存储按 actor 隔离，通过 `async` 边界注入依赖。检查跨 actor 值的 `Sendable` 与任务取消；不要为消除诊断直接添加 `@unchecked Sendable`、`nonisolated(unsafe)` 或无证据的 `try?`。actor 并不自动解决多进程或跨设备数据一致性。
 
 ## 代码质量与资源边界
 

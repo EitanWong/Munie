@@ -18,6 +18,18 @@ packages:
     path: packages/MunieRemote
   MunieHostRuntime:
     path: .
+  RemodexTextKit:
+    url: https://github.com/Emanuele-web04/RemodexTextKit.git
+    exactVersion: 0.4.2
+  Runestone:
+    url: https://github.com/simonbs/Runestone.git
+    exactVersion: 0.5.2
+  TreeSitterLanguages:
+    url: https://github.com/simonbs/TreeSitterLanguages.git
+    exactVersion: 0.1.10
+  Citadel:
+    url: https://github.com/orlandos-nl/Citadel.git
+    revision: ae8562f895de06ccb86fdb1cbb65fd99c8976e12
 settings:
   base:
     SWIFT_VERSION: '6.0'
@@ -30,6 +42,106 @@ settings:
     CODE_SIGN_STYLE: Automatic
     ENABLE_USER_SCRIPT_SANDBOXING: YES
 targets:
+  MunieRemodex:
+    type: application
+    platform: iOS
+    deploymentTarget: '18.6'
+    sources:
+      - path: apps/MunieRemodex/App
+      - path: apps/MunieRemodex/Resources
+        excludes: [Info.plist]
+    dependencies:
+      - package: RemodexTextKit
+      - package: Runestone
+      - package: Citadel
+      - package: TreeSitterLanguages
+        product: TreeSitterBashRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterCRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterCPPRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterCSSRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterCSharpRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterGoRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterHTMLRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterJavaRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterJavaScriptRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterJSONRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterMarkdownRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterPythonRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterRubyRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterRustRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterSQLRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterSwiftRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterTOMLRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterTSXRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterTypeScriptRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterYAMLRunestone
+    configFiles:
+      Debug: config/Remodex.xcconfig
+      Release: config/Remodex.xcconfig
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.munie.ios
+        SWIFT_VERSION: '5.0'
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        SWIFT_APPROACHABLE_CONCURRENCY: YES
+        SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY: YES
+        SWIFT_TREAT_WARNINGS_AS_ERRORS: NO
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: apps/MunieRemodex/Resources/Info.plist
+        TARGETED_DEVICE_FAMILY: '1'
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        STRING_CATALOG_GENERATE_SYMBOLS: YES
+        SWIFT_EMIT_LOC_STRINGS: YES
+        SUPPORTS_MACCATALYST: NO
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+  MunieRemodexTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: '18.6'
+    sources: [apps/MunieRemodex/Tests]
+    dependencies:
+      - target: MunieRemodex
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.munie.tests
+        SWIFT_VERSION: '5.0'
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        SWIFT_APPROACHABLE_CONCURRENCY: YES
+        SWIFT_TREAT_WARNINGS_AS_ERRORS: NO
+        GENERATE_INFOPLIST_FILE: YES
+  MunieRemodexUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: '18.6'
+    sources: [apps/MunieRemodex/UITests]
+    dependencies:
+      - target: MunieRemodex
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.munie.uitests
+        SWIFT_VERSION: '5.0'
+        SWIFT_TREAT_WARNINGS_AS_ERRORS: NO
+        GENERATE_INFOPLIST_FILE: YES
   Munie:
     type: application
     supportedDestinations: [iOS, macOS, tvOS, visionOS]
@@ -147,6 +259,19 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: app.munie.uitests
         GENERATE_INFOPLIST_FILE: YES
 schemes:
+  MunieRemodex:
+    build:
+      targets:
+        MunieRemodex: all
+    test:
+      gatherCoverageData: true
+      targets:
+        - name: MunieRemodexTests
+          parallelizable: false
+        - name: MunieRemodexUITests
+          parallelizable: false
+    archive:
+      config: Release
   MunieHost:
     build:
       targets:

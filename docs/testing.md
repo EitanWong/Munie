@@ -1,5 +1,33 @@
 # Testing
 
+## Primary Remodex client and bridge
+
+```sh
+./scripts/bootstrap.sh
+./scripts/setup-remodex.sh
+python3 scripts/check-remodex-adoption.py
+./scripts/test-remodex-ios.sh
+python3 scripts/test-available-ios.py --product remodex --dry-run
+python3 scripts/test-available-ios.py --product remodex
+```
+
+The safe profile runs the full adopted offline unit target plus `MunieRemodexSmokeTests`; opt-in real-account tests are explicitly excluded and inherited `MUNIE_`, `REMODEX_` and `PHODEX_` variables are stripped. It clones generated test configuration in the same directory, verifies the original hash, preserves existing skips and only repairs an app suffix if the actual app directory exists. When a phone is ready and explicitly signed, a failed device build/install/test remains a device failure; simulator success never hides it.
+
+`MunieRemodexSmokeTests` launches a DEBUG deterministic fixture using the real `TurnTimelineView`; it displays synthetic messages without network/model, microphone, Keychain or persisted user-history access. This establishes rendering and gestures only. Hosted simulator builds are ad-hoc signed so actual Keychain tests can run. App-hosted tests use a separate DEBUG XCTest Keychain namespace, while opt-in acceptance additionally isolates each UUID. Production Keychain service names remain unchanged.
+
+With the existing explicit real-model authorization, first create a signed `MunieRemodex` build-for-testing, then invoke:
+
+```sh
+python3 scripts/accept-remodex-device.py --allow-real-model \
+  --codex /absolute/native/codex \
+  --products build/remodex-device-derived/Build/Products \
+  --destination 'platform=iOS,id=DEVICE_UDID' \
+  --relay wss://HOST:8443
+```
+
+This prepares a private copy of the local account using the existing descriptor-based checks, creates a disposable project and explicit foreground relay/bridge, submits one bounded exact-text task through the signed client, then starts a separate app process to recover that same thread without a second submission. Add `--with-controls` for two exact command approvals, a marked shell with a 30-second wait, exact-turn cancellation and same-thread continuation. The Mac then waits 31 seconds and requires the forbidden late marker to remain absent, in addition to matching native turn terminals; a native `cancelled` result alone is insufficient. Reports retain original logs and process identities; copied account material is removed. A transport/task failure is not acceptance. Real microphone, system entry and notification delivery require their own adopted-flow evidence; the old native-checkpoint reports below do not substitute.
+
+
 ## Automated layers
 
 | Layer | Purpose |

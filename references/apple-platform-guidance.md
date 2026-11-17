@@ -9,6 +9,7 @@
 | [Setting up a watchOS project](https://developer.apple.com/documentation/watchos-apps/setting-up-a-watchos-project) | watch target、watch-only 与 companion 关系需要显式配置，不能靠共享目录推断 |
 | [Swift API Design Guidelines](https://www.swift.org/documentation/api-design-guidelines/) | 职责清楚的 API 名称、调用点与文档；对应本项目小范围 API 和显式错误约定 |
 | [Swift 6 concurrency migration guide](https://www.swift.org/migration/documentation/swift-6-concurrency-migration-guide/) | Swift 6 数据竞争检查与隔离；实现仍需结合编译器诊断和实际边界验证 |
+| [SE-0371 isolated synchronous deinit](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0371-isolated-synchronous-deinit.md) / [官方编译器可用性测试](https://github.com/swiftlang/swift/blob/main/test/Concurrency/deinit_isolation_availability.swift) | 2026-11-18 核对：Swift 6.2 实现 isolated deinit；MainActor 析构有回部署支持，不能将普通 actor 的系统版本限制直接套用。Munie 的 CodexService 在后台网络回调释放最后引用时曾因 assumeIsolated 崩溃，现由执行器切换完成清理；析构不替代显式 disconnect。当前 Swift 6.4.2 已生成 iOS 18.0/18.6 Debug/优化代码，最低系统运行和托管 Swift 6.2 构建分别验收 |
 | [HIG](https://developer.apple.com/design/human-interface-guidelines) | 原生体验的设计入口，使用系统组件并按平台展开，不构建全平台统一像素模板 |
 | [HIG Layout](https://developer.apple.com/design/human-interface-guidelines/layout) | 适应显示、方向和窗口尺寸；用于窄宽布局验收 |
 | [HIG Accessibility](https://developer.apple.com/design/human-interface-guidelines/accessibility) | 可感知、可操作与适配辅助功能；用于朗读、文本放大、对比度和输入检查 |

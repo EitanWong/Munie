@@ -1,0 +1,80 @@
+{
+  "repository": "https://github.com/Emanuele-web04/remodex",
+  "revision": "c06dcb16a7059603a41e26a2cb4a81b6d4b5514d",
+  "directory": "relay",
+  "license": "Apache-2.0",
+  "files": [
+    {
+      "path": "README.md",
+      "mode": "100644",
+      "sha256": "1e2895ea55fa5e4544ff8e1dd7242d805507051eb57b2bd96b657939f44b9cf3",
+      "bytes": 6352
+    },
+    {
+      "path": "apns-client.js",
+      "mode": "100644",
+      "sha256": "05a8dcd6c1c37b8976517c9b8ea0beac670d739ea7d9681af71eabb98592ef67",
+      "bytes": 5066
+    },
+    {
+      "path": "apns-client.test.js",
+      "mode": "100644",
+      "sha256": "4de83953ecd1c47d83c2543a694834e3a2d9934d550d943d60740de70f100a23",
+      "bytes": 4866
+    },
+    {
+      "path": "package-lock.json",
+      "mode": "100644",
+      "sha256": "54726238ff4a88941f19cf130d8b4d7e69edb91935e5f761e307ac1594149944",
+      "bytes": 824
+    },
+    {
+      "path": "package.json",
+      "mode": "100644",
+      "sha256": "2fa7f03a8d20ad4ea54a87bca297b2302066646844df2cb084dc121cea14cf85",
+      "bytes": 234
+    },
+    {
+      "path": "phodex-backend-relay.mjs",
+      "mode": "100644",
+      "sha256": "558e4038c9698edfa676e863f541db9da2165c3101e704c792e6448b128d4229",
+      "bytes": 9913
+    },
+    {
+      "path": "push-service.js",
+      "mode": "100644",
+      "sha256": "b85a5b93b4702199b44a1dbead7f859a23087cbb018f0f9d31971d8ad3a0b824",
+      "bytes": 11683
+    },
+    {
+      "path": "push-service.test.js",
+      "mode": "100644",
+      "sha256": "63e10d3a46d14eba54840507a40ff301d74d4245fcaa78dbf1056fba222ae7aa",
+      "bytes": 8875
+    },
+    {
+      "path": "relay.js",
+      "mode": "100644",
+      "sha256": "81b925a91bd439d5cf06b4812dbe7021febe94ca180776de375406879247793f",
+      "bytes": 23684
+    },
+    {
+      "path": "server.js",
+      "mode": "100644",
+      "sha256": "31153f753edf71b4ba5fd1ad29ae28b1a8450a8c4dfcec1fa7a6edccb9731075",
+      "bytes": 12912
+    },
+    {
+      "path": "server.test.js",
+      "mode": "100644",
+      "sha256": "3ca39dcbc9017a24cf6e72fc573d9e1c7f5228925539401a1a0f6be1f6c61ba9",
+      "bytes": 35316
+    },
+    {
+      "path": "simulated-pairing-reconnect.test.js",
+      "mode": "100644",
+      "sha256": "7619586da93302d506186e205b3724ff5eea133d57acfecc06affeeab71b1c8b",
+      "bytes": 19191
+    }
+  ]
+}

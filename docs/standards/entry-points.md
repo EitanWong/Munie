@@ -1,6 +1,6 @@
 # 轻量入口与远程 Agent 交互
 
-状态：入口规范，2026-11-18。Munie 的核心目标是让用户在手机、Watch 等设备上随时发起、继续和管理自己 Mac 上的 Codex 工作；本机记录是离线草稿与输入保留的辅助能力。当前 iPhone 产品已经实现短语音、文字远程任务与 App Intents/Shortcuts 打开输入；Action button 可由用户配置到该 Shortcut。下表其余平台/配件仍为条件设计，录音、Siri/硬件与通知送达需要独立设备验收。证据见[入口调研](../../references/entry-point-research.md)，实际通过情况记入[项目状态](../project-status.md)。
+状态：入口规范，2026-11-18。Munie 的核心目标是让用户在手机、Watch 等设备上随时发起、继续和管理自己 Mac 上的 Codex 工作；本机记录是离线草稿与输入保留的辅助能力。保留的原生检查点已实现短语音、文字远程任务与 App Intents/Shortcuts 打开输入；当前 Remodex 派生版正在移植同一入口，验收结果不能沿用。Action button 可由用户配置到已验证的任务 Shortcut。下表其余平台/配件仍为条件设计，录音、Siri/硬件与通知送达需要独立设备验收。证据见[入口调研](../../references/entry-point-research.md)，实际通过情况记入[项目状态](../project-status.md)。
 
 ## 一次明确的任务
 

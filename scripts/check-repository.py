@@ -19,6 +19,12 @@ def require(condition, message):
         raise ValueError(message)
 
 
+def localized_or_recorded_debt(source, key, strings, debt):
+    # A path/key pair from the pinned upstream is a migration exception only.
+    # New text in that same file still requires the bilingual catalog.
+    return key in strings or key in debt.get(source, [])
+
+
 APPLE_PLATFORMS = {'ios', 'macos', 'tvos', 'watchos', 'visionos'}
 
 
@@ -202,6 +208,13 @@ def main():
                     '--validate-catalog', str(ROOT / 'references/codex-capabilities.json')], check=True)
     check_swift_packages(ROOT)
     check_xcode_project(ROOT)
+    subprocess.run([sys.executable, str(ROOT / 'scripts/check-remodex-adoption.py')], check=True)
+    debt_manifest = json.loads((ROOT / 'references/licenses/remodex-localization-debt.json').read_text())
+    source_manifest = json.loads((ROOT / 'references/licenses/remodex-source-manifest.json').read_text())
+    require(debt_manifest['revision'] == source_manifest['revision'], 'Localization debt pin changed')
+    adopted_paths = {item['destination'] for item in source_manifest['files']}
+    debt = debt_manifest['files']
+    require(set(debt).issubset(adopted_paths), 'Localization debt may only cover adopted source files')
 
     strings = {}
     for catalog_path in sorted((ROOT / 'apps').rglob('*.xcstrings')):
@@ -224,7 +237,8 @@ def main():
             for key in re.findall(pattern, source.read_text()):
                 if not key.strip():
                     continue
-                require(key in strings, f'Unlocalized string in {source.name}: {key}')
+                require(localized_or_recorded_debt(str(source.relative_to(ROOT)), key, strings, debt),
+                        f'Unlocalized string in {source.name}: {key}')
 
     for file in (ROOT / 'apps').rglob('*.xcprivacy'):
         plistlib.loads(file.read_bytes())
@@ -261,7 +275,8 @@ def main():
                     'ARGV.each { |p| YAML.load_file(p) }; puts "Workflow YAML parsed"',
                     *workflows], check=True)
     subprocess.run(['git', 'diff', '--check'], cwd=ROOT, check=True)
-    print(f'Repository checks passed; {len(strings)} UI strings cover en and zh-Hans.')
+    print(f'Repository checks passed; {len(strings)} catalog keys cover en and zh-Hans; '
+          f'{sum(map(len, debt.values()))} pinned upstream literals remain localization debt.')
 
 
 if __name__ == '__main__':

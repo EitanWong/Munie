@@ -13,6 +13,7 @@ build_platform() {
   printf 'Building %s %s (%s)\n' "$platform" "$configuration" "$destination"
   xcodebuild -project Munie.xcodeproj -scheme "$scheme" -configuration "$configuration" \
     -destination "$destination" -derivedDataPath "$derived_data" \
+    -onlyUsePackageVersionsFromResolvedFile \
     CODE_SIGNING_ALLOWED=NO "$action" > "$log" 2>&1 || {
     tail -80 "$log"
     return 1
@@ -29,4 +30,6 @@ build_platform visionos Munie 'generic/platform=visionOS Simulator' build build/
 build_platform watchos MunieWatch 'generic/platform=watchOS Simulator' build build/DerivedData-watchos
 # Exercise optimized shipping code before signing or distribution is configured.
 build_platform ios-release Munie 'generic/platform=iOS' build build/DerivedData-ios-release Release
+build_platform remodex-ios MunieRemodex 'generic/platform=iOS Simulator' build-for-testing build/DerivedData-remodex
+build_platform remodex-ios-release MunieRemodex 'generic/platform=iOS' build build/DerivedData-remodex-release Release
 printf 'All Apple platform builds passed. Hardware and signed distribution remain separate acceptance.\n'

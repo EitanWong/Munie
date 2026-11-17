@@ -59,13 +59,16 @@ if configuration == os.environ.get("FAIL_CONFIGURATION"):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         release = [command for command in commands
                    if command[command.index("-configuration") + 1] == "Release"]
-        self.assertEqual(len(release), 1, "Normal validation must compile the app Release path")
+        self.assertEqual(len(release), 2, "Both the retained and adopted apps must compile Release")
         command = release[0]
         self.assertEqual(command[command.index("-destination") + 1], "generic/platform=iOS")
         self.assertEqual(command[command.index("-scheme") + 1], "Munie")
         self.assertIn("CODE_SIGNING_ALLOWED=NO", command)
         self.assertEqual(command[-1], "build")
-        self.assertEqual(len(commands), 7)
+        self.assertEqual(len(commands), 9)
+        adopted = [c for c in commands if c[c.index('-scheme') + 1] == 'MunieRemodex']
+        self.assertEqual(len(adopted), 2)
+        self.assertTrue(all('-onlyUsePackageVersionsFromResolvedFile' in c for c in commands))
         host = [item for item in commands if item[item.index("-scheme") + 1] == "MunieHost"]
         self.assertEqual(len(host), 1)
         self.assertEqual(host[0][host[0].index("-destination") + 1], "generic/platform=macOS")

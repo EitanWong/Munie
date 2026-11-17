@@ -43,7 +43,7 @@ def lock(identifier=PHONE, **overrides):
     return envelope(result)
 
 
-def generated_test_run(products, ui_path="__TESTROOT__/Debug-iphoneos/Munie"):
+def generated_test_run(products, ui_path="__TESTROOT__/Debug-iphoneos/Munie", product="legacy"):
     products.mkdir(parents=True, exist_ok=True)
     (products / "Debug-iphoneos/Munie.app").mkdir(parents=True, exist_ok=True)
     source = products / "Munie_fixture-iphoneos.xctestrun"
@@ -52,6 +52,16 @@ def generated_test_run(products, ui_path="__TESTROOT__/Debug-iphoneos/Munie"):
                             "EnvironmentVariables": {"MUNIE_ACCEPTANCE_INVITATION": "fixture", "SAFE": "yes"}},
              "MunieUITests": {"IsUITestBundle": True, "UITargetAppPath": ui_path},
              "OtherTests": {"TestHostPath": "fixture"}}
+    if product == 'remodex':
+        value = {key.replace('Munie', 'MunieRemodex'): target for key, target in value.items()}
+        value['__xctestrun_metadata__']['ContainerInfo']['SchemeName'] = 'MunieRemodex'
+        value['MunieRemodexTests']['EnvironmentVariables'].update({
+            'TEST_RUNNER_REMODEX_ACCEPTANCE_PAIRING': 'private', 'PHODEX_FIXTURE': 'private'})
+        value['MunieRemodexTests']['OnlyTestIdentifiers'] = ['StaleSelection']
+        value['MunieRemodexTests']['SkipTestIdentifiers'] = ['ExistingSkip']
+        value['MunieRemodexUITests']['UITargetAppPath'] = '__TESTROOT__/Debug-iphoneos/MunieRemodex'
+        (products / 'Debug-iphoneos/MunieRemodex.app').mkdir(exist_ok=True)
+        source = products / 'MunieRemodex_fixture-iphoneos.xctestrun'
     source.write_bytes(plistlib.dumps(value))
     return source
 
@@ -78,7 +88,8 @@ class FixtureRunner:
             destination.write_text("invalid" if self.invalid_inventory else json.dumps(value))
         if name == "physical-build" and record["exitStatus"] == 0:
             derived = Path(command[command.index("-derivedDataPath") + 1])
-            generated_test_run(derived / "Build/Products")
+            scheme = command[command.index('-scheme') + 1]
+            generated_test_run(derived / "Build/Products", product='remodex' if scheme == 'MunieRemodex' else 'legacy')
         return record
 
 
@@ -93,10 +104,56 @@ class AvailableDeviceTests(unittest.TestCase):
     def tearDown(self):
         self.temporary.cleanup()
 
-    def run_fixture(self, runner=None, environment=None, dry_run=False):
+    def run_fixture(self, runner=None, environment=None, dry_run=False, product='legacy'):
         runner = runner or FixtureRunner()
         environment = {"MUNIE_DEVELOPMENT_TEAM": TEAM} if environment is None else environment
-        return M.execute(self.root, self.evidence, dry_run=dry_run, environment=environment, runner=runner)
+        return M.execute(self.root, self.evidence, dry_run=dry_run, environment=environment, runner=runner, product=product)
+
+    def test_remodex_profile_runs_all_offline_unit_tests_but_excludes_real_account_tests(self):
+        runner = FixtureRunner()
+        report = self.run_fixture(runner, product='remodex')
+        self.assertEqual((report['status'], report['product']), ('passed', 'remodex'))
+        build, test = [c[0] for c in runner.calls[-2:]]
+        self.assertIn('MunieRemodex', build)
+        self.assertIn('-onlyUsePackageVersionsFromResolvedFile', build)
+        self.assertEqual([v for v in test if v.startswith('-only-testing:')],
+                         ['-only-testing:' + s for s in M.REMODEX_SAFE_TESTS])
+        self.assertIn('-skip-testing:MunieRemodexTests/MunieRemodexDeviceAcceptanceTests', test)
+        clone = plistlib.loads(Path(report['testConfiguration']['clone']).read_bytes())
+        unit = clone['MunieRemodexTests']
+        self.assertNotIn('OnlyTestIdentifiers', unit)
+        self.assertEqual(unit['SkipTestIdentifiers'], ['ExistingSkip', 'MunieRemodexDeviceAcceptanceTests'])
+        self.assertEqual(unit['EnvironmentVariables'], {'SAFE': 'yes'})
+        self.assertEqual(clone['MunieRemodexUITests']['OnlyTestIdentifiers'], ['MunieRemodexSmokeTests'])
+        self.assertEqual(clone['__xctestrun_metadata__']['ContainerInfo']['SchemeName'], 'MunieRemodex')
+        self.assertTrue(report['testConfiguration']['originalUnchanged'])
+
+    def test_remodex_absent_phone_and_failed_physical_run_keep_selected_product(self):
+        absent = FixtureRunner(inventory=envelope({'devices': []}))
+        result = self.run_fixture(absent, product='remodex')
+        self.assertEqual((result['mode'], result['status']), ('simulator', 'passed'))
+        self.assertEqual(absent.calls[-1][0], [str(self.root / 'scripts/test-remodex-ios.sh')])
+        failed = FixtureRunner(fail={'physical-tests': 65})
+        result = self.run_fixture(failed, product='remodex')
+        self.assertEqual((result['mode'], result['status']), ('physical', 'failed'))
+        self.assertFalse(any('test-remodex-ios.sh' in s for c, _, _ in failed.calls for s in c))
+
+    def test_remodex_profile_does_not_clone_legacy_products_or_inherit_real_model_inputs(self):
+        products = self.root / 'products'
+        generated_test_run(products)
+        with self.assertRaises(ValueError):
+            M.prepare_test_run(products, product='remodex')
+        source = generated_test_run(products, product='remodex')
+        original = source.read_bytes()
+        clone, _ = M.prepare_test_run(products, safe_only=False, product='remodex')
+        value = plistlib.loads(clone.read_bytes())
+        self.assertEqual(value['MunieRemodexTests']['OnlyTestIdentifiers'], ['StaleSelection'])
+        self.assertEqual(value['MunieRemodexTests']['SkipTestIdentifiers'], ['ExistingSkip'])
+        self.assertEqual(value['MunieRemodexTests']['EnvironmentVariables'], {'SAFE': 'yes'})
+        self.assertEqual(source.read_bytes(), original)
+        self.assertEqual(M.safe_environment({'TEST_RUNNER_REMODEX_MODE': 'submit',
+                         'REMODEX_QR': 'private', 'PHODEX_MODE': 'private', 'PATH': 'preserved'}),
+                         {'PATH': 'preserved'})
 
     def test_ready_unlocked_physical_iphone_builds_signed_then_runs_only_safe_tests(self):
         runner = FixtureRunner()

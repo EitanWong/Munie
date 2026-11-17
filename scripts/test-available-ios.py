@@ -32,6 +32,10 @@ SAFE_TESTS = ("MunieTests/CaptureModelTests", "MunieTests/ShortVoiceInputTests",
               "MunieTests/RemoteNotificationTests", "MunieTests/RemoteCoordinatorTests",
               "MunieUITests/RemoteFlowTests/testNativeRemoteEntryHasPairingOrKnownConnection",
               "MunieUITests/CaptureFlowTests/testCapturePersistsAcrossLaunchAndCanBeDeleted")
+REMODEX_SAFE_TESTS = (
+    "MunieRemodexTests",
+    "MunieRemodexUITests/MunieRemodexSmokeTests",
+)
 
 
 def group_gone(pid: int) -> bool:
@@ -202,12 +206,15 @@ def development_team(root: Path, environment: dict) -> tuple[str | None, str]:
 
 def safe_environment(environment: dict) -> dict:
     return {key: value for key, value in environment.items()
-            if "MUNIE_" not in key and key not in ("IOS_TEST_DESTINATION", "XCODE_XCCONFIG_FILE")}
+            if not any(part in key for part in ("MUNIE_", "REMODEX_", "PHODEX_"))
+            and key not in ("IOS_TEST_DESTINATION", "XCODE_XCCONFIG_FILE")}
 
 
-def prepare_test_run(products: Path, *, safe_only: bool = True) -> tuple[Path, dict]:
+def prepare_test_run(products: Path, *, safe_only: bool = True,
+                     product: str = "legacy") -> tuple[Path, dict]:
     """Keep generated relative paths valid and preserve the signed build's original plist."""
-    sources = sorted(products.glob("Munie_*.xctestrun"))
+    scheme = "MunieRemodex" if product == "remodex" else "Munie"
+    sources = sorted(products.glob(scheme + "_*.xctestrun"))
     if len(sources) != 1:
         raise ValueError("Expected one generated Munie xctestrun in the fresh build products.")
     source = sources[0]
@@ -218,15 +225,23 @@ def prepare_test_run(products: Path, *, safe_only: bool = True) -> tuple[Path, d
         raise ValueError("Only the reviewed format-1 xctestrun is supported.")
     clone = {"__xctestrun_metadata__": copy.deepcopy(metadata)}
     repairs = []
-    for name in ("MunieTests", "MunieUITests"):
+    selectors = REMODEX_SAFE_TESTS if product == "remodex" else SAFE_TESTS
+    for name in (scheme + "Tests", scheme + "UITests"):
         target = value.get(name)
         if not isinstance(target, dict):
             raise ValueError("Missing generated test target: " + name)
         target = copy.deepcopy(target)
         if safe_only:
-            target["OnlyTestIdentifiers"] = [item.split("/", 1)[1] for item in SAFE_TESTS
-                                              if item.startswith(name + "/")]
-            target.pop("SkipTestIdentifiers", None)
+            allowed = [item.split("/", 1)[1] for item in selectors if item.startswith(name + "/")]
+            if name not in selectors:
+                target["OnlyTestIdentifiers"] = allowed
+            else:
+                target.pop("OnlyTestIdentifiers", None)
+            skipped = target.get("SkipTestIdentifiers", [])
+            if not isinstance(skipped, list) or not all(isinstance(item, str) for item in skipped):
+                raise ValueError("Invalid skip identifiers: " + name)
+            target["SkipTestIdentifiers"] = sorted(set(skipped + (
+                ["MunieRemodexDeviceAcceptanceTests"] if product == "remodex" else [])))
         for field in ("EnvironmentVariables", "TestingEnvironmentVariables"):
             if field in target:
                 if not isinstance(target[field], dict):
@@ -242,7 +257,7 @@ def prepare_test_run(products: Path, *, safe_only: bool = True) -> tuple[Path, d
                 repairs.append({"target": name, "field": "UITargetAppPath",
                                 "old": path, "new": target["UITargetAppPath"]})
         clone[name] = target
-    destination = products / ("Munie_available-" + uuid.uuid4().hex + ".xctestrun")
+    destination = products / (scheme + "Available-" + uuid.uuid4().hex + ".xctestrun")
     with destination.open("xb") as output:
         os.chmod(destination, 0o600)
         plistlib.dump(clone, output)
@@ -267,11 +282,13 @@ def save_report(output: Path, report: dict) -> None:
         Path(temporary).unlink(missing_ok=True)
 
 
-def execute(root: Path, evidence: Path, *, dry_run: bool, environment: dict, runner=None) -> dict:
+def execute(root: Path, evidence: Path, *, dry_run: bool, environment: dict, runner=None,
+            product: str = "legacy") -> dict:
     runner = runner or CommandRunner(root)
     report = {"schemaVersion": 1, "status": "failed", "mode": "undetermined", "device": None,
               "dryRun": dry_run, "limits": dict(LIMITS), "commands": [],
-              "scope": "Non-model app tests and native entry/capture UI; no microphone/cellular acceptance."}
+              "product": product,
+              "scope": "Non-model app tests and native UI fixtures; no microphone/cellular acceptance."}
     clean_environment = safe_environment(environment)
 
     def command(arguments, timeout, name):
@@ -324,7 +341,8 @@ def execute(root: Path, evidence: Path, *, dry_run: bool, environment: dict, run
         report["status"] = "selected"
         return report
     if report["mode"] == "simulator":
-        result = command([str(root / "scripts/test-ios.sh")], LIMITS["simulatorSeconds"], "simulator-tests")
+        entry = "test-remodex-ios.sh" if product == "remodex" else "test-ios.sh"
+        result = command([str(root / "scripts" / entry)], LIMITS["simulatorSeconds"], "simulator-tests")
         report["status"] = "passed" if succeeded(result) else "failed"
         return report
 
@@ -333,15 +351,18 @@ def execute(root: Path, evidence: Path, *, dry_run: bool, environment: dict, run
         return report
     derived = evidence / "DerivedData"
     destination = "platform=iOS,id=" + report["device"]["udid"]
-    common = ["xcodebuild", "-project", str(root / "Munie.xcodeproj"), "-scheme", "Munie",
+    scheme = "MunieRemodex" if product == "remodex" else "Munie"
+    common = ["xcodebuild", "-project", str(root / "Munie.xcodeproj"), "-scheme", scheme,
               "-configuration", "Debug", "-destination", destination, "-derivedDataPath", str(derived),
               "-destination-timeout", str(LIMITS["destinationSeconds"]), "-parallel-testing-enabled", "NO"]
+    if product == "remodex":
+        common += ["-onlyUsePackageVersionsFromResolvedFile"]
     build = common + ["DEVELOPMENT_TEAM=" + team, "CODE_SIGN_STYLE=Automatic", "CODE_SIGNING_ALLOWED=YES",
                       "-resultBundlePath", str(evidence / "Build.xcresult"), "build-for-testing"]
     if not succeeded(command(build, LIMITS["buildSeconds"], "physical-build")):
         return report
     try:
-        test_run, report["testConfiguration"] = prepare_test_run(derived / "Build/Products")
+        test_run, report["testConfiguration"] = prepare_test_run(derived / "Build/Products", product=product)
     except (OSError, ValueError, TypeError, plistlib.InvalidFileException) as error:
         report["failure"] = "test-configuration: " + str(error)
         return report
@@ -350,10 +371,14 @@ def execute(root: Path, evidence: Path, *, dry_run: bool, environment: dict, run
             "-resultBundlePath", str(evidence / "Tests.xcresult"), "-test-timeouts-enabled", "YES",
                      "-default-test-execution-time-allowance", str(LIMITS["defaultTestSeconds"]),
                      "-maximum-test-execution-time-allowance", str(LIMITS["maximumTestSeconds"])]
-    test += ["-only-testing:" + selector for selector in SAFE_TESTS]
-    test += ["-skip-testing:MunieTests/RemoteDeviceAcceptanceTests",
-             "-skip-testing:MunieUITests/RemoteFlowTests/testPairedRealTaskAndRestartRecovery",
-             "test-without-building"]
+    selectors = REMODEX_SAFE_TESTS if product == "remodex" else SAFE_TESTS
+    test += ["-only-testing:" + selector for selector in selectors]
+    if product == "remodex":
+        test += ["-skip-testing:MunieRemodexTests/MunieRemodexDeviceAcceptanceTests"]
+    else:
+        test += ["-skip-testing:MunieTests/RemoteDeviceAcceptanceTests",
+                 "-skip-testing:MunieUITests/RemoteFlowTests/testPairedRealTaskAndRestartRecovery"]
+    test += ["test-without-building"]
     report["status"] = "passed" if succeeded(command(test, LIMITS["testSeconds"], "physical-tests")) else "failed"
     return report
 
@@ -366,9 +391,12 @@ def main() -> int:
                         help="Only clone generated build products' xctestrun; print the clone path, with no device probe.")
     parser.add_argument("--test-scope", choices=("safe", "default"), default="safe",
                         help="For --prepare-config: safe selectors, or preserve the generated default test selection.")
+    parser.add_argument("--product", choices=("auto", "legacy", "remodex"), default="auto",
+                        help="Primary Remodex fork when present; legacy keeps the previous checkpoint tests.")
     parser.add_argument("--report", type=Path, help="Report path inside this checkout's ignored build directory.")
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
+    product = ("remodex" if (root / "apps/MunieRemodex/App").is_dir() else "legacy") if args.product == "auto" else args.product
     build = (root / "build").resolve()
     build.mkdir(parents=True, exist_ok=True)
     output = args.report.expanduser().resolve() if args.report else build / "ios-available-tests.json"
@@ -380,7 +408,7 @@ def main() -> int:
         if not products.is_relative_to(build):
             parser.error("--prepare-config must remain inside this checkout's ignored build directory.")
         try:
-            clone, record = prepare_test_run(products, safe_only=args.test_scope == "safe")
+            clone, record = prepare_test_run(products, safe_only=args.test_scope == "safe", product=product)
         except (OSError, ValueError, TypeError, plistlib.InvalidFileException) as error:
             save_report(output, {"status": "failed", "mode": "prepare-test-configuration", "failure": str(error)})
             print("Test configuration failed: " + str(error), file=sys.stderr)
@@ -392,7 +420,7 @@ def main() -> int:
         parser.error("--test-scope applies only with --prepare-config.")
     evidence = Path(tempfile.mkdtemp(prefix="ios-available-", dir=build))
     started = datetime.now(timezone.utc).isoformat()
-    report = execute(root, evidence, dry_run=args.dry_run, environment=dict(os.environ))
+    report = execute(root, evidence, dry_run=args.dry_run, environment=dict(os.environ), product=product)
     report.update({"startedAt": started, "finishedAt": datetime.now(timezone.utc).isoformat(),
                    "evidenceDirectory": str(evidence)})
     save_report(output, report)

@@ -1,8 +1,26 @@
 # Architecture
 
-This page describes implemented boundaries. Product scope is authoritative in [requirements](requirements.md), task-state semantics in the [remote Agent decision](decisions/remote-agent-foundation.md#task-state-contract), and security choices in the [trust/service decision](decisions/device-trust-and-host-service.md). Executed acceptance and remaining device/network limits belong in [project status](project-status.md).
+This page distinguishes the primary adopted implementation from the retained native checkpoint. Product scope is authoritative in [requirements](requirements.md), task-state semantics in the [remote Agent decision](decisions/remote-agent-foundation.md#task-state-contract), and security choices in the [trust/service decision](decisions/device-trust-and-host-service.md). Executed acceptance and remaining device/network limits belong in [project status](project-status.md).
 
-## iPhone–Mac product path
+## Primary Remodex product path
+
+```text
+MunieRemodex / ContentView → CodexService → authenticated E2EE WebSocket
+                        ↓ private Tailscale Serve HTTPS :8443
+                 loopback relay 127.0.0.1:9275
+                        ↓ encrypted session → local Mac bridge
+                 project-scope policy → native Codex app-server
+```
+
+The complete client, bridge and relay source are adopted at the fixed revision in [adoption](../references/remodex-adoption.md). `MunieRemodex` is the primary iPhone scheme; upstream conversation/rendering/git/recovery APIs are retained. Self-host use removes the commercial subscription gate and upstream hosted endpoints. Branding uses Munie; unverified Ghostty libraries, Mermaid bundle, fonts and marks are excluded with visible fallbacks. Existing tests are retained and run through the new scheme rather than inferred from compilation.
+
+The explicit foreground launcher selects one canonical authorized project, a specific native executable and private state/Codex-home paths. Bridge and relay remain separate processes; the relay binds loopback and the advertised URL is independently configured. Account credentials are neither QR fields nor mobile messages. The imported protocol has different trust, history and execution semantics from the earlier native ledger; its tests and real acceptance must establish those properties independently. See [project status](project-status.md) for current gaps. The old native modules remain available for comparison and rollback, without being placed underneath the new bridge.
+
+The bridge checks the native method and authorized project before forwarding requests. Its cancellation controller binds a native thread, turn and command item from observed native events: interrupting a turn does not by itself terminate a yielded shell. A bounded ownership index survives relay reconnects; the pinned runtime rejects item-history RPCs despite exporting their schemas. The controller queries background terminals, terminates only those belonging to that exact turn and confirms their disappearance. Unknown or conflicting ownership holds terminal publication and same-thread mutations until cleanup can be confirmed. It never accepts a phone-supplied process ID. Exact tested capabilities for this implementation are separate from the retained adapter in the [versioned coverage record](../references/codex-product-coverage.json).
+
+The client uses the native/catalog default model until the user makes an explicit selection. Recording is opt-in and capped at 30 seconds, with background cancellation and editable transcription through the local bridge. New-task Shortcuts open the compose flow before submission. Local completion, failure and approval alerts route back to the task; suspended delivery still requires separately configured APNs. DEBUG app-hosted tests isolate Keychain, preferences and encrypted files from production storage. `CodexService` uses an isolated MainActor destructor because a network callback may release its final reference off the main executor.
+
+## Retained native checkpoint path
 
 ```text
 iPhone / iPad: RemoteView → RemoteCoordinator → RemoteModel

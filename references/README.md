@@ -12,7 +12,7 @@ review snapshots, not claims that upstream software is safe or production ready.
 | Reference | Purpose | Current decision |
 | --- | --- | --- |
 | Omi | Memory lifecycle and data controls | Product reference; Flutter app is not Munie's native foundation |
-| Remodex | Mac/Codex connection, reconnect and notifications | Reference for a future optional adapter |
+| Remodex | Native conversation UI, Mac/Codex bridge and self-host relay | [Adopted fixed source base](remodex-adoption.md); separate dependency/asset notice gates |
 | Chums | SwiftUI/watchOS entry points and approval flow | Reference for future Watch module |
 | OpenVision | Ray-Ban Meta audio/camera integration | Reference; its MIT root does not license Meta's SDK |
 | Meta DAT iOS | Official hardware API and capability restrictions | Evaluate developer terms and production eligibility before integration |
@@ -23,12 +23,14 @@ review snapshots, not claims that upstream software is safe or production ready.
 | actionlint | Validate GitHub Actions syntax, expressions and action inputs | Adopted build tool; pinned 1.7.12 release and archive checksums |
 | Tailscale | Private iPhone–Mac network and same-Mac HTTPS termination | Separately installed CLI/service; 1.104.7 source/license provenance in [product implementation](product-remote-implementation.md), not bundled or linked |
 
-No third-party product source is copied into `apps/` or `packages/`. The initial
-linked runtime uses Apple frameworks/system libraries only; the selected private-network route requires a separately installed Tailscale service. Root-license review does not cover all
+The Remodex-derived targets adopt fixed third-party source and runtime dependencies
+under the [adoption record](remodex-adoption.md). The accepted initial Munie targets
+use Apple frameworks/system libraries; their private-network route requires a separately installed Tailscale service. Root-license review does not cover all
 transitive dependencies, media, models, trademarks or SDK terms.
 
 ## Current mechanism research
 
+- [Remodex source adoption](remodex-adoption.md): exact copied source inventory, Swift/npm locks, exclusions, retained notices and individual unresolved redistribution items.
 - [iPhone–Mac product implementation](product-remote-implementation.md): official native networking/login-item/input/notification APIs, Tailscale Serve trust boundary and version/license provenance, mature HTTP alternatives and explicit unexecuted device/network limits.
 - [Native entry and remote Codex](entry-point-research.md): official protocol, pairing/replay and pinned Remodex/Chums/OpenVision source observations.
 - [Voice, multimodal and proactive reports](multimodal-research.md): Apple APIs, exact Qwen candidates/pins/licenses, observed Codex input schema and unverified runtime limits.
@@ -39,7 +41,7 @@ transitive dependencies, media, models, trademarks or SDK terms.
 - [Host submission ledger](submission-ledger-research.md): system SQLite/GRDB comparison, project authorization, crash windows and the limits of replay/dedup evidence.
 - [Reuse decisions](reuse-decisions.md): adopted/deferred choices; [verification](verification.md): provenance of the existing registry.
 
-Third-party source checkouts remain inspection-only. The explicitly selected local Codex binary can run bounded protocol experiments, including actual native lifecycle/tools driven by a deterministic local provider; those experiments remain distinct from the new product runtime and its separately authorized actual-account acceptance. New checkouts/adoption still require the manifest, license snapshots and dependency review described below.
+Third-party source checkouts remain inspection-only; the explicitly adopted Remodex source is copied into the three recorded app/bridge/relay directories. The selected local Codex binary can run bounded protocol experiments, including actual native lifecycle/tools driven by a deterministic local provider; those experiments remain distinct from product runtime and separately authorized actual-account acceptance. New checkouts/adoption still require the manifest, license snapshots and dependency review described below.
 
 ## Obtain pinned source
 
@@ -69,8 +71,8 @@ instructions for Munie development.
 ## 简体中文
 
 统一在此维护上游项目、固定提交、许可证原文、相关源码路径和采用决定。
-当前产品代码没有引入这些项目的源码；链接的运行时仅使用 Apple 框架/系统库。
-首个远程路径另外使用单独安装的 Tailscale 网络服务；其版本、可信边界和许可来源见[产品实现依据](product-remote-implementation.md)，不随 app 打包。
+Remodex 派生 target 已采用固定提交的客户端、Mac bridge 和 relay 源码；确切来源、依赖锁、排除项及逐项发行阻塞见[采用记录](remodex-adoption.md)。
+此前验收的 Munie target 仍使用 Apple 框架/系统库。其远程路径另外使用单独安装的 Tailscale 网络服务；版本、可信边界和许可来源见[产品实现依据](product-remote-implementation.md)，不随 app 打包。
 用上面的命令将指定版本源码下载到忽略提交的 `checkouts/`，不要散放到业务目录。
 同步工具会拒绝覆盖本地修改或陌生目录；更新版本前先保留旧快照，再评审清单变更。
 Meta SDK 使用开发者条款；Mimi 的商店附加许可不等于放弃 GPL 要求；

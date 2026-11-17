@@ -6,7 +6,8 @@ cd "$ROOT"
 mkdir -p build
 python3 scripts/check-repository.py
 .tools/actionlint -shellcheck= -pyflakes=
-xcrun swift-format lint --strict --recursive apps packages/MunieCore/Sources \
+./scripts/lint-swift.sh
+xcrun swift-format lint --strict --recursive packages/MunieCore/Sources \
   packages/MunieCore/Tests packages/MunieRemote/Sources packages/MunieRemote/Tests \
   Package.swift packages/MunieCore/Package.swift packages/MunieRemote/Package.swift \
   scripts/fixtures/device-identity
@@ -21,4 +22,7 @@ python3 scripts/probe-product-guardian.py --guardian "$HOST_BIN/MunieCodexGuardi
 swift run --package-path packages/MunieCore MunieCoreSmoke
 ./scripts/benchmark-core.sh
 ./scripts/build-apple-platforms.sh
+./scripts/setup-remodex.sh
+npm --prefix apps/MunieRemodexBridge test
+npm --prefix apps/MunieRemodexRelay test
 printf 'Quality checks passed; core performance budgets, Apple Debug builds and iOS Release build passed.\n'

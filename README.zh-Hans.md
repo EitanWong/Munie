@@ -4,28 +4,28 @@
 
 [English](README.md) · [文档](docs/README.md) · [项目状态](docs/project-status.md)
 
-Munie 是原生 Apple Agent 前台。首个 iPhone–Mac 切片支持明确配对、选择授权项目、文字或短语音输入、让 Mac 上真实 Codex 执行、查看进展/结果、回答单次命令审批、取消和继续任务。重连先查询权威状态，不盲目重发。系统 Shortcuts 可打开输入，通知按任务路由。
+Munie 是控制 Mac 上 Codex 的原生 Apple 前台。主要 iPhone 实现现已改为直接采用 [Remodex](https://github.com/Emanuele-web04/remodex) 源码，沿用其会话、Markdown、diff、项目/git、审批与恢复功能，产品名称仍为 Munie。此前原生客户端与主机保留为回退检查点。[需求基线](docs/requirements.md)继续约束语音、系统入口、隐私、中英双语及后续 Apple 平台能力。
 
-Mac 上的 Tailscale Serve 提供私有 HTTPS；Codex 凭据留在 Mac。当前是固定 Codex 版本的受限子集，完整原生覆盖、Watch 远程任务和媒体仍属后续目标。真实模型、构建、设备、蜂窝、语音和通知送达分别记录于[项目状态](docs/project-status.md)，不能以编译或路由测试替代设备验收。其他平台保留本地记录基础，Apple TV 使用可清除缓存。
+新底座正在验收：主流程控件已加入中英双语，录音限制为 30 秒，通知可返回对应会话。高级界面翻译、真实音频与系统入口、通知送达仍需验收，见[项目状态](docs/project-status.md)。固定提交、排除的上游品牌/二进制和发行 notice 阻塞见[移植记录](references/remodex-adoption.md)。
 
 ## 连接 iPhone 与 Mac
 
-1. 在 Mac 安装并登录 Codex 0.162.1。用 Xcode 的 `MunieHost` scheme 构建/运行主机 app，启动服务并明确授权一个项目目录。
-2. 两端安装并登录同一 Tailscale 网络。在 Mac 配置私有 Serve HTTPS 到 `http://127.0.0.1:9274`，不启用公网 Funnel；可选脚本见[测试说明](docs/testing.md#product-private-network-setup)。
-3. Mac 输入自己的 Tailscale HTTPS 地址，创建两分钟邀请。iPhone 打开 Munie 扫描或手动输入邀请；在两端比对指纹，再由 Mac 确认项目权限。
-4. 选择项目后输入/提交。语音仅在主动点击后开始，转写可编辑或丢弃；系统不支持离线识别时使用文字。Mac 需清醒在线。
+1. Mac 安装 Node.js 22+ 与原生 Codex 可执行文件，运行 `./scripts/setup-remodex.sh`，只安装锁定依赖，不执行安装生命周期脚本。
+2. 在 Mac 用 `mkdir -m 700 -p "$HOME/Library/Application Support/MunieRemodex/state" "$HOME/Library/Application Support/MunieRemodex/codex-home"` 创建私有目录，再用 `CODEX_HOME="$HOME/Library/Application Support/MunieRemodex/codex-home" /absolute/path/to/codex login` 本地登录。运行 `./scripts/run-remodex-local.sh --codex /absolute/path/to/codex --project /absolute/authorized/project --state-dir "$HOME/Library/Application Support/MunieRemodex/state" --codex-home "$HOME/Library/Application Support/MunieRemodex/codex-home" --advertise-relay wss://YOUR_HOST:8443`。复用这些路径以保留配对身份与原生历史；不传路径时会新建私有状态/账户。启动本身不提交任务。
+3. Mac 和 iPhone 登录同一私有 Tailscale 网络；仅在 Mac 配置 8443 端口的 Serve HTTPS，指向回环 relay `127.0.0.1:9275`，iPhone 经 Tailscale 连接。启动器不会代登录或修改 Serve；Mac 需清醒可达。
+4. 构建 `MunieRemodex` scheme，扫描启动器提供的二维码，进入授权项目后提交任务。客户端验证扫码得到的 Mac 身份，并对中继消息进行端到端加密，账户凭据留在 Mac。
 
-审批只对确切动作有效；取消显示主机确认后的终态。可在 Mac 撤销设备或删除 Munie 的终态历史；原生 Codex 历史另行保留。推送是可选配置，需要支持 APNs 的团队及密钥；本地通知只反映 app 已观察的状态。
+此前检查点的 9274 服务保持独立。以上步骤不代表已完成 TestFlight、中英双语体验、麦克风或后台推送验收。[开发](docs/development.md)与[测试说明](docs/testing.md)区分两套 scheme 和证据。
 
 ## 开始开发
 
-要求：macOS，以及支持 Swift 6 并安装各 Apple 平台 SDK 的 Xcode。最低系统版本为 iOS/iPadOS 18、macOS 15、watchOS 11、tvOS 18、visionOS 2。初始化脚本将校验和固定的 XcodeGen 2.46.0 与 actionlint 1.7.12 下载到忽略提交的 `.tools/`。模拟器测试还需要已安装的 iPhone 模拟器运行时。
+要求：macOS，以及支持 Swift 6 并安装各 Apple 平台 SDK 的 Xcode。新 iPhone target 最低为 iOS 18.6；保留基础的最低版本为 iOS/iPadOS 18、macOS 15、watchOS 11、tvOS 18、visionOS 2。初始化脚本将校验和固定的 XcodeGen 2.46.0 与 actionlint 1.7.12 下载到忽略提交的 `.tools/`。模拟器测试还需要已安装的 iPhone 模拟器运行时。
 
 ```sh
 ./scripts/bootstrap.sh
 open Munie.xcodeproj
 ./scripts/check.sh
-./scripts/test-ios.sh
+./scripts/test-remodex-ios.sh
 ```
 
 真机安装前在忽略提交的 `config/Signing.xcconfig` 中设置签名团队与唯一 Bundle ID。生成的 Xcode 工程不入库；修改 `project.yml`。单项检查和环境限制见[开发说明](docs/development.md)、[测试说明](docs/testing.md)。
@@ -38,7 +38,9 @@ open Munie.xcodeproj
 
 | 路径 | 职责 |
 |---|---|
-| `apps/Munie/` | 原生多平台 SwiftUI 应用、共享展示层和资源 |
+| `apps/MunieRemodex/` | 主要原生 iPhone 移植客户端、单元/UI 测试与许可文本 |
+| `apps/MunieRemodexBridge/`、`apps/MunieRemodexRelay/` | 移植的 Mac bridge 与私有自托管 relay |
+| `apps/Munie/` | 保留的多平台原生回退检查点与资源 |
 | `apps/MunieWatch/` | 独立 watchOS target 中的 Watch 专属交互 |
 | `apps/MunieTests/`、`apps/MunieUITests/` | 应用单元测试和 iOS UI 测试 target |
 | `apps/MunieMacHost/`、`apps/MunieHost/` | 原生 Mac 主机 UI、受监督执行、账本与传输 |

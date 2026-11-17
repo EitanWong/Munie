@@ -48,6 +48,8 @@ app 负责交互、权限请求、可恢复输入和设备凭据的安全保存�
 
 2026-11-17 的[固定版本与网络研究](../../references/codex-protocol-research.md)确认本机 0.162.1 有可选 WS Bearer 认证，但默认非 loopback 监听仍可能未认证，WS 传输也仍标实验。继续采用 Mac 本机 stdio adapter 边界；不把“CLI 有认证选项”当成可以直接开放公网。优先顺序为本机无模型协议探针 → 私有网络或受限 SSH 的 iPhone 工程探针 → Watch HTTPS 真机路径；公开 HTTPS/WSS gateway 或出站 relay 保留候选，当前未选服务、未配置网络。
 
+F1 先用[本机 mTLS 短请求研究](../../references/authenticated-network-research.md)隔离端点认证与设备授权：临时 CA/证书、仅 loopback、合成策略，逐请求复核撤销和请求身份。它不选择公网服务/生产 PKI，不接当前 ledger/Codex；真实网络选型还需原生 URLSession、配对/凭据生命周期、实际路由与设备证据。真实模型另按研究卡明确账户、模型、外联、权限、次数和费用后才运行。
+
 私有网络/SSH 需要端点信任、最小设备/端口授权及 NAT 可达性证据，不能因隧道建立就显示任务可执行。普通 Watch app 的 WebSocket/低层连接受平台限制，因此网关应评估 HTTPS 短请求与有界状态读取；不能要求 Watch 套用 iPhone VPN 或长流。iPhone 在场与 Watch 独立 Wi-Fi/蜂窝分别验收。网络选择须同时满足设备能力、撤销、延迟/功耗和部署成本，缺证据时保持未决定。
 
 若 relay 终止 TLS，它属于内容信任边界；两段 TLS 不等于设备到 Mac 的端到端加密。非可信 relay 必须使用经评审的现成 E2E 机制，并明确密钥确认、轮换、设备撤销和重放保护；模型/账号凭据始终留执行主机。首个蜂窝探针以前提“Mac 清醒在线”为准，不承诺网络唤醒；睡眠、合盖、重启未登录和服务中断另验，不自动更改系统电源/远程登录设置。

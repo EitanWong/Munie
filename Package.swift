@@ -1,12 +1,21 @@
 // swift-tools-version: 6.0
 import PackageDescription
 
-// Host-side test harness for presentation logic; the shipping app is defined in project.yml.
+// Host-side presentation tests and execution research; shipping apps remain in project.yml.
 let package = Package(
   name: "MunieHostTests",
   platforms: [.macOS(.v15)],
   dependencies: [.package(path: "packages/MunieCore")],
   targets: [
+    .target(
+      name: "MunieExecutionHost",
+      path: "apps/MunieHost/Execution"),
+    .executableTarget(
+      name: "MunieSubmissionProbe", dependencies: ["MunieExecutionHost"],
+      path: "apps/MunieHost/Probe"),
+    .testTarget(
+      name: "MunieExecutionHostTests", dependencies: ["MunieExecutionHost"],
+      path: "apps/MunieHostTests"),
     .target(
       name: "Munie",
       dependencies: [.product(name: "MunieCore", package: "MunieCore")],

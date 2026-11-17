@@ -10,6 +10,7 @@ xcrun swift-format lint --strict --recursive apps packages/MunieCore/Sources \
   packages/MunieCore/Tests Package.swift packages/MunieCore/Package.swift
 swift test --package-path packages/MunieCore --enable-code-coverage
 swift test --enable-code-coverage
+./scripts/check-submissions.sh
 swift run --package-path packages/MunieCore MunieCoreSmoke
 ./scripts/benchmark-core.sh
 ./scripts/build-apple-platforms.sh

@@ -42,7 +42,15 @@ struct TurnToolbarContent: ToolbarContent {
     @Binding var isShowingPathSheet: Bool
 
     var body: some ToolbarContent {
-        let isThreadActionLoading = isHandingOffToMac || isStartingNewChat
+        titleItems
+        actionItems
+    }
+
+    private var isThreadActionLoading: Bool {
+        isHandingOffToMac || isStartingNewChat
+    }
+
+    private var threadActions: [TurnThreadActionMenuItem] {
         let canTapMacHandoff = onTapMacHandoff != nil && !isThreadActionLoading
         // Worktree handoff has its own Git/worktree gates; keep it aligned with the composer Local menu.
         let canTapWorktreeHandoff = onTapWorktreeHandoff != nil
@@ -50,13 +58,16 @@ struct TurnToolbarContent: ToolbarContent {
             && !isCreatingGitWorktree
         let canTapNewChat = onTapNewChat != nil && !isThreadActionLoading
         let canTapTerminal = onTapTerminal != nil
-        let threadActions = threadActionItems(
+        return threadActionItems(
             canTapMacHandoff: canTapMacHandoff,
             canTapWorktreeHandoff: canTapWorktreeHandoff,
             canTapNewChat: canTapNewChat,
             canTapTerminal: canTapTerminal
         )
+    }
 
+    @ToolbarContentBuilder
+    private var titleItems: some ToolbarContent {
         // Keep title + path as one leading-aligned control. Splitting them into
         // iOS 26 `.title` / `.subtitle` placements lets the system align each
         // row independently, which makes the stack look offset.
@@ -69,10 +80,27 @@ struct TurnToolbarContent: ToolbarContent {
                 titleTapTarget
             }
         }
+    }
 
+    @ToolbarContentBuilder
+    private var actionItems: some ToolbarContent {
         // Order: git actions sit closest to the title, the ellipsis thread-
         // actions menu trails after them.
-        //
+        if showsGitActions, showsThreadActions {
+            combinedActionItems
+        } else if showsGitActions {
+            ToolbarItem(placement: .topBarTrailing) {
+                gitActionsButton
+            }
+        } else if showsThreadActions {
+            ToolbarItem(placement: .topBarTrailing) {
+                threadActionsButton
+            }
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var combinedActionItems: some ToolbarContent {
         // iOS 26: emit two adjacent ToolbarItems with no ToolbarSpacer so the
         // system merges them into a single shared glass capsule. Wrapping both
         // buttons inside ONE ToolbarItem (e.g. via TurnToolbarActionCluster)
@@ -82,69 +110,57 @@ struct TurnToolbarContent: ToolbarContent {
         // iOS < 26: the system does not auto-merge adjacent ToolbarItems, so
         // TurnToolbarActionCluster renders both buttons inside a single shared
         // material capsule.
-        if showsGitActions, showsThreadActions {
-            if #available(iOS 26.0, *) {
-                ToolbarItem(placement: .topBarTrailing) {
-                    TurnGitActionsToolbarButton(
-                        isEnabled: isGitActionEnabled,
-                        disabledActions: disabledGitActions,
-                        isRunningAction: isRunningGitAction,
-                        loadingTitle: gitActionLoadingTitle,
-                        showsDiscardRuntimeChangesAndSync: showsDiscardRuntimeChangesAndSync,
-                        gitSyncState: gitSyncState,
-                        repoDiffTotals: repoDiffTotals,
-                        isLoadingRepoDiff: isLoadingRepoDiff,
-                        onTapRepoDiff: onTapRepoDiff,
-                        onSelect: onGitAction
-                    )
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    TurnThreadActionsMenuButton(
-                        isLoading: isThreadActionLoading,
-                        actions: threadActions
-                    )
-                }
-            } else {
-                ToolbarItem(placement: .topBarTrailing) {
-                    TurnToolbarActionCluster(
-                        isEnabled: isGitActionEnabled,
-                        disabledActions: disabledGitActions,
-                        isRunningAction: isRunningGitAction,
-                        loadingTitle: gitActionLoadingTitle,
-                        showsDiscardRuntimeChangesAndSync: showsDiscardRuntimeChangesAndSync,
-                        gitSyncState: gitSyncState,
-                        repoDiffTotals: repoDiffTotals,
-                        isLoadingRepoDiff: isLoadingRepoDiff,
-                        onTapRepoDiff: onTapRepoDiff,
-                        onGitAction: onGitAction,
-                        isThreadActionLoading: isThreadActionLoading,
-                        threadActions: threadActions
-                    )
-                }
-            }
-        } else if showsGitActions {
+        if #available(iOS 26.0, *) {
             ToolbarItem(placement: .topBarTrailing) {
-                TurnGitActionsToolbarButton(
-                    isEnabled: isGitActionEnabled,
-                    disabledActions: disabledGitActions,
-                    isRunningAction: isRunningGitAction,
-                    loadingTitle: gitActionLoadingTitle,
-                    showsDiscardRuntimeChangesAndSync: showsDiscardRuntimeChangesAndSync,
-                    gitSyncState: gitSyncState,
-                    repoDiffTotals: repoDiffTotals,
-                    isLoadingRepoDiff: isLoadingRepoDiff,
-                    onTapRepoDiff: onTapRepoDiff,
-                    onSelect: onGitAction
-                )
+                gitActionsButton
             }
-        } else if showsThreadActions {
             ToolbarItem(placement: .topBarTrailing) {
-                TurnThreadActionsMenuButton(
-                    isLoading: isThreadActionLoading,
-                    actions: threadActions
-                )
+                threadActionsButton
+            }
+        } else {
+            ToolbarItem(placement: .topBarTrailing) {
+                legacyActionCluster
             }
         }
+    }
+
+    private var gitActionsButton: TurnGitActionsToolbarButton {
+        TurnGitActionsToolbarButton(
+            isEnabled: isGitActionEnabled,
+            disabledActions: disabledGitActions,
+            isRunningAction: isRunningGitAction,
+            loadingTitle: gitActionLoadingTitle,
+            showsDiscardRuntimeChangesAndSync: showsDiscardRuntimeChangesAndSync,
+            gitSyncState: gitSyncState,
+            repoDiffTotals: repoDiffTotals,
+            isLoadingRepoDiff: isLoadingRepoDiff,
+            onTapRepoDiff: onTapRepoDiff,
+            onSelect: onGitAction
+        )
+    }
+
+    private var threadActionsButton: TurnThreadActionsMenuButton {
+        TurnThreadActionsMenuButton(
+            isLoading: isThreadActionLoading,
+            actions: threadActions
+        )
+    }
+
+    private var legacyActionCluster: TurnToolbarActionCluster {
+        TurnToolbarActionCluster(
+            isEnabled: isGitActionEnabled,
+            disabledActions: disabledGitActions,
+            isRunningAction: isRunningGitAction,
+            loadingTitle: gitActionLoadingTitle,
+            showsDiscardRuntimeChangesAndSync: showsDiscardRuntimeChangesAndSync,
+            gitSyncState: gitSyncState,
+            repoDiffTotals: repoDiffTotals,
+            isLoadingRepoDiff: isLoadingRepoDiff,
+            onTapRepoDiff: onTapRepoDiff,
+            onGitAction: onGitAction,
+            isThreadActionLoading: isThreadActionLoading,
+            threadActions: threadActions
+        )
     }
 
     // Hides worktree-only actions for rootless Quick Chat, where there is no real branch context.

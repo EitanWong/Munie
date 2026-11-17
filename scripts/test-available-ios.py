@@ -29,7 +29,7 @@ LIMITS = {"probeSeconds": 15, "devicectlSeconds": 10, "maximumDevices": 128,
           "simulatorSeconds": 1_800, "processCleanupSeconds": 10,
           "destinationSeconds": 45, "defaultTestSeconds": 120, "maximumTestSeconds": 180}
 SAFE_TESTS = ("MunieTests/CaptureModelTests", "MunieTests/ShortVoiceInputTests",
-              "MunieTests/RemoteNotificationTests",
+              "MunieTests/RemoteNotificationTests", "MunieTests/RemoteCoordinatorTests",
               "MunieUITests/RemoteFlowTests/testNativeRemoteEntryHasPairingOrKnownConnection",
               "MunieUITests/CaptureFlowTests/testCapturePersistsAcrossLaunchAndCanBeDeleted")
 

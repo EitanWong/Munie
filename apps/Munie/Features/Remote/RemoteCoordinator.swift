@@ -25,10 +25,10 @@
     private var pairingGeneration = UUID()
     private var started = false
 
-    init() {
+    init(model: RemoteModel? = nil) {
       let fileURL = URL.applicationSupportDirectory.appending(
         path: "Munie/Remote/pending-submission.json")
-      model = RemoteModel(pendingStore: FilePendingSubmissionStore(fileURL: fileURL))
+      self.model = model ?? RemoteModel(pendingStore: FilePendingSubmissionStore(fileURL: fileURL))
     }
 
     var shouldPoll: Bool {
@@ -132,11 +132,8 @@
               guard self.pairingGeneration == generation else { return }
               try self.model.configure(
                 endpoint: invitation.endpoint, credential: token, expectedHostID: invitation.hostID)
-              self.expectedHostID = invitation.hostID
-              self.endpointLabel = invitation.endpoint.host ?? invitation.endpoint.absoluteString
-              self.hasConnection = true
-              await self.model.restorePending()
-              await self.refresh()
+              try await self.completePairing(
+                hostID: invitation.hostID, endpoint: invitation.endpoint)
               return
             }
             guard response.pairingState == .pending else {
@@ -157,6 +154,19 @@
             "Pairing did not finish. Check the Mac and create a new invitation.")
         }
       }
+    }
+
+    /// Publishing removes the pairing view, whose disappearance cancels its task.
+    /// Finish every suspension first so that removal cannot abort the first authoritative read.
+    func completePairing(hostID: UUID, endpoint: URL) async throws {
+      let generation = pairingGeneration
+      expectedHostID = hostID
+      endpointLabel = endpoint.host ?? endpoint.absoluteString
+      await model.restorePending()
+      await refresh()
+      try Task.checkCancellation()
+      guard pairingGeneration == generation else { throw CancellationError() }
+      hasConnection = true
     }
 
     func cancelPairing() {

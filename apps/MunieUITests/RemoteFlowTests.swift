@@ -32,8 +32,10 @@ final class RemoteFlowTests: XCTestCase {
     app.buttons["remote.pair.request"].tap()
     let pairingID = app.staticTexts["remote.pair.id"]
     let pairingFingerprint = app.staticTexts["remote.pair.fingerprint"]
-    XCTAssertTrue(pairingID.waitForExistence(timeout: 15))
     XCTAssertTrue(pairingFingerprint.waitForExistence(timeout: 15))
+    // A Form lazily exposes lower rows; reveal the ID after the on-screen fingerprint appears.
+    if !pairingID.exists { app.swipeUp() }
+    XCTAssertTrue(pairingID.waitForExistence(timeout: 5))
     let rawID = try XCTUnwrap(pairingID.value as? String)
     let fingerprint = try XCTUnwrap(pairingFingerprint.value as? String)
     guard rawID.utf8.count == 36, UUID(uuidString: rawID) != nil,
@@ -46,11 +48,23 @@ final class RemoteFlowTests: XCTestCase {
     FileHandle.standardOutput.write(Data("MUNIE_DEVICE_PAIR \(rawID) \(fingerprint)\n".utf8))
     let newTask = app.buttons["remote.newTask"]
     // The Mac operator must explicitly verify and confirm this candidate while the test waits.
-    XCTAssertTrue(newTask.waitForExistence(timeout: 100))
+    let inputReady = XCTNSPredicateExpectation(
+      predicate: NSPredicate(format: "exists == true AND enabled == true AND hittable == true"),
+      object: newTask)
+    guard XCTWaiter.wait(for: [inputReady], timeout: 100) == .completed else {
+      XCTFail("Pairing must load an authorized project before New task becomes available.")
+      return
+    }
     newTask.tap()
     let composer = app.textViews["remote.composer"]
-    XCTAssertTrue(composer.waitForExistence(timeout: 10))
-    XCTAssertTrue(app.buttons["remote.voice"].exists)
+    guard composer.waitForExistence(timeout: 10) else {
+      XCTFail("The enabled New task action must present its request editor.")
+      return
+    }
+    let voice = app.buttons["remote.voice"]
+    // Form rows below the request editor can be lazy when the current text size is large.
+    if !voice.exists { app.swipeUp() }
+    XCTAssertTrue(voice.waitForExistence(timeout: 5))
     composer.tap()
     composer.typeText("Reply exactly MUNIE_PHONE_REAL_OK. Do not use tools.")
     app.buttons["remote.submit"].tap()

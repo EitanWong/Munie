@@ -85,6 +85,28 @@ struct ResearchReport: Encodable, Sendable {
   var osStatus: Int?
 }
 
+enum ResearchMilestone: String, CaseIterable, Encodable, Sendable {
+  case appInitialized = "app-initialized"
+  case phaseStarted = "phase-started"
+  case reportSaved = "report-saved"
+}
+
+struct ResearchProgress: Encodable, Sendable {
+  let schemaVersion = 1
+  let runID: String
+  let phase: String
+  let nonce: String
+  let processID = Int(ProcessInfo.processInfo.processIdentifier)
+  let milestone: ResearchMilestone
+
+  init(input: ResearchInput, milestone: ResearchMilestone) {
+    runID = input.runID
+    phase = input.phase.rawValue
+    nonce = input.nonce
+    self.milestone = milestone
+  }
+}
+
 enum ItemCreationState: String, Codable {
   case unclaimed
   case armed
@@ -177,13 +199,19 @@ struct ResearchFiles {
   let directory: URL
   var manifestURL: URL { directory.appendingPathComponent("manifest.json") }
   var reportURL: URL { directory.appendingPathComponent("report.json") }
+  var progressURL: URL { directory.appendingPathComponent("progress.json") }
 
   init() throws {
     guard
       let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
         .first
     else { throw ResearchFailure("container-path-unavailable") }
-    directory = support.appendingPathComponent("MunieIdentityResearch", isDirectory: true)
+    try self.init(applicationSupportDirectory: support)
+  }
+
+  init(applicationSupportDirectory: URL) throws {
+    directory = applicationSupportDirectory.appendingPathComponent(
+      "MunieIdentityResearch", isDirectory: true)
     do {
       try FileManager.default.createDirectory(
         at: directory, withIntermediateDirectories: true,
@@ -235,6 +263,30 @@ struct ResearchFiles {
       throw failure
     } catch {
       throw ResearchFailure("report-write-failed")
+    }
+  }
+
+  func saveProgress(_ progress: ResearchProgress) throws {
+    do {
+      let encoder = JSONEncoder()
+      encoder.outputFormatting = [.sortedKeys]
+      let data = try encoder.encode(progress)
+      guard data.count <= 1_024 else { throw ResearchFailure("progress-overflow") }
+      try data.write(
+        to: progressURL, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+    } catch let failure as ResearchFailure {
+      throw failure
+    } catch {
+      throw ResearchFailure("progress-write-failed")
+    }
+  }
+
+  func recordProgress(_ milestone: ResearchMilestone, input: ResearchInput) {
+    do {
+      try saveProgress(ResearchProgress(input: input, milestone: milestone))
+    } catch {
+      // This diagnostic never changes the normal report or phase result.
+      print("identity-research-progress-unavailable")
     }
   }
 }

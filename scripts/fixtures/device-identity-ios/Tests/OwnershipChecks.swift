@@ -18,6 +18,66 @@ struct OwnershipChecks {
     }
   }
 
+  static func checkProgress(arguments: [String]) throws {
+    let input = try ResearchInput.parse(arguments)
+    let expectedFields: Set<String> = [
+      "schemaVersion", "runID", "phase", "nonce", "processID", "milestone",
+    ]
+    for milestone in ResearchMilestone.allCases {
+      let data = try JSONEncoder().encode(ResearchProgress(input: input, milestone: milestone))
+      guard let fields = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+        throw CheckFailure(name: "progress-json-object")
+      }
+      try require(
+        Set(fields.keys) == expectedFields, "progress-\(milestone.rawValue)-exact-fields")
+      try require(
+        fields["schemaVersion"] as? Int == 1
+          && fields["runID"] as? String == input.runID
+          && fields["phase"] as? String == input.phase.rawValue
+          && fields["nonce"] as? String == input.nonce
+          && fields["processID"] as? Int == Int(ProcessInfo.processInfo.processIdentifier)
+          && (fields["processID"] as? Int ?? 0) > 0
+          && fields["milestone"] as? String == milestone.rawValue,
+        "progress-\(milestone.rawValue)-values")
+    }
+
+    let support = FileManager.default.temporaryDirectory.appendingPathComponent(
+      "MunieProgressChecks-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: support) }
+    let files = try ResearchFiles(applicationSupportDirectory: support)
+    try require(
+      files.progressURL.lastPathComponent == "progress.json"
+        && files.progressURL.deletingLastPathComponent()
+          == files.reportURL.deletingLastPathComponent()
+        && files.progressURL.deletingLastPathComponent().lastPathComponent
+          == "MunieIdentityResearch"
+        && files.directory.deletingLastPathComponent() == support,
+      "progress-fixed-sibling-path")
+    let preservedReport = Data("existing-report-sentinel".utf8)
+    try preservedReport.write(to: files.reportURL)
+    for milestone in ResearchMilestone.allCases {
+      try files.saveProgress(ResearchProgress(input: input, milestone: milestone))
+      let data = try Data(contentsOf: files.progressURL)
+      guard let fields = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+        throw CheckFailure(name: "progress-saved-json-object")
+      }
+      try require(
+        Set(fields.keys) == expectedFields && fields["milestone"] as? String == milestone.rawValue,
+        "progress-\(milestone.rawValue)-saved")
+    }
+    try require(
+      try Data(contentsOf: files.reportURL) == preservedReport
+        && !FileManager.default.fileExists(atPath: files.manifestURL.path),
+      "progress-does-not-replace-report-or-create-manifest")
+    try FileManager.default.removeItem(at: support)
+    try requireFailure("progress-write-failed", "progress-write-failure-fixed-code") {
+      try files.saveProgress(ResearchProgress(input: input, milestone: .phaseStarted))
+    }
+    files.recordProgress(.phaseStarted, input: input)
+    try require(true, "progress-diagnostic-failure-does-not-throw")
+    print("progressChecksPassed=true securityAPIsInvoked=false")
+  }
+
   static func main() throws {
     let runID = "6B7DAF3B-3C13-4321-89AA-2E4F7FD607B8"
     let hash = String(repeating: "a", count: 64)
@@ -75,5 +135,6 @@ struct OwnershipChecks {
       _ = try ResearchInput.parse(regular + ["--fault", "unknown"])
     }
     print("ownershipChecks=15 passed=true securityAPIsInvoked=false")
+    try checkProgress(arguments: regular)
   }
 }

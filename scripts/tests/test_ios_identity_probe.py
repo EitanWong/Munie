@@ -204,6 +204,28 @@ class RuntimeTests(unittest.TestCase):
             probe.select_runtime({'runtimes': {}}, {'devicetypes': []}, '26.2')
 
 
+class DiagnosticTests(unittest.TestCase):
+    def progress(self):
+        return {'schemaVersion': 1, 'runID': RUN, 'phase': 'create', 'nonce': NONCE,
+                'processID': 31001, 'milestone': 'phase-started'}
+
+    def test_progress_rejects_private_fields_stale_context_and_invalid_state(self):
+        value = self.progress()
+        self.assertEqual(probe.validate_progress(value, RUN, 'create', NONCE), value)
+        for changes in ({'manifest': 'private'}, {'schemaVersion': True}, {'nonce': OWN},
+                        {'runID': OWN}, {'phase': 'cleanup'}, {'processID': True},
+                        {'processID': 0}, {'milestone': 'key-added'}):
+            with self.subTest(changes=changes), self.assertRaises(probe.ProbeFailure):
+                probe.validate_progress(dict(value, **changes), RUN, 'create', NONCE)
+
+    def test_log_hints_never_export_messages_paths_or_other_process_lines(self):
+        raw = (f'{probe.BUNDLE} signature invalid /private/secret\n'
+               'other-app signature invalid /private/other\n'
+               'MunieIdentityResearch startup failed token=private\n').encode()
+        self.assertEqual(probe.log_hints(raw), {'matchingLines': 2,
+                         'signatureRejectionHintLines': 1, 'launchFailureHintLines': 1})
+
+
 class CommandTests(unittest.TestCase):
     def test_unclean_timeout_is_not_reported_as_retryable_timeout(self):
         records = []
@@ -498,6 +520,113 @@ class FakeTools:
 
 
 class ExperimentTests(unittest.TestCase):
+    def test_diagnostic_skips_when_process_cleanup_margin_is_unavailable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            tools, report = FakeTools(Path(directory)), {}
+            experiment = probe.Experiment(Path(directory), report, tools, RUN)
+            experiment.simulator, experiment.ownership_verified = OWN, True
+            experiment.work_end = time.monotonic() + 2
+            experiment.diagnose_failure()
+            self.assertEqual(report['failureDiagnostics']['skipped'], 'insufficient-work-budget')
+            self.assertEqual(tools.calls, [])
+
+    def test_timed_out_diagnostic_reaps_real_term_resistant_child_before_cleanup_reserve(self):
+        records = []
+        command_runner = probe.CommandRunner(records)
+        name = 'MunieIdentityResearch-' + RUN
+
+        class DiagnosticTools:
+            def run(self, stage, command, deadline, seconds, **kwargs):
+                if stage == 'diagnostic-owned-inventory':
+                    return json.dumps({'devices': {RUNTIME: [
+                        {'udid': OWN, 'name': name, 'state': 'Booted'}]}}).encode(), b'', 0
+                return command_runner.run(stage, [sys.executable, '-c',
+                    'import signal,time;signal.signal(signal.SIGTERM,signal.SIG_IGN);time.sleep(30)'],
+                    deadline, seconds, **kwargs)
+
+        report = {}
+        experiment = probe.Experiment(Path('/unused'), report, DiagnosticTools(), RUN)
+        experiment.simulator, experiment.ownership_verified = OWN, True
+        experiment.selection = {'runtimeID': RUNTIME}
+        experiment.work_end = time.monotonic() + 5
+        experiment.diagnose_failure()
+        self.assertLess(time.monotonic(), experiment.work_end)
+        self.assertTrue(records[0]['escalated'])
+        self.assertTrue(records[0]['processGroupGone'])
+        self.assertTrue(records[0]['streamsReachedEOF'])
+        self.assertEqual(records[0]['failure'], 'command-timeout')
+        self.assertFalse(report['failureDiagnostics']['acceptedAsLifecycleEvidence'])
+
+    def test_launch_timeout_can_have_unaccepted_report_and_progress_without_passing(self):
+        class TimedOutTools(FakeTools):
+            def run(self, stage, *args, **kwargs):
+                result = super().run(stage, *args, **kwargs)
+                if stage == 'app-launch-create':
+                    value = json.loads(self.path.read_bytes())
+                    progress = {key: value[key] for key in
+                                ('schemaVersion', 'runID', 'phase', 'nonce', 'processID')}
+                    progress['milestone'] = 'report-saved'
+                    self.path.with_name('progress.json').write_text(json.dumps(progress))
+                    raise probe.ProbeFailure('command-timeout')
+                if stage == 'diagnostic-owned-inventory':
+                    return json.dumps({'devices': {RUNTIME: [
+                        {'udid': OWN, 'name': self.name, 'state': self.state}]}}).encode(), b'', 0
+                if stage == 'diagnostic-launchd':
+                    return f'41001 0 UIKitApplication:{probe.BUNDLE}\n'.encode(), b'', 0
+                if stage == 'diagnostic-app-logs':
+                    return f'{probe.BUNDLE} signature invalid private-text\n'.encode(), b'', 0
+                return result
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            tools, report = TimedOutTools(root), {}
+            experiment = probe.Experiment(root / 'Research.app', report, tools, RUN)
+            with self.assertRaisesRegex(probe.ProbeFailure, 'command-timeout'):
+                experiment.execute()
+            diagnostic = report['failureDiagnostics']
+            self.assertFalse(diagnostic['acceptedAsLifecycleEvidence'])
+            self.assertTrue(diagnostic['unacceptedPhaseReport']['passed'])
+            self.assertEqual(diagnostic['progress']['milestone'], 'report-saved')
+            self.assertTrue(diagnostic['launchd']['researchAppJobPresent'])
+            self.assertEqual(diagnostic['appLogHints']['signatureRejectionHintLines'], 1)
+            self.assertEqual([item['phase'] for item in report['phases']], ['cleanup'])
+            self.assertTrue(report['cleanup']['createdSimulatorAbsent'])
+            calls = [call for call in tools.calls if call['stage'].startswith('diagnostic-')]
+            self.assertEqual(len(calls), 3)
+            for call in calls:
+                self.assertTrue(call['private'])
+                self.assertLessEqual(call['deadline'], experiment.work_end)
+                self.assertLessEqual(call['seconds'], 10)
+                if 'spawn' in call['argv']:
+                    self.assertEqual(call['argv'][3], OWN)
+
+    def test_failed_diagnostic_ownership_read_never_spawns_or_masks_failure(self):
+        _, report, tools, failure = self.exercise_diagnostic_failure('command-timeout')
+        self.assertEqual(failure, 'fixture-app-launch-create')
+        self.assertTrue(report['cleanup']['createdSimulatorAbsent'])
+        self.assertNotIn('launchd', report['failureDiagnostics'])
+        self.assertFalse(any(call['stage'] in ('diagnostic-launchd', 'diagnostic-app-logs')
+                             for call in tools.calls))
+
+    def exercise_diagnostic_failure(self, code):
+        class FailedDiagnostic(FakeTools):
+            def run(self, stage, *args, **kwargs):
+                if stage == 'diagnostic-owned-inventory':
+                    self.calls.append({'stage': stage})
+                    raise probe.ProbeFailure(code)
+                return super().run(stage, *args, **kwargs)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            tools = FailedDiagnostic(root, fail_stage='app-launch-create')
+            report = {}
+            experiment = probe.Experiment(root / 'Research.app', report, tools, RUN)
+            failure = None
+            try:
+                experiment.execute()
+            except probe.ProbeFailure as error:
+                failure = error.code
+            return experiment, report, tools, failure
+
     def exercise(self, root, *, fault_case=None, **options):
         report = {'commands': []}
         tools = FakeTools(root, **options)

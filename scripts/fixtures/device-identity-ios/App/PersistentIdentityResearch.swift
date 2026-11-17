@@ -10,9 +10,12 @@ enum IdentityResearch {
     var report = ResearchReport(runID: zeroID, phase: "invalid", nonce: zeroID)
     do {
       let files = try ResearchFiles()
+      var parsedInput: ResearchInput?
       do {
         let input = try ResearchInput.parse(arguments)
+        parsedInput = input
         report = ResearchReport(runID: input.runID, phase: input.phase.rawValue, nonce: input.nonce)
+        files.recordProgress(.phaseStarted, input: input)
         try execute(input, files: files, report: &report)
         report.passed = true
       } catch let failure as ResearchFailure {
@@ -22,6 +25,7 @@ enum IdentityResearch {
         report.failure = "unexpected-failure"
       }
       try files.saveReport(report)
+      if let parsedInput { files.recordProgress(.reportSaved, input: parsedInput) }
     } catch {
       // The report cannot be safely delivered; the runner must fail on missing/stale nonce.
       print("identity-research-report-unavailable")

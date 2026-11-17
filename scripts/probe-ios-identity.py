@@ -37,6 +37,8 @@ PHASE_SECONDS = 30
 COMMAND_SECONDS = 15
 INSTALL_SECONDS = 120
 INVENTORY_SECONDS = 30
+DIAGNOSTIC_SECONDS = 30
+DIAGNOSTIC_REAP_SECONDS = 3
 MAX_STREAM = 262_144
 MAX_DIAGNOSTIC = 8192
 MAX_PHASE_REPORT = 16_384
@@ -329,14 +331,47 @@ def validate_phase(frame, run_id, phase, nonce, previous, expected_pid):
     return result
 
 
-def phase_report_path(container):
+def research_file_path(container, filename):
+    require(filename in ('report.json', 'progress.json'), 'unknown-research-file')
     root = Path(container).resolve(strict=True)
     require(root.is_dir(), 'app-container-not-directory')
     candidate = root
-    for name in REPORT_PARTS:
+    for name in (*REPORT_PARTS[:-1], filename):
         candidate = candidate / name
         require(not candidate.is_symlink(), 'phase-report-symlink')
     return candidate
+
+
+def phase_report_path(container):
+    return research_file_path(container, 'report.json')
+
+
+def validate_progress(frame, run_id, phase, nonce):
+    require(type(frame) is dict and frame.keys() ==
+            {'schemaVersion', 'runID', 'phase', 'nonce', 'processID', 'milestone'},
+            'progress-schema')
+    require(type(frame['schemaVersion']) is int and frame['schemaVersion'] == 1 and
+            frame['phase'] == phase and canonical_uuid(frame['runID']) == run_id and
+            canonical_uuid(frame['nonce']) == nonce, 'progress-owner-or-phase')
+    require(type(frame['processID']) is int and frame['processID'] > 0 and
+            frame['milestone'] in ('app-initialized', 'phase-started', 'report-saved'),
+            'progress-state')
+    return frame
+
+
+def log_hints(raw):
+    # Raw diagnostic logs may contain private OS details. Retain only these
+    # coarse counts; a textual hint cannot establish the cause of a launch stall.
+    lines = raw.decode('utf-8', errors='replace').lower().splitlines()
+    matching = [line for line in lines if BUNDLE in line or 'munieidentityresearch' in line]
+    return {'matchingLines': len(matching),
+            'signatureRejectionHintLines': sum(
+                any(word in line for word in ('signature', 'codesign', 'amfi')) and
+                any(word in line for word in ('invalid', 'denied', 'reject', 'not valid'))
+                for line in matching),
+            'launchFailureHintLines': sum(
+                any(word in line for word in ('error', 'failed', 'failure', 'denied'))
+                for line in matching)}
 
 
 def read_phase_file(path):
@@ -429,6 +464,7 @@ class Experiment:
         self.install_attempted = False
         self.container = None
         self.selection = None
+        self.phase_context = None
         self.end = time.monotonic() + TOTAL_SECONDS
         self.work_end = self.end - CLEANUP_RESERVE
         self.history = []
@@ -499,8 +535,71 @@ class Experiment:
                     {'read': 'post-boot-owned-inventory', 'attempt': attempt + 1,
                      'failure': error.code})
 
+    def diagnose_failure(self):
+        """Observe only this newly created simulator without retrying app work."""
+        if self.simulator is None or not self.ownership_verified:
+            return
+        diagnostic = {'acceptedAsLifecycleEvidence': False, 'errors': []}
+        self.report['failureDiagnostics'] = diagnostic
+        # CommandRunner can spend another 2.6s terminating/reaping a timed-out
+        # group. Its deadline must leave room for that inside the work window.
+        deadline = min(self.work_end, time.monotonic() + DIAGNOSTIC_SECONDS) - DIAGNOSTIC_REAP_SECONDS
+        if time.monotonic() >= deadline:
+            diagnostic['skipped'] = 'insufficient-work-budget'
+            return
+
+        def observe(name, action):
+            try:
+                diagnostic[name] = action()
+            except Exception as error:
+                diagnostic['errors'].append({'stage': name, 'failure': failure_code(error)})
+
+        # Files are strictly bounded and correlated, but their PID is not the
+        # simctl-confirmed launch PID. Never append these to accepted phases.
+        if self.container is not None and self.phase_context is not None:
+            context = self.phase_context
+            observe('progress', lambda: validate_progress(
+                read_phase_file(research_file_path(self.container, 'progress.json')),
+                self.run_id, context['phase'], context['nonce']))
+            def unaccepted_report():
+                frame = read_phase_file(phase_report_path(self.container))
+                require(type(frame) is dict, 'phase-report-schema')
+                return validate_phase(frame, self.run_id, context['phase'], context['nonce'],
+                                      self.history, frame.get('processID'))
+            observe('unacceptedPhaseReport', unaccepted_report)
+
+        def owned_state():
+            raw, _, _ = self.command('diagnostic-owned-inventory', 'xcrun', 'simctl', 'list',
+                                     'devices', '--json', deadline=deadline, seconds=5, private=True)
+            devices = strict_json(raw)
+            require(type(devices.get('devices')) is dict, 'device-inventory-schema')
+            current = self.find_owned(devices['devices'])
+            require(current is not None, 'diagnostic-owned-simulator-absent')
+            return current.get('state')
+        observe('ownedState', owned_state)
+        if diagnostic.get('ownedState') != 'Booted':
+            return
+
+        def launchd():
+            raw, _, _ = self.command('diagnostic-launchd', 'xcrun', 'simctl', 'spawn',
+                                     self.simulator, 'launchctl', 'list', deadline=deadline,
+                                     seconds=10, private=True)
+            return {'responded': True, 'researchAppJobPresent': BUNDLE.encode() in raw}
+        observe('launchd', launchd)
+
+        def app_logs():
+            raw, _, _ = self.command('diagnostic-app-logs', 'xcrun', 'simctl', 'spawn',
+                                     self.simulator, 'log', 'show', '--style', 'compact',
+                                     '--last', '2m', '--info', '--predicate',
+                                     'process == "MunieIdentityResearch" OR eventMessage CONTAINS "' +
+                                     BUNDLE + '"', deadline=deadline, seconds=10, private=True)
+            return log_hints(raw)
+        observe('appLogHints', app_logs)
+
     def phase(self, name, cleanup=False):
         deadline = min(self.end if cleanup else self.work_end, time.monotonic() + PHASE_SECONDS)
+        nonce = new_uuid()
+        self.phase_context = {'phase': name, 'nonce': nonce}
         if name != 'create':
             self.terminate(deadline)
         if self.container is None:
@@ -516,7 +615,10 @@ class Experiment:
         if path.exists():
             require(path.is_file(), 'phase-report-not-file')
             path.unlink()
-        nonce = new_uuid()
+        progress = research_file_path(self.container, 'progress.json')
+        if progress.exists():
+            require(progress.is_file(), 'progress-not-file')
+            progress.unlink()
         arguments = ['xcrun', 'simctl', 'launch', self.simulator, BUNDLE,
                      '--run-id', self.run_id, '--phase', name, '--nonce', nonce]
         if name == 'create' and self.fault_case is not None:
@@ -582,6 +684,12 @@ class Experiment:
                 self.phase(name)
         except BaseException as error:
             failure = error
+            # Diagnostics consume only unused work time, never the cleanup
+            # reserve, and cannot turn this original failure into success.
+            try:
+                self.diagnose_failure()
+            except Exception as diagnostic_error:
+                self.report['diagnosticFailure'] = failure_code(diagnostic_error)
         finally:
             errors = self.report['cleanup']['errors']
 
@@ -668,6 +776,8 @@ def main():
                          'commandSeconds': COMMAND_SECONDS, 'commandStreamBytes': MAX_STREAM,
                          'installSeconds': INSTALL_SECONDS, 'inventorySeconds': INVENTORY_SECONDS,
                          'postBootReadAttempts': 3,
+                         'failureDiagnosticSeconds': DIAGNOSTIC_SECONDS,
+                         'failureDiagnosticReapSeconds': DIAGNOSTIC_REAP_SECONDS,
                          'phaseReportBytes': MAX_PHASE_REPORT},
               'scopeLimits': ['ios-simulator-only', 'no-device-lock-screen-or-Secure-Enclave-evidence',
                               'no-WAN-model-account-or-mobile-mTLS', 'no-private-state-or-reference-export',

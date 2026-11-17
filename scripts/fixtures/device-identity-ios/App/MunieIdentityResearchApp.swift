@@ -3,6 +3,16 @@ import SwiftUI
 
 @main
 struct MunieIdentityResearchApp: App {
+  init() {
+    do {
+      let input = try ResearchInput.parse(ProcessInfo.processInfo.arguments)
+      let files = try ResearchFiles()
+      files.recordProgress(.appInitialized, input: input)
+    } catch {
+      print("identity-research-progress-unavailable")
+    }
+  }
+
   var body: some Scene {
     WindowGroup {
       ResearchView()

@@ -51,7 +51,7 @@ TLS 提供认证加密记录，不自动阻止合法客户端再次发送相同�
 
 主动超时场景分别为不发送 TLS 握手、声明 body 后不补齐，之后用正常客户端确认 worker 恢复；它们不覆盖慢头或所有 drip-feed 时序。请求过期、nonce、host/version/harness/operation 字段和 durable replay 均未实现、未覆盖，不能因本轮场景通过而声称完整协议验收。
 
-**证据与清理：**报告只保留 runtime/脚本指纹、合成场景 ID、TLS/HTTP 结构、次数/耗时与限制结果；不写 PEM、私钥、原始输入或 TLS session secrets。接受须包含 `serverStopped`、`certificateFilesPrivate` 与 `temporaryCredentialsRemoved`：退出时先主动关闭活动连接（包括未完成 header），再等待 server 线程结束、关闭 listener/客户端连接，临时文件权限均为 0600，并移除临时证书目录；清理失败令实验失败。报告保留为 ignored `build/` 下的本机证据，失败和缺少 runtime 都保留明确状态。
+**证据与清理：**报告只保留 runtime/脚本指纹、合成场景 ID、TLS/HTTP 结构、次数与限制结果；不写 PEM、私钥、原始输入或 TLS session secrets。接受须包含 `serverStopped`、`certificateFilesPrivate` 与 `temporaryCredentialsRemoved`：退出时先主动关闭活动连接（包括未完成 header），再等待 server 线程结束、关闭 listener/客户端连接，临时文件权限均为 0600，并移除临时证书目录；清理失败令实验失败。报告保留为 ignored `build/` 下的本机证据，失败和缺少 runtime 都保留明确状态。
 
 **解释边界：**即使全部通过，也只验证当前 Python/OpenSSL 与夹具实现下的本机加密短请求、预置身份和负向拒绝；未集成生产 ledger、native Codex、原生 Apple 客户端、真实凭据/模型、互联网/蜂窝、持久配对/撤销或生产可用服务。下一步先评审身份如何接入真实 ledger，再单独选择并授权实际网络/设备实验。
 

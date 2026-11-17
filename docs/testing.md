@@ -89,3 +89,23 @@ The root SwiftPM harness tests a Mac-only execution module; the shipping Xcode a
 The atomic private `build/submission-ledger-probe.json` records native executable/runner/host-source/revision hashes, dirty state, runtime SQLite version, structured checkpoint results, effect counts and cleanup for every attempt. Output is capped at 4 KiB per line/16 KiB per stream, frame waits at ten seconds, transport lifetime at fifteen seconds and shutdown uses the bounded process-group cleanup shared by protocol diagnostics. Reports exclude request text, raw paths and stderr; stream counts/hashes remain. Compilation removes an old report before starting; execution publishes failed/starting before child startup. Ordinary repository tests cover malformed/flooding fake peers, orphan cleanup and stale-result rejection.
 
 The experiment is a real Swift/SQLite recovery test with **synthetic** upstream effects. It does not prove external exactly-once execution, physical power-loss durability, real Codex reconciliation, network authentication, final-path handoff safety, user-data migration or any Apple device interaction. Storage configuration and the mature alternative are recorded in [ledger research](../references/submission-ledger-research.md); do not broaden this evidence to product remote execution.
+
+## Ledger-integrated native Codex experiment
+
+```sh
+swift build -c release --product MunieCodexHostProbe
+python3 scripts/probe-codex-host.py \
+  --executable "$PWD/.build/release/MunieCodexHostProbe" --codex "$CODEX_NATIVE" \
+  --schema-dir build/codex-schema-experimental \
+  --default-schema-dir build/codex-schema-stable
+```
+
+This opt-in experiment connects the actual Swift coordinator/SQLite ledger, strict JSONL transport and fixed 0.162.1 client to native Codex. The same outer sandbox and six guards restrict the deterministic loopback provider; trusted fixture IDs replace authentication. No real model/account, external network, personal project or mobile endpoint is used. Ordinary `swift test` builds the probe; repository checks run offline guardian/driver regressions without installed Codex.
+
+Eight scenarios verify text completion; bound approval cancel with no effect; one-time accept with exactly one append effect and command exit 0; interrupt of a running shell and child (both gone before transport close); native SIGKILL while approval is pending (known-ID reread becomes cancelled); native SIGKILL after a completed terminal but before the ledger commits it (known-ID reread becomes completed); host SIGKILL after native start but before mapping (reconciling, no mapping/resend); and host SIGKILL after spawn but before emitting its group identity. Driver fault barriers must occur once, in the exact expected phase and order. Provider validates the exact submitted user text and fixed final marker, not merely a plausible terminal.
+
+The fixture-only Python guardian publishes a private, unique registry before launching native Codex in its owned process group. Parent death/EOF uses bounded input forwarding, close, TERM then group KILL, including the guardian if necessary. The driver independently checks the registered parent/group, process exit, EOF and group disappearance, and preserves cleanup failures. A process group is a cleanup scope, not a sandbox; escaping descendants remain an OS-isolation concern. This is not a production launch daemon or energy/performance benchmark.
+
+Host waits are capped at 25 seconds, total host transport at 60 seconds, Swift session at 50 seconds, events at 256, JSONL frame at 1 MiB, stdin/stdout at 32 MiB each and stderr at 1 MiB. Guardian pending input is at most 64 KiB, EOF forwarding/close/TERM each at most .75 seconds, hard lifetime 120 seconds. These are diagnostic limits. Transport faults are tested independently with malformed/partial/flooding peers, backpressure, concurrent operations, cancellation and surviving descendants.
+
+The atomic private `build/codex-host-probe.json` invalidates earlier success before startup. It records revision/dirty state, source/executable/runner/provider/guardian/binary/schema hashes, state transitions, effects, cleanup and stream counts/hashes; it excludes raw native payloads, host/account metadata, paths and stderr. A report alone cannot prove which source built a binary: preserve the same-run Release build command/status and binary hash. Rebuild and rerun after source/runner changes, including at the clean candidate commit. Known IDs require positive native history; missing IDs never authorize resubmission. Results do not establish full Codex support, physical power-loss durability, real authentication, sustained service behavior or device acceptance.

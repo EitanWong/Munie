@@ -13,6 +13,9 @@ let package = Package(
     .executableTarget(
       name: "MunieSubmissionProbe", dependencies: ["MunieExecutionHost"],
       path: "apps/MunieHost/Probe"),
+    .executableTarget(
+      name: "MunieCodexHostProbe", dependencies: ["MunieExecutionHost"],
+      path: "apps/MunieHost/CodexProbe"),
     .testTarget(
       name: "MunieExecutionHostTests", dependencies: ["MunieExecutionHost"],
       path: "apps/MunieHostTests"),

@@ -1,3 +1,4 @@
+// Munie modification: leave npm version discovery to standalone bridges.
 // FILE: package-version-status.js
 // Purpose: Reads the installed Remodex package version and caches the latest published npm version.
 // Layer: CLI helper
@@ -13,6 +14,7 @@ const DEFAULT_INITIAL_FETCH_WAIT_MS = 250;
 const REMODEX_REGISTRY_URL = "https://registry.npmjs.org/remodex/latest";
 
 function createBridgePackageVersionStatusReader({
+  allowPackageUpdates = true,
   cacheTtlMs = DEFAULT_CACHE_TTL_MS,
   emptyCacheRetryMs = DEFAULT_EMPTY_CACHE_RETRY_MS,
   initialFetchWaitMs = DEFAULT_INITIAL_FETCH_WAIT_MS,
@@ -27,6 +29,11 @@ function createBridgePackageVersionStatusReader({
   // Shares one cached lookup across repeated Settings/account refreshes without
   // holding the local account status path hostage on a slow npm registry call.
   return async function readBridgePackageVersionStatus() {
+    const bridgeVersion = normalizeVersion(installedVersion) || null;
+    if (!allowPackageUpdates) {
+      return { bridgeVersion, bridgeLatestVersion: null };
+    }
+
     const now = Date.now();
     refreshLatestVersionInBackground({
       now,
@@ -59,7 +66,7 @@ function createBridgePackageVersionStatusReader({
     });
 
     return {
-      bridgeVersion: normalizeVersion(installedVersion) || null,
+      bridgeVersion,
       bridgeLatestVersion: reportedLatestVersion || null,
     };
   };

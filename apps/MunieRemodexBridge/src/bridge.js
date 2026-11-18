@@ -733,6 +733,8 @@ function startBridge({
   // Munie: the bundled Mac GUI can initialize its owned native runtime before a phone connects.
   const initializeForLocalAccount = config.localAccountControlEnabled === true;
   const initializeOwnedTransport = initializeEndpoint || initializeForLocalAccount;
+  // A bridge owned by Munie.app is replaced with the app, never through upstream npm.
+  const allowPackageUpdates = !initializeForLocalAccount;
   const endpointMethods = new Set(
     config.codexEndpoint && Array.isArray(config.codexEndpointMethods)
       ? config.codexEndpointMethods.filter((method) => isBridgeProjectMethod(method)
@@ -796,7 +798,7 @@ function startBridge({
     completionStatePath: config.pushCompletionStatePath,
     readThread: (threadId) => sendCodexRequest("thread/read", buildCompleteThreadReadParams(threadId)),
   });
-  const readBridgePackageVersionStatus = createBridgePackageVersionStatusReader();
+  const readBridgePackageVersionStatus = createBridgePackageVersionStatusReader({ allowPackageUpdates });
 
   // Keep the local Codex runtime alive across transient relay disconnects.
   let socket = null;
@@ -1450,7 +1452,7 @@ function startBridge({
       appPath: config.codexAppPath,
       readBridgePreferences,
       updateBridgePreferences,
-      updateBridgePackageAndRestart,
+      updateBridgePackageAndRestart: allowPackageUpdates ? updateBridgePackageAndRestart : undefined,
       withThreadHandoff: desktopIpcLiveOwner ? (threadId, openThread) => {
         if (pendingLocalResumeThreadIds.has(threadId)) {
           throw Object.assign(new Error("Wait for this chat to finish reopening, then try again."), {
@@ -1989,6 +1991,7 @@ function startBridge({
       bridgeVersionInfo: bridgeVersionInfoResult.status === "fulfilled"
         ? bridgeVersionInfoResult.value
         : null,
+      allowPackageUpdates,
       transportMode: codex.mode,
       hostPlatform: process.platform,
     });
@@ -2704,6 +2707,7 @@ function startBridge({
           accountReadResult, authStatusResult,
           loginInFlight: Boolean(pendingAuthLogin.loginId),
           bridgeVersionInfo: { bridgeVersion: bridgePackageVersion },
+          allowPackageUpdates,
           transportMode: codex.mode,
         });
       },

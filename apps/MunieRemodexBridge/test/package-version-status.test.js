@@ -1,3 +1,4 @@
+// Munie modification: cover package-version reads with the npm channel disabled.
 // FILE: package-version-status.test.js
 // Purpose: Verifies bridge package version lookups stay non-blocking for local account refreshes.
 // Layer: Unit test
@@ -22,6 +23,25 @@ function createDeferred() {
 
   return { promise, resolve, reject };
 }
+
+test("a bundled bridge reports its installed version without contacting the upstream registry", async () => {
+  let fetchCallCount = 0;
+  const readBridgePackageVersionStatus = createBridgePackageVersionStatusReader({
+    allowPackageUpdates: false,
+    fetchLatestPublishedVersionImpl: async () => {
+      fetchCallCount += 1;
+      return "99.0.0";
+    },
+  });
+
+  for (let read = 0; read < 2; read += 1) {
+    assert.deepEqual(await readBridgePackageVersionStatus(), {
+      bridgeVersion: bridgePackageVersion,
+      bridgeLatestVersion: null,
+    });
+  }
+  assert.equal(fetchCallCount, 0);
+});
 
 test("readBridgePackageVersionStatus returns immediately while latest version loads in background", async () => {
   const deferred = createDeferred();

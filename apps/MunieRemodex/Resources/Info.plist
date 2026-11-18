@@ -47,6 +47,7 @@
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_remodex-permission._tcp</string>
+		<string>_munie-pair._tcp</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Scan the pairing invitation displayed by your Mac.</string>

@@ -427,7 +427,25 @@ struct ContentView: View {
         if !hasSeenOnboarding {
             OnboardingView(
                 onScanQRCode: finishOnboardingAndShowScanner,
-                onPairWithCode: finishOnboardingAndShowPairingCode
+                onPairWithCode: finishOnboardingAndShowPairingCode,
+                onNearbyPairing: { payload in
+                    codex.shouldAutoReconnectOnForeground = false
+                    codex.connectionRecoveryState = .idle
+                    codex.lastErrorMessage = nil
+                    await viewModel.connectToRelay(pairingPayload: payload, codex: codex)
+                    return !Task.isCancelled && codex.isConnected && codex.isInitialized
+                },
+                onNearbyConnected: {
+                    hasSeenOnboarding = true
+                    hasDismissedAutomaticScanner = true
+                    scannerCanReturnToOnboarding = false
+                },
+                onCancelNearbyConnection: {
+                    codex.shouldAutoReconnectOnForeground = false
+                    codex.cancelTrustedSessionResolve()
+                    await codex.disconnect()
+                    codex.connectionRecoveryState = .idle
+                }
             )
         } else if subscriptions.bootstrapState == .failed && !subscriptions.hasAppAccess {
             SubscriptionBootstrapFailureView()

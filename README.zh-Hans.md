@@ -10,12 +10,13 @@ Munie 是控制 Mac 上 Codex 的原生 Apple 前台。主要 iPhone 实现现�
 
 ## 连接 iPhone 与 Mac
 
-1. Mac 安装 Node.js 22+ 与原生 Codex 可执行文件，运行 `./scripts/setup-remodex.sh`，只安装锁定依赖，不执行安装生命周期脚本。
-2. 在 Mac 用 `mkdir -m 700 -p "$HOME/Library/Application Support/MunieRemodex/state" "$HOME/Library/Application Support/MunieRemodex/codex-home"` 创建私有目录，再用 `CODEX_HOME="$HOME/Library/Application Support/MunieRemodex/codex-home" /absolute/path/to/codex login` 本地登录。运行 `./scripts/run-remodex-local.sh --codex /absolute/path/to/codex --project /absolute/authorized/project --state-dir "$HOME/Library/Application Support/MunieRemodex/state" --codex-home "$HOME/Library/Application Support/MunieRemodex/codex-home" --advertise-relay wss://YOUR_HOST:8443`。复用这些路径以保留配对身份与原生历史；不传路径时会新建私有状态/账户。启动本身不提交任务。
-3. Mac 和 iPhone 登录同一私有 Tailscale 网络；仅在 Mac 配置 8443 端口的 Serve HTTPS，指向回环 relay `127.0.0.1:9275`，iPhone 经 Tailscale 连接。启动器不会代登录或修改 Serve；Mac 需清醒可达。
-4. 构建 `MunieRemodex` scheme，扫描启动器提供的二维码，进入授权项目后提交任务。客户端验证扫码得到的 Mac 身份，并对中继消息进行端到端加密，账户凭据留在 Mac。
+产品安装方式是两个 App：Mac 上的 Munie 和 iPhone 上的 Munie。新的本地 Mac 构建采用以下流程：
 
-此前检查点的 9274 服务保持独立。以上步骤不代表已完成 TestFlight、中英双语体验、麦克风或后台推送验收。[开发](docs/development.md)与[测试说明](docs/testing.md)区分两套 scheme 和证据。
+1. 打开 Mac 上的 Munie，按提示在浏览器登录 Codex，使用默认工作区或选择项目文件夹。
+2. 打开 iPhone 上的 Munie，选择自动发现的 Mac。
+3. 核对两端显示的数字并确认配对，然后在手机上发起任务。
+
+运行依赖、本地服务启动和连接配置由 Mac App 管理；普通引导没有终端命令、npm 安装或服务器地址输入。当前产品切片先实现附近连接，外出自动连接仍未完成。实际构建/验收与发行限制见[项目状态](docs/project-status.md)。目前尚无公开安装发行版；[开发说明](docs/development.md)单独保留开发者构建与旧网络诊断入口。
 
 ## 开始开发
 
@@ -39,12 +40,14 @@ open Munie.xcodeproj
 | 路径 | 职责 |
 |---|---|
 | `apps/MunieRemodex/` | 主要原生 iPhone 移植客户端、单元/UI 测试与许可文本 |
+| `apps/MunieDesktop/`、`apps/MunieDesktopTests/` | 原生 Mac 伴侣、内置执行生命周期与离线应用测试 |
 | `apps/MunieRemodexBridge/`、`apps/MunieRemodexRelay/` | 移植的 Mac bridge 与私有自托管 relay |
 | `apps/Munie/` | 保留的多平台原生回退检查点与资源 |
 | `apps/MunieWatch/` | 独立 watchOS target 中的 Watch 专属交互 |
 | `apps/MunieTests/`、`apps/MunieUITests/` | 应用单元测试和 iOS UI 测试 target |
 | `apps/MunieMacHost/`、`apps/MunieHost/` | 原生 Mac 主机 UI、受监督执行、账本与传输 |
 | `packages/MunieRemote/` | 跨端协议、有界传输与客户端恢复逻辑 |
+| `packages/MunieNearby/` | iPhone 与 Mac 共用的有界附近发现与两端明确确认配对 |
 | `packages/MunieCore/` | 可复用的记录模型、持久化和核心测试 |
 | `docs/` | 产品决策、架构、流程、调研和项目状态 |
 | `references/` | 固定版本的第三方索引与忽略提交的源码检出 |

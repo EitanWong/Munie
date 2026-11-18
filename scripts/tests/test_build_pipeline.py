@@ -58,20 +58,27 @@ if configuration == os.environ.get("FAIL_CONFIGURATION"):
         result, commands = self.run_pipeline()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         release = [command for command in commands
-                   if command[command.index("-configuration") + 1] == "Release"]
+                   if command[command.index("-configuration") + 1] == "Release"
+                   and command[command.index("-destination") + 1] == "generic/platform=iOS"]
         self.assertEqual(len(release), 2, "Both the retained and adopted apps must compile Release")
         command = release[0]
         self.assertEqual(command[command.index("-destination") + 1], "generic/platform=iOS")
         self.assertEqual(command[command.index("-scheme") + 1], "Munie")
         self.assertIn("CODE_SIGNING_ALLOWED=NO", command)
         self.assertEqual(command[-1], "build")
-        self.assertEqual(len(commands), 9)
+        self.assertEqual(len(commands), 11)
         adopted = [c for c in commands if c[c.index('-scheme') + 1] == 'MunieRemodex']
         self.assertEqual(len(adopted), 2)
         self.assertTrue(all('-onlyUsePackageVersionsFromResolvedFile' in c for c in commands))
         host = [item for item in commands if item[item.index("-scheme") + 1] == "MunieHost"]
         self.assertEqual(len(host), 1)
         self.assertEqual(host[0][host[0].index("-destination") + 1], "generic/platform=macOS")
+        desktop = [item for item in commands if item[item.index("-scheme") + 1] == "MunieDesktop"]
+        self.assertEqual(len(desktop), 2)
+        self.assertEqual({item[item.index("-configuration") + 1] for item in desktop}, {"Debug", "Release"})
+        self.assertTrue(all(item[item.index("-destination") + 1] == "generic/platform=macOS" for item in desktop))
+        self.assertIn("Synthetic Release build output",
+                      (self.root / "build/macos-desktop-release-build.log").read_text())
         self.assertIn("Synthetic Release build output",
                       (self.root / "build/ios-release-build.log").read_text())
 
@@ -82,7 +89,7 @@ if configuration == os.environ.get("FAIL_CONFIGURATION"):
         self.assertEqual(commands[-1][commands[-1].index("-configuration") + 1], "Release")
         self.assertIn("Synthetic build failure", result.stdout + result.stderr)
         self.assertIn("Synthetic build failure",
-                      (self.root / "build/ios-release-build.log").read_text())
+                      (self.root / "build/macos-desktop-release-build.log").read_text())
         self.assertNotIn("All Apple platform builds passed", result.stdout)
 
     def test_earlier_debug_failure_stops_before_release(self):

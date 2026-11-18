@@ -730,6 +730,9 @@ function startBridge({
   const catalogDeletionScope = config.codexEndpoint ? null : randomBytes(16).toString("hex");
   config.keepMacAwakeEnabled = config.keepMacAwakeEnabled === true;
   const initializeEndpoint = Boolean(config.codexEndpoint) && config.codexEndpointInitialize === true;
+  // Munie: the bundled Mac GUI can initialize its owned native runtime before a phone connects.
+  const initializeForLocalAccount = config.localAccountControlEnabled === true;
+  const initializeOwnedTransport = initializeEndpoint || initializeForLocalAccount;
   const endpointMethods = new Set(
     config.codexEndpoint && Array.isArray(config.codexEndpointMethods)
       ? config.codexEndpointMethods.filter((method) => isBridgeProjectMethod(method)
@@ -1035,7 +1038,7 @@ function startBridge({
   // A stock endpoint initializes once per socket, independently of phone reconnects.
   codex.onStarted(async () => {
     if (isShuttingDown) return;
-    if (initializeEndpoint) {
+    if (initializeOwnedTransport) {
       try {
         await sendCodexRequest("initialize", {
           clientInfo: { name: "remodex", version: bridgePackageVersion },
@@ -1043,6 +1046,7 @@ function startBridge({
         });
         if (isShuttingDown) return;
         codex.send(JSON.stringify({ method: "initialized" }));
+        codexHandshakeState = "warm";
       } catch (error) {
         if (!isShuttingDown) handleCodexTransportError(error);
         return;
@@ -1052,7 +1056,7 @@ function startBridge({
     codexLaunchState = "connected";
     const lastPublishedBridgeStatus = bridgeStatusPublisher.latest();
     if (lastPublishedBridgeStatus) publishBridgeStatus(lastPublishedBridgeStatus);
-    if (initializeEndpoint) beginPairingAndConnectRelay();
+    if (initializeOwnedTransport) beginPairingAndConnectRelay();
   });
 
   function clearReconnectTimer() {
@@ -1261,7 +1265,7 @@ function startBridge({
   }
 
   pushServiceClient.logUnavailable();
-  if (!initializeEndpoint) beginPairingAndConnectRelay();
+  if (!initializeOwnedTransport) beginPairingAndConnectRelay();
 
   codex.onMessage(handleCodexMessage);
   function handleCodexMessage(message) {
@@ -2677,6 +2681,51 @@ function startBridge({
 
   return {
     stop: stopBridge,
+    localPairing: initializeForLocalAccount ? {
+      refresh() {
+        if (isShuttingDown) throw new Error("The bridge is stopping.");
+        pairingSession = {
+          pairingPayload: secureTransport.createPairingPayload(),
+          pairingCode: createShortPairingCode({ length: SHORT_PAIRING_CODE_LENGTH }),
+        };
+        onPairingSession?.(pairingSession);
+        sendRelayRegistrationUpdate(deviceState);
+        return pairingSession;
+      },
+    } : null,
+    // Local process control only. These functions are never registered as relay RPC methods.
+    localAccount: initializeForLocalAccount ? {
+      async read() {
+        const [accountReadResult, authStatusResult] = await Promise.allSettled([
+          sendCodexRequest("account/read", { refreshToken: false }, { timeoutMs: 10_000 }),
+          sendCodexRequest("getAuthStatus", { includeToken: true, refreshToken: true }, { timeoutMs: 10_000 }),
+        ]);
+        return composeSanitizedAuthStatusFromSettledResults({
+          accountReadResult, authStatusResult,
+          loginInFlight: Boolean(pendingAuthLogin.loginId),
+          bridgeVersionInfo: { bridgeVersion: bridgePackageVersion },
+          transportMode: codex.mode,
+        });
+      },
+      async startLogin() {
+        if (pendingAuthLogin.loginId) {
+          return { loginId: pendingAuthLogin.loginId, authUrl: pendingAuthLogin.authUrl };
+        }
+        const result = await sendCodexRequest("account/login/start", { type: "chatgpt" }, { timeoutMs: 10_000 });
+        if (result?.type !== "chatgpt" || typeof result.loginId !== "string" || typeof result.authUrl !== "string") {
+          throw new Error("Codex did not return a browser login flow.");
+        }
+        Object.assign(pendingAuthLogin, { loginId: result.loginId, authUrl: result.authUrl, startedAt: Date.now() });
+        return { loginId: result.loginId, authUrl: result.authUrl };
+      },
+      async cancelLogin() {
+        if (pendingAuthLogin.loginId) {
+          await sendCodexRequest("account/login/cancel", { loginId: pendingAuthLogin.loginId }, { timeoutMs: 10_000 });
+          clearPendingAuthLogin();
+        }
+        return { cancelled: true };
+      },
+    } : null,
   };
 }
 

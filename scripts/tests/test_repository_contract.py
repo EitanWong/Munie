@@ -41,6 +41,14 @@ class PackageContractTests(unittest.TestCase):
     def test_conventional_multiplatform_package_is_accepted(self):
         CHECKER.validate_swift_package(self.package, manifest())
 
+    def test_shared_pairing_requires_its_actual_iphone_and_mac_destinations(self):
+        package = manifest()
+        package['platforms'] = [{'platformName': item} for item in ('ios', 'macos')]
+        CHECKER.validate_swift_package(self.package, package, {'ios', 'macos'})
+        package['platforms'] = [{'platformName': 'macos'}]
+        with self.assertRaisesRegex(ValueError, 'ios'):
+            CHECKER.validate_swift_package(self.package, package, {'ios', 'macos'})
+
     def test_missing_platform_is_reported_before_xcode_build(self):
         package = manifest()
         package["platforms"] = [platform for platform in package["platforms"]

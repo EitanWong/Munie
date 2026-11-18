@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "platform": "darwin-arm64",
+  "node": {
+    "version": "24.22.1",
+    "url": "https://nodejs.org/dist/v24.22.1/node-v24.22.1-darwin-arm64.tar.gz",
+    "sha256": "89c682593d76cd44233fa53b1563264e7de9cbb189cad169135c5b4fadfbc0a7",
+    "checksumSource": "https://nodejs.org/dist/v24.22.1/SHASUMS256.txt"
+  },
+  "codex": {
+    "version": "0.162.1",
+    "url": "https://registry.npmjs.org/@openai/codex/-/codex-0.162.1-darwin-arm64.tgz",
+    "sha256": "fe0370027a05237adc0152b482ad8502321f6f9aff1baca3bfa56588923ba9ad",
+    "integrity": "sha512-YVXpg57itBuQxjofay3KDF5UbnZF4Y1ZmNFzUCz0ZQiQN+DndxOjN5V87rnXvPaC4qCPO2El74DzewoBP8JyPQ==",
+    "sourceCommit": "092d3acd6bec3e3a14bdc7e7a2810ab628ab759d",
+    "licenseSHA256": "d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc"
+  },
+  "distributionReady": false,
+  "distributionBlockers": [
+    "Complete native Codex and bundled ripgrep/zsh/code-mode-host transitive license and notice review before distribution",
+    "Registered product signing identity, nested runtime hardened signing and notarization acceptance",
+    "Existing Remodex dependency and packaged notice distribution gates remain authoritative"
+  ]
+}

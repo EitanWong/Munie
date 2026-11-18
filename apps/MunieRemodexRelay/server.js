@@ -1,3 +1,4 @@
+// Munie modification: optionally bound WebSocket frame bytes for the bundled local Mac relay.
 // FILE: server.js
 // Purpose: Hosts the public Remodex relay plus optional push-notification HTTP endpoints.
 // Layer: Standalone server entrypoint
@@ -25,6 +26,7 @@ function createRelayServer({
   pushSessionService,
   relayOptions = {},
   trustProxy = false,
+  maxPayload,
 } = {}) {
   const runtimeMetrics = createRuntimeMetrics();
   const pushEnabled = Boolean(enablePushService || pushSessionService);
@@ -55,6 +57,7 @@ function createRelayServer({
   const wss = new WebSocketServer({
     noServer: true,
     perMessageDeflate: true,
+    ...(maxPayload === undefined ? {} : { maxPayload }),
   });
   setupRelay(wss, relayOptions);
 

@@ -92,7 +92,7 @@ private struct MunieOnboardingFixtureView: View {
     var body: some View {
         // Exercise the actual five-page flow without constructing CodexService, Keychain stores,
         // scanner or pairing dependencies. External links and terminal callbacks cannot escape.
-        OnboardingView(onScanQRCode: {}, onPairWithCode: {})
+        OnboardingView(onScanQRCode: {}, onPairWithCode: {}, allowsNearbyDiscovery: false)
             .defaultAppStorage(preferences)
             .environment(\.openURL, OpenURLAction { _ in .discarded })
     }

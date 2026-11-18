@@ -4560,6 +4560,262 @@
           }
         }
       }
+    },
+    "Find My Mac": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Find My Mac"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查找我的 Mac"
+          }
+        }
+      }
+    },
+    "Connect to Your Mac": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect to Your Mac"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接你的 Mac"
+          }
+        }
+      }
+    },
+    "Open Munie on your Mac, sign in to Codex, and choose a project. Keep both apps open nearby.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Munie on your Mac, sign in to Codex, and choose a project. Keep both apps open nearby."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Mac 上打开 Munie、登录 Codex 并选择项目。让两台设备靠近，并保持两个 App 打开。"
+          }
+        }
+      }
+    },
+    "Could Not Pair": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could Not Pair"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法配对"
+          }
+        }
+      }
+    },
+    "Check that both apps have Local Network access, then try again. No device was trusted.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check that both apps have Local Network access, then try again. No device was trusted."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请确认两个 App 都已获准访问本地网络，然后重试。本次未信任任何设备。"
+          }
+        }
+      }
+    },
+    "Try Again": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try Again"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重试"
+          }
+        }
+      }
+    },
+    "Compare the Code": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compare the Code"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "核对数字码"
+          }
+        }
+      }
+    },
+    "Check that this exact code appears in Munie on your Mac. Only continue if both codes match.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check that this exact code appears in Munie on your Mac. Only continue if both codes match."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请在 Mac 的 Munie 中核对这组数字。只有两端数字完全一致时才能继续。"
+          }
+        }
+      }
+    },
+    "Codes Match": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codes Match"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "数字一致"
+          }
+        }
+      }
+    },
+    "Approve this iPhone on your Mac.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Approve this iPhone on your Mac."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请在 Mac 上批准此 iPhone。"
+          }
+        }
+      }
+    },
+    "Connecting to Your Mac…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connecting to Your Mac…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在连接你的 Mac…"
+          }
+        }
+      }
+    },
+    "Nearby Macs": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nearby Macs"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "附近的 Mac"
+          }
+        }
+      }
+    },
+    "Looking for Your Mac…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Looking for Your Mac…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在查找你的 Mac…"
+          }
+        }
+      }
+    },
+    "Allow Local Network access when asked. Nearby discovery only shares device names; pairing requires confirmation on both devices.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow Local Network access when asked. Nearby discovery only shares device names; pairing requires confirmation on both devices."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "出现提示时，请允许访问本地网络。附近发现只分享设备名称；配对需要在两台设备上确认。"
+          }
+        }
+      }
+    },
+    "Could Not Connect": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could Not Connect"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法连接"
+          }
+        }
+      }
+    },
+    "Keep Munie open on both devices and try pairing again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep Munie open on both devices and try pairing again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请在两台设备上保持 Munie 打开，然后重新配对。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

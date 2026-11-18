@@ -10,9 +10,11 @@ python3 scripts/check-repository.py
 xcrun swift-format lint --strict --recursive packages/MunieCore/Sources \
   packages/MunieCore/Tests packages/MunieRemote/Sources packages/MunieRemote/Tests \
   Package.swift packages/MunieCore/Package.swift packages/MunieRemote/Package.swift \
+  packages/MunieNearby/Package.swift packages/MunieNearby/Sources packages/MunieNearby/Tests \
   scripts/fixtures/device-identity
 swift test --package-path packages/MunieCore --enable-code-coverage
 swift test --package-path packages/MunieRemote --enable-code-coverage
+swift test --package-path packages/MunieNearby --enable-code-coverage
 swift test --enable-code-coverage
 ./scripts/check-submissions.sh
 swift build --product MunieCodexGuardian
@@ -21,8 +23,12 @@ python3 scripts/probe-product-guardian.py --guardian "$HOST_BIN/MunieCodexGuardi
   --output "$ROOT/build/product-guardian.json"
 swift run --package-path packages/MunieCore MunieCoreSmoke
 ./scripts/benchmark-core.sh
-./scripts/build-apple-platforms.sh
 ./scripts/setup-remodex.sh
+DESKTOP_BUNDLE_RUN="$(mktemp -d "$ROOT/build/desktop-bundle.XXXXXX")"
+export MUNIE_DESKTOP_BUNDLE="$DESKTOP_BUNDLE_RUN/Resources"
+python3 scripts/prepare-desktop-runtime.py --output "$MUNIE_DESKTOP_BUNDLE"
+./scripts/build-apple-platforms.sh
+./scripts/test-desktop.sh
 npm --prefix apps/MunieRemodexBridge test
 npm --prefix apps/MunieRemodexRelay test
 printf 'Quality checks passed; core performance budgets, Apple Debug builds and iOS Release build passed.\n'

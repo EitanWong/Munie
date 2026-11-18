@@ -15,7 +15,21 @@ The safe profile runs the full adopted offline unit target plus `MunieRemodexSmo
 
 `MunieRemodexSmokeTests` launches a DEBUG deterministic fixture using the real `TurnTimelineView`; it displays synthetic messages without network/model, microphone, Keychain or persisted user-history access. This establishes rendering and gestures only. Hosted simulator builds are ad-hoc signed so actual Keychain tests can run. App-hosted tests use a separate DEBUG XCTest Keychain namespace, while opt-in acceptance additionally isolates each UUID. Production Keychain service names remain unchanged.
 
-`MunieOnboardingUITests` uses a separate DEBUG route selected before production services/stores are constructed. It renders the real five-page `OnboardingView` with isolated preferences and inactive external-link, scan and pairing callbacks. English/Simplified Chinese cases check the visible pages, both install-reminder branches, verbatim Mac commands and final entry buttons, retaining screenshots. They do not open the camera, record, follow links, copy to the clipboard or execute commands. Route tests require only the selected factory to run; this is offline UI coverage, separate from actual pairing/device acceptance.
+`MunieOnboardingUITests` uses a separate DEBUG route selected before production services/stores are constructed. It renders the real three-page `OnboardingView` with isolated preferences, inactive external callbacks and nearby discovery explicitly disabled. English/Simplified Chinese cases traverse welcome/features/nearby and verify the connection page has no terminal commands or manual setup controls, retaining screenshots. They do not open the camera, record, follow links or run a radio exchange. Route tests require only the selected factory to run; this is offline UI coverage, separate from actual pairing/device acceptance.
+
+## Native Mac and nearby pairing
+
+Developer-only execution entries:
+
+```sh
+swift test --package-path packages/MunieNearby --enable-code-coverage
+python3 scripts/prepare-desktop-runtime.py
+./scripts/test-desktop.sh
+```
+
+The Mac scheme is `MunieDesktop`, its module stays `MunieDesktop`, and its product is `Munie.app`; the retained capture target uses separate derived data. Complete resources must be assembled first; `MUNIE_DESKTOP_BUNDLE` can select a fresh resource bundle. Tests inject host runtimes and avoid automatic production startup/account login. Actual packaged empty-account startup/login-cancel and helper-crash cleanup probes are separate from fake lifecycle tests. `--verify-cleanup` checks the exact recorded local owner/group without signalling or starting work; missing ownership remains unconfirmed. Packaging fixtures exercise hash corruption, missing/extra files, stale destination removal and symlinks without following external content. Archive/notarization and distribution notices remain independent gates.
+
+Nearby unit tests cover the one-use code exchange, tampering, expiry, replay, bounded callback admission and mailbox overflow. Phone handoff tests exercise actual success ordering, interrupted/late completion and cleanup before retry. Physical acceptance must additionally run Mac discovery, matching codes on both screens, actual existing-relay handoff, restart/reconnect, local-network denial and a changed network address. A synthetic signed resolver with injected DNS is not mDNS/DHCP/device evidence. Away-from-home product connectivity remains unfinished and cannot be accepted from these tests.
 
 With the existing explicit real-model authorization, first create a signed `MunieRemodex` build-for-testing, then invoke:
 
@@ -52,7 +66,7 @@ swift run --package-path packages/MunieCore MunieCoreSmoke
 ./scripts/test-ios.sh
 ```
 
-`check.sh` runs static/repository/localization checks, core, remote and host product/transport/execution tests with coverage, actionlint, the host submission crash experiment, actual guardian process probe, the core smoke executable, Release core performance budgets, generic Debug builds for iOS/iPadOS, macOS capture, macOS host, tvOS, visionOS and watchOS (including the iOS test bundles), and an unsigned generic iOS device Release build. Each platform has a separate `build/*-build.log`. Run `./scripts/build-apple-platforms.sh` to repeat only generation and builds. `test-ios.sh` runs app unit tests and UI smoke tests on the newest available iPhone runtime compatible with the selected Xcode SDK, with explicit per-test time limits (120s default, 180s maximum). Simulator boot has a 240-second limit; the CI simulator step has a 15-minute upper limit. Four fixture tests cover runtime/device selection. Use `IOS_TEST_DESTINATION` to select an explicit destination.
+`check.sh` runs static/repository/localization checks, core/remote/nearby/host tests with coverage, actionlint, the submission crash experiment, actual guardian process probe, core smoke and Release performance budgets. It assembles fresh desktop resources, runs eleven retained/adopted Apple Debug/Release builds, app-hosted Mac tests and bridge/relay tests. Each platform has a separate `build/*-build.log`. Run `./scripts/build-apple-platforms.sh` to repeat only generation and builds with already prepared desktop resources. `test-ios.sh` runs app unit tests and UI smoke tests on the newest available iPhone runtime compatible with the selected Xcode SDK, with explicit per-test time limits (120s default, 180s maximum). Simulator boot has a 240-second limit; the CI simulator step has a 15-minute upper limit. Four fixture tests cover runtime/device selection. Use `IOS_TEST_DESTINATION` to select an explicit destination.
 
 Do not report a build as a UI test, or a simulator run as hardware validation. The integrator records actual outcomes in [project status](project-status.md), with tool versions and environment limits. Hosted workflows need an observed run after a GitHub remote is connected.
 
@@ -76,9 +90,9 @@ No hardware, user-study, remote-task or distribution result is implied by the re
 
 Run `./scripts/benchmark-core.sh` independently for the optimized synthetic store workload. Raw samples, provenance and budgets are defined only in the [performance standard](standards/performance.md). CI retains `build/core-performance*.json` and build logs; host measurements do not establish app search, real-device, voice or remote latency. Ordinary builds include `build/ios-release-build.log`; signing and distribution are still separate.
 
-## Product private network setup
+## Retained developer private-network acceptance
 
-Use a separately installed Tailscale CLI/client and the same private tailnet on Mac and iPhone. The following optional owner-invoked setup creates only the per-user userspace daemon LaunchAgent; it does not enable Funnel, change system DNS/routes, log in on the owner's behalf, or prove cellular reachability:
+This is the earlier developer/owner acceptance path, outside ordinary app onboarding. It uses a separately installed Tailscale CLI/client and the same private tailnet on Mac and iPhone. The following optional owner-invoked setup creates only the per-user userspace daemon LaunchAgent; it does not enable Funnel, change system DNS/routes, log in on the owner's behalf, or prove cellular reachability:
 
 ```sh
 ./scripts/setup-private-network.sh

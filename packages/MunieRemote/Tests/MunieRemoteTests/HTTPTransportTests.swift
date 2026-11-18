@@ -160,6 +160,8 @@
                 (continuation: CheckedContinuation<Void, any Error>) in
                 connection.send(
                   content: response,
+                  contentContext: .finalMessage,
+                  isComplete: true,
                   completion: .contentProcessed { error in
                     if let error {
                       continuation.resume(throwing: error)
@@ -168,7 +170,8 @@
                     }
                   })
               }
-              connection.cancel()
+              // The stack processing the bytes is not the peer receiving them.
+              // Send a TCP FIN after the response; stop() owns connection cleanup.
             }
             return
           }

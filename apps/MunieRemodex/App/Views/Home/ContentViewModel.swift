@@ -293,7 +293,8 @@ final class ContentViewModel {
                     return
                 }
 
-                let isRetryable = codex.isRecoverableTransientConnectionError(error)
+                let quotaBackoff = managedRelayQuotaBackoff(for: error)
+                let isRetryable = quotaBackoff != nil || codex.isRecoverableTransientConnectionError(error)
                     || codex.isBenignBackgroundDisconnect(error)
                     || codex.isRetryableSavedSessionConnectError(error)
 
@@ -304,6 +305,11 @@ final class ContentViewModel {
                     return
                 }
 
+                if quotaBackoff != nil, attempt + 1 >= maxAttempts {
+                    attempt += 1
+                    break
+                }
+
                 codex.lastErrorMessage = nil
                 codex.connectionRecoveryState = .retrying(
                     attempt: attempt + 1,
@@ -311,7 +317,7 @@ final class ContentViewModel {
                 )
 
                 let backoffIndex = min(attempt, autoReconnectBackoffNanoseconds.count - 1)
-                let backoff = autoReconnectBackoffNanoseconds[backoffIndex]
+                let backoff = quotaBackoff ?? autoReconnectBackoffNanoseconds[backoffIndex]
                 attempt += 1
                 await sleepForReconnectBackoff(
                     backoff,
@@ -462,7 +468,8 @@ extension ContentViewModel {
                     throw error
                 }
 
-                let isRetryable = codex.isRecoverableTransientConnectionError(error)
+                let quotaBackoff = managedRelayQuotaBackoff(for: error)
+                let isRetryable = quotaBackoff != nil || codex.isRecoverableTransientConnectionError(error)
                     || codex.isBenignBackgroundDisconnect(error)
                     || codex.isRetryableSavedSessionConnectError(error)
 
@@ -481,7 +488,7 @@ extension ContentViewModel {
                     message: codex.recoveryStatusMessage(for: error)
                 )
                 await sleepForReconnectBackoff(
-                    autoReconnectBackoffNanoseconds[attemptIndex],
+                    quotaBackoff ?? autoReconnectBackoffNanoseconds[attemptIndex],
                     continueWhile: shouldContinue
                 )
                 if Task.isCancelled {
@@ -1006,6 +1013,16 @@ extension ContentViewModel {
         if codex.isConnecting || codex.isConnected || codex.isInitialized {
             await codex.disconnect(preserveReconnectIntent: false)
         }
+    }
+
+    // Let one full pilot issuance window elapse without increasing the reconnect attempt count.
+    private func managedRelayQuotaBackoff(for error: Error) -> UInt64? {
+        #if DEBUG
+        if (error as? ManagedRelayPhoneConnector.Failure) == .challengeQuotaExceeded {
+            return 15_000_000_000
+        }
+        #endif
+        return nil
     }
 
     // Centralizes reconnect sleeps so manual retry can interrupt stale foreground backoff quickly.

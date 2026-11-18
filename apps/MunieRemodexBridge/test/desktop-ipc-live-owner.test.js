@@ -1,4 +1,4 @@
-// Munie modification: wait for IPC initialization before asserting read-state deduplication.
+// Munie modification: synchronize IPC initialization and initial-history cancellation fixtures.
 // FILE: desktop-ipc-live-owner.test.js
 // Purpose: Verifies Remodex-owned Codex streams are exposed to Desktop/VSCode through the local IPC bus.
 // Layer: Unit test
@@ -2083,6 +2083,7 @@ test("live owner cancels initial hydration when the originating turn is rejected
   const { tempDir, socketPath } = createIpcTestSocket("remodex-live-owner-hydrate-rejected-");
   let serverSocket = null;
   let readAttempts = 0;
+  let historyClock = Date.now();
 
   const server = net.createServer((socket) => {
     serverSocket = socket;
@@ -2111,6 +2112,8 @@ test("live owner cancels initial hydration when the originating turn is rejected
     socketPath,
     snapshotDebounceMs: 1,
     initialHistoryRetryMs: 5,
+    // Hold retries until the test delivers the originating response, even if polling runs late.
+    now: () => historyClock,
     async sendCodexRequest(method) {
       if (method === "thread/read") {
         readAttempts += 1;
@@ -2130,11 +2133,13 @@ test("live owner cancels initial hydration when the originating turn is rejected
     },
   }));
   await waitFor(() => readAttempts === 1);
+  assert.equal(owner.isThreadOwned("thread-hydrate-rejected"), true);
   owner.observeOutbound(JSON.stringify({
     id: "turn-start-hydrate-rejected",
     error: { code: -32000, message: "thread not found" },
   }));
 
+  historyClock += 25;
   await waitFor(() => !owner.isThreadOwned("thread-hydrate-rejected"));
   await wait(25);
   assert.equal(readAttempts, 1);

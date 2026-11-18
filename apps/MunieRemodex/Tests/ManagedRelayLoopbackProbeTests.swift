@@ -31,6 +31,7 @@
       service.relayUrl = lanURL
       service.isAppInForeground = false
       service.syncRealtimeEnabled = false
+      service.suspendAutomaticMacScopedPersistence = true
 
       do {
         try await ContentViewModel().connect(
@@ -46,12 +47,28 @@
         XCTAssertEqual(service.relaySessionId, lanSessionID)
         XCTAssertEqual(service.relayUrl, lanURL)
         XCTAssertEqual(service.trustedMacRegistry.records[mac.macDeviceId]?.relayURL, lanURL)
+
+        await service.disconnect()
+        let nextSessionID = UUID().uuidString.lowercased()
+        let nextSocket = "\(lanURL)/\(nextSessionID)"
+        service.activeThreadId = "retained-thread"
+        service.relaySessionId = nextSessionID
+        service.shouldAutoReconnectOnForeground = true
+        try await ContentViewModel().connect(
+          codex: service, serverURL: nextSocket,
+          shouldAttemptManagedFallback: { service.shouldAutoReconnectOnForeground })
+        XCTAssertEqual(service.connectedServerIdentity, nextSocket)
+        XCTAssertEqual(service.activeThreadId, "retained-thread")
+        XCTAssertEqual(service.secureSession?.macDeviceId, mac.macDeviceId)
+        XCTAssertEqual(service.relaySessionId, nextSessionID)
+        XCTAssertNotNil(service.managedRelayAttemptID)
+        XCTAssertTrue(service.isInitialized)
       } catch {
         await service.disconnect()
         throw error
       }
       await service.disconnect()
-      XCTAssertEqual(service.relaySessionId, lanSessionID)
+      XCTAssertNotEqual(service.relaySessionId, lanSessionID)
     }
 
     private struct Fixture: Decodable {

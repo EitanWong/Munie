@@ -184,6 +184,80 @@ final class TurnViewModelQueueTests: XCTestCase {
         XCTAssertEqual(message?.deliveryState.rawValue, "unconfirmed")
     }
 
+    func testResumeDoesNotReplayQueuedTurnAfterOversizedRelayResponse() async {
+        let service = makeService()
+        service.isConnected = true
+        service.syncRealtimeEnabled = false
+        let threadID = "thread-queue"
+        let viewModel = makeViewModel()
+        let draft = makeDraft(text: "append once")
+        service.queuedTurnDraftsByThread[threadID] = [draft]
+        var starts = 0
+        service.requestTransportOverride = { method, params in
+            if let response = self.ancillaryRuntimeResponse(method: method, params: params) { return response }
+            XCTAssertEqual(method, "turn/start")
+            starts += 1
+            throw self.relayTurnStartResponseError(code: "relay_response_too_large")
+        }
+
+        viewModel.flushQueueIfPossible(codex: service, threadID: threadID)
+        await waitForSendCompletion(viewModel)
+
+        XCTAssertEqual(starts, 1)
+        XCTAssertTrue(viewModel.isQueuePaused(codex: service, threadID: threadID))
+        XCTAssertEqual(viewModel.queuedCount(codex: service, threadID: threadID), 0)
+        let messages = service.messages(for: threadID).filter { $0.role == .user }
+        XCTAssertEqual(messages.map(\.text), [draft.text])
+        XCTAssertEqual(messages.first?.deliveryState, .unconfirmed)
+
+        service.clearRunningState(for: threadID)
+        viewModel.resumeQueueAndFlushIfPossible(codex: service, threadID: threadID)
+        await waitForSendCompletion(viewModel)
+        XCTAssertEqual(starts, 1, "Resuming the queue must not resend a possibly accepted turn")
+    }
+
+    func testDirectSendDoesNotRestoreDraftAfterOversizedRelayResponse() async {
+        await assertDirectSendAfterRelayResponse(code: "relay_response_too_large", expectsUnconfirmed: true)
+    }
+
+    func testDirectSendRestoresDraftAfterDifferentRelayErrorWithSameMessage() async {
+        await assertDirectSendAfterRelayResponse(code: "relay_reply_limit", expectsUnconfirmed: false)
+    }
+
+    private func assertDirectSendAfterRelayResponse(code: String, expectsUnconfirmed: Bool) async {
+        let service = makeService()
+        service.isConnected = true
+        service.syncRealtimeEnabled = false
+        let threadID = "thread-queue"
+        let viewModel = makeViewModel()
+        let prompt = "append once"
+        viewModel.input = prompt
+        var starts = 0
+        service.requestTransportOverride = { method, params in
+            if let response = self.ancillaryRuntimeResponse(method: method, params: params) { return response }
+            XCTAssertEqual(method, "turn/start")
+            starts += 1
+            throw self.relayTurnStartResponseError(code: code)
+        }
+
+        viewModel.sendTurn(codex: service, threadID: threadID)
+        await waitForSendCompletion(viewModel)
+
+        XCTAssertEqual(starts, 1)
+        XCTAssertEqual(viewModel.input, expectsUnconfirmed ? "" : prompt)
+        let messages = service.messages(for: threadID).filter { $0.role == .user }
+        XCTAssertEqual(messages.map(\.text), [prompt])
+        XCTAssertEqual(messages.first?.deliveryState, expectsUnconfirmed ? .unconfirmed : .failed)
+    }
+
+    private func relayTurnStartResponseError(code: String) -> CodexServiceError {
+        .rpcError(RPCError(
+            code: -32000,
+            message: "The response could not fit the current connection.",
+            data: .object(["errorCode": .string(code)])
+        ))
+    }
+
     func testResumeQueueClearsPauseState() {
         let service = makeService()
         service.isConnected = false

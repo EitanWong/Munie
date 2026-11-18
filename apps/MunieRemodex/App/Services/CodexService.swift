@@ -782,6 +782,10 @@ final class CodexService {
     @ObservationIgnored var gptAccountLoginSyncTask: Task<Void, Never>?
     var postConnectSyncToken: UUID?
     var connectedServerIdentity: String?
+    // Remember the authenticated peer across socket teardown without retaining session keys.
+    @ObservationIgnored var lastInitializedMacIdentity: ConnectionMacIdentity?
+    // The attempted pairing pin may preserve retry intent, but is not proof of a connection.
+    @ObservationIgnored var lastLANAttemptMacIdentity: ConnectionMacIdentity?
     // Tracks whether the bridge is proxying a real Codex endpoint or a spawned local app-server.
     var codexTransportMode: CodexRuntimeTransportMode = .unknown
     var bridgeHostPlatform: CodexBridgeHostPlatform {

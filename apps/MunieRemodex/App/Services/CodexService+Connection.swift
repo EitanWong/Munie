@@ -10,6 +10,11 @@ import Network
 import UIKit
 
 extension CodexService {
+    struct ConnectionMacIdentity: Equatable {
+        let deviceId: String
+        let publicKey: String
+    }
+
     // Only close codes that prove the saved pairing/session can no longer be reused
     // should force a QR reset. A `4003` replaces an older mobile socket with a newer one,
     // so it must preserve pairing and follow the reconnect path.
@@ -61,11 +66,7 @@ extension CodexService {
         let normalizedServerURL = serverURL.trimmingCharacters(in: .whitespacesAndNewlines)
         let url = try validateConnectionURL(normalizedServerURL)
         try await requestLocalNetworkAuthorizationIfNeeded(for: url)
-        let serverIdentity = canonicalServerIdentity(for: url)
-        if let previousIdentity = connectedServerIdentity, previousIdentity != serverIdentity {
-            resetThreadRuntimeStateForServerSwitch()
-        }
-        connectedServerIdentity = serverIdentity
+        bindLANEndpointForConnection(url)
 
         let trimmedToken = token.trimmingCharacters(in: .whitespacesAndNewlines)
         let transport: CodexWebSocketTransport
@@ -223,6 +224,9 @@ extension CodexService {
     #endif
 
     private func finishConnection(performInitialSync: Bool) {
+        lastInitializedMacIdentity = secureSession.map {
+            ConnectionMacIdentity(deviceId: $0.macDeviceId, publicKey: $0.macIdentityPublicKey)
+        }
         lastErrorMessage = nil
         flushPendingReplayDiscontinuityHistoryRefresh()
         shouldAutoReconnectOnForeground = false
@@ -801,7 +805,9 @@ extension CodexService {
     }
 
     // Clears volatile runtime state on server switch.
-    func resetThreadRuntimeStateForServerSwitch() {
+    func resetThreadRuntimeStateForServerSwitch(preserveReconnectIntent: Bool = false) {
+        lastInitializedMacIdentity = nil
+        lastLANAttemptMacIdentity = nil
         resetRuntimeSettingsSyncState()
         activeThreadId = nil
         activeTurnId = nil
@@ -842,8 +848,10 @@ extension CodexService {
         pendingNotificationOpenThreadID = nil
         clearTransientConnectionPrompts()
         endBackgroundRunGraceTask(reason: "server-switch")
-        shouldAutoReconnectOnForeground = false
-        connectionRecoveryState = .idle
+        if !preserveReconnectIntent {
+            shouldAutoReconnectOnForeground = false
+            connectionRecoveryState = .idle
+        }
         supportsStructuredSkillInput = true
         supportsStructuredMentionInput = true
         supportsTurnCollaborationMode = false
@@ -1084,6 +1092,27 @@ extension CodexService {
         }
 
         return false
+    }
+
+    func bindLANEndpointForConnection(_ url: URL) {
+        let endpoint = canonicalServerIdentity(for: url)
+        let trustedMac = hasTrustedReconnectContext ? currentTrustedMacRecord : nil
+        let attemptedMac = trustedMac.map {
+            ConnectionMacIdentity(deviceId: $0.macDeviceId, publicKey: $0.macIdentityPublicKey)
+        }
+        let previousMac = lastInitializedMacIdentity ?? lastLANAttemptMacIdentity
+        if let previousMac, let attemptedMac, previousMac != attemptedMac {
+            resetThreadRuntimeStateForServerSwitch()
+        } else if let previousEndpoint = connectedServerIdentity, previousEndpoint != endpoint,
+                  attemptedMac == nil || lastInitializedMacIdentity != attemptedMac {
+            // Before authentication, a matching pairing pin may keep the retry alive,
+            // but does not preserve the prior connection's runtime state.
+            resetThreadRuntimeStateForServerSwitch(
+                preserveReconnectIntent: attemptedMac != nil && lastLANAttemptMacIdentity == attemptedMac
+            )
+        }
+        connectedServerIdentity = endpoint
+        lastLANAttemptMacIdentity = attemptedMac
     }
 
     func canonicalServerIdentity(for url: URL) -> String {

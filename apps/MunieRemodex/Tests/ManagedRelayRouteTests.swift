@@ -8,6 +8,64 @@
   final class ManagedRelayRouteTests: XCTestCase {
     nonisolated deinit {}
 
+    func testRotatedMacKeyResetsThreadAndReconnectIntentEvenAtSameEndpoint() throws {
+      let service = CodexService()
+      let endpoint = try XCTUnwrap(URL(string: "ws://lan.example:80/relay/session"))
+      let mac = CodexTrustedMacRecord(
+        macDeviceId: "fixture-mac", macIdentityPublicKey: "replacement-key", lastPairedAt: .now)
+      service.relayUrl = "ws://lan.example:80/relay"
+      service.relaySessionId = "session"
+      service.relayMacDeviceId = mac.macDeviceId
+      service.currentTrustedMacDeviceId = mac.macDeviceId
+      service.trustedMacRegistry = CodexTrustedMacRegistry(records: [mac.macDeviceId: mac])
+      service.lastInitializedMacIdentity = .init(deviceId: mac.macDeviceId, publicKey: "old-key")
+      service.connectedServerIdentity = service.canonicalServerIdentity(for: endpoint)
+      service.activeThreadId = "old-thread"
+      service.shouldAutoReconnectOnForeground = true
+
+      service.bindLANEndpointForConnection(endpoint)
+
+      XCTAssertNil(service.activeThreadId)
+      XCTAssertNil(service.lastInitializedMacIdentity)
+      XCTAssertFalse(service.shouldAutoReconnectOnForeground)
+    }
+
+    func testSamePinColdRetryAfterLANSessionChangeKeepsIntentWithoutAssumingReadiness() async throws {
+      let service = CodexService()
+      let lanURL = "ws://lan.example:80/relay"
+      let mac = CodexTrustedMacRecord(
+        macDeviceId: "fixture-mac", macIdentityPublicKey: "fixture-key", lastPairedAt: .now)
+      service.relayUrl = lanURL
+      service.relaySessionId = "first-session"
+      service.relayMacDeviceId = mac.macDeviceId
+      service.currentTrustedMacDeviceId = mac.macDeviceId
+      service.trustedMacRegistry = CodexTrustedMacRegistry(records: [mac.macDeviceId: mac])
+      service.shouldAutoReconnectOnForeground = true
+      service.bindLANEndpointForConnection(try XCTUnwrap(URL(string: "\(lanURL)/first-session")))
+      XCTAssertNil(service.lastInitializedMacIdentity)
+
+      service.activeThreadId = "unverified-thread"
+      service.relaySessionId = "next-session"
+      let endpoint = try XCTUnwrap(URL(string: "\(lanURL)/next-session"))
+      var fallbackCount = 0
+      try await ContentViewModel.connectWithManagedFallback(
+        shouldContinue: { service.shouldAutoReconnectOnForeground }
+      ) { reportUnreachable in
+        service.bindLANEndpointForConnection(endpoint)
+        reportUnreachable()
+        throw NWError.posix(.ECONNREFUSED)
+      } managed: {
+        fallbackCount += 1
+      }
+
+      XCTAssertEqual(fallbackCount, 1)
+      XCTAssertTrue(service.shouldAutoReconnectOnForeground)
+      XCTAssertNil(service.activeThreadId)
+      XCTAssertNil(service.lastInitializedMacIdentity)
+      XCTAssertFalse(service.isConnected)
+      XCTAssertFalse(service.isInitialized)
+    }
+
     func testManagedSocketRequiresAnEncryptedResponseForPendingRPC() async throws {
       let service = CodexService()
       let key = SymmetricKey(size: .bits256)

@@ -2914,6 +2914,11 @@ extension CodexService {
     private func isUnconfirmedTurnDelivery(_ error: Error) -> Bool {
         guard let serviceError = error as? CodexServiceError,
               case .rpcError(let rpcError) = serviceError else { return true }
+        // The relay can replace a reply after the runtime has already accepted the turn.
+        if rpcError.code == -32000,
+           rpcError.data?.objectValue?["errorCode"]?.stringValue == "relay_response_too_large" {
+            return true
+        }
         return rpcError.message == "Could not continue this Codex Desktop-owned thread from the phone."
     }
 

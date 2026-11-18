@@ -1,10 +1,18 @@
 # 设备信任、主机服务与知情审批
 
-日期：2026-11-18。状态：**首个 iPhone–Mac 产品切片的实现决策；实际设备、网络与分发验收分别记录**。关联 R01/R02/R03/R06/R07/R08/R09/R16/R18/R19。任务状态唯一见[远程决策](remote-agent-foundation.md#task-state-contract)，实现边界见[架构](../architecture.md)，执行证据见[项目状态](../project-status.md)，官方来源、替代方案和许可证见[产品实现依据](../../references/product-remote-implementation.md)。本页取代“必须先完成持久 mTLS 身份才能接入产品”的实施顺序；既有身份研究与失败证据保留，不作为整个产品的合并前置条件。
+日期：2026-11-18。状态：**采用完整 Remodex 与原生双 App；保留早期 Swift HTTPS 检查点的决策依据**。关联 R01/R02/R03/R06/R07/R08/R09/R16/R18/R19。任务状态唯一见[远程决策](remote-agent-foundation.md#task-state-contract)，实现边界见[架构](../architecture.md)，执行证据见[项目状态](../project-status.md)。本页取代“必须先完成持久 mTLS 身份才能接入产品”的实施顺序；既有身份研究与失败证据保留，不作为整个产品的合并前置条件。
 
-## 当前选择与可信边界
+## 当前产品选择
 
-当前产品选择 **iPhone 原生 HTTPS → 同一执行 Mac 上的 Tailscale Serve → `127.0.0.1:9274` 的 Swift HTTP listener → 本机 Codex**。两端需要已授权的私有 tailnet 连接，Tailscale 是单独安装、登录和配置的可信主机服务。Serve 在这台 Mac 终止 TLS；其后的同机 loopback hop 是 HTTP，不能称为一直加密到 Swift actor 的 TLS 或经过其他终止代理的端到端加密。不使用公网 Funnel，不开明文 LAN listener，不把 `Tailscale-*`/forwarded headers 当成应用设备身份。尾网访问规则限制网络到达范围；应用仍要求每设备独立的高熵 bearer grant。
+所有者明确选择完整 Remodex 底座，并要求普通用户只安装 Mac/iPhone 两个 App。因而主产品复用其既有加密传输、设备信任和 native Codex 控制，在原生 Mac 容器内管理运行依赖、登录、项目和进程。附近发现只负责找设备；双端显式核对代码后才交付原有配对 bootstrap，不能把设备名称或网络可达当成授权。Mac 账户操作留在本地控制通道，既有项目策略与审批继续生效。来源与许可见[移植依据](../../references/remodex-adoption.md)及[打包运行时](../../references/desktop-product-runtime.md)，具体协议/进程所有权只在[架构](../architecture.md)维护。
+
+新 App 的当前网络范围是附近私有 LAN 上的应用层端到端加密，不宣称公网 HTTPS、用户无需设置的外出网络已经存在。Tailscale 保留为先前开发者验收通道，不能再作为普通用户必须自行安装和配置的步骤。最低权限、知情审批、取消确认及不盲重发的原则继续适用；旧 Swift bearer/schema 的具体字段与凭据生命周期不自动套用到 Remodex。
+
+## 保留 Swift 检查点的可信边界
+
+以下配对、schema 1、服务和 mTLS 演进细节属于保留的 `MunieHost` / `MunieRemote` 检查点及独立研究，不是当前 Remodex 的实现声明。[产品实现依据](../../references/product-remote-implementation.md)保留其来源与备选方案。
+
+保留检查点选择 **iPhone 原生 HTTPS → 同一执行 Mac 上的 Tailscale Serve → `127.0.0.1:9274` 的 Swift HTTP listener → 本机 Codex**。两端需要已授权的私有 tailnet 连接，Tailscale 是单独安装、登录和配置的可信主机服务。Serve 在这台 Mac 终止 TLS；其后的同机 loopback hop 是 HTTP，不能称为一直加密到 Swift actor 的 TLS 或经过其他终止代理的端到端加密。不使用公网 Funnel，不开明文 LAN listener，不把 `Tailscale-*`/forwarded headers 当成应用设备身份。尾网访问规则限制网络到达范围；应用仍要求每设备独立的高熵 bearer grant。
 
 选择现有私有 HTTPS 服务是为了让完整 iPhone 路径先成为可运行产品，避免先实现 issuer、CSR、跨平台证书续期和自建 relay。它并不证明 Watch 能独立使用这条网络；Watch 不继承 iPhone VPN 的假设仍有效，其短任务/反馈和独立网络保持后续单独范围。Mac 睡眠、退出登录或服务停止时明确不可达，不改电源设置，不承诺自动唤醒。
 

@@ -11,16 +11,17 @@ The new `MunieDesktop` Mac companion owns bundled Node/Codex, the existing Remod
 This new path is currently a nearby network product slice. It does not configure public infrastructure, enroll a VPN, or turn LAN acceptance into cellular acceptance. The private Tailscale path below is retained developer/acceptance infrastructure, not a required setup step in the new ordinary-user onboarding.
 
 ```text
-MunieRemodex / ContentView → CodexService → authenticated E2EE WebSocket
-                        ↓ private Tailscale Serve HTTPS :8443
-                 loopback relay 127.0.0.1:9275
-                        ↓ encrypted session → local Mac bridge
-                 project-scope policy → native Codex app-server
+Munie iPhone ← nearby discovery / matching-code confirmation → Munie Mac
+      ↓ existing Remodex v2 bootstrap                         ↓ local JSONL
+CodexService → authenticated E2EE WebSocket over private LAN → supervised worker
+                                                             relay + Mac bridge
+                                                                  ↓
+                                                    project policy → native Codex
 ```
 
 The complete client, bridge and relay source are adopted at the fixed revision in [adoption](../references/remodex-adoption.md). `MunieRemodex` is the primary iPhone scheme; upstream conversation/rendering/git/recovery APIs are retained. Self-host use removes the commercial subscription gate and upstream hosted endpoints. Branding uses Munie; unverified Ghostty libraries, Mermaid bundle, fonts and marks are excluded with visible fallbacks. Existing tests are retained and run through the new scheme rather than inferred from compilation.
 
-The explicit foreground launcher selects one canonical authorized project, a specific native executable and private state/Codex-home paths. Bridge and relay remain separate processes; the relay binds loopback and the advertised URL is independently configured. Account credentials are neither QR fields nor mobile messages. The imported protocol has different trust, history and execution semantics from the earlier native ledger; its tests and real acceptance must establish those properties independently. See [project status](project-status.md) for current gaps. The old native modules remain available for comparison and rollback, without being placed underneath the new bridge.
+The retained developer foreground launcher selects one canonical authorized project, a specific native executable and private state/Codex-home paths. In that acceptance launcher, bridge and relay are separate processes; the relay binds loopback and private Tailscale Serve exposes HTTPS :8443 to :9275. The new desktop worker instead owns the bridge and relay together, binding loopback plus one private LAN address and persisting the relay port for trusted resolution after restart. Account credentials are neither pairing fields nor mobile messages. The imported protocol has different trust, history and execution semantics from the earlier native ledger; its tests and real acceptance must establish those properties independently. See [project status](project-status.md) for current gaps. The old native modules remain available for comparison and rollback, without being placed underneath the new bridge.
 
 The bridge checks the native method and authorized project before forwarding requests. Its cancellation controller binds a native thread, turn and command item from observed native events: interrupting a turn does not by itself terminate a yielded shell. A bounded ownership index survives relay reconnects; the pinned runtime rejects item-history RPCs despite exporting their schemas. The controller queries background terminals, terminates only those belonging to that exact turn and confirms their disappearance. Unknown or conflicting ownership holds terminal publication and same-thread mutations until cleanup can be confirmed. It never accepts a phone-supplied process ID. Exact tested capabilities for this implementation are separate from the retained adapter in the [versioned coverage record](../references/codex-product-coverage.json).
 

@@ -1,6 +1,6 @@
 # 随身 Agent 前台与自有 Codex 执行端
 
-日期：2026-11-18。状态：接受；产品采用私有 Tailscale HTTPS、Mac 确认的设备 bearer 与受监督的原生执行服务。具体信任选择见[设备信任与主机服务](device-trust-and-host-service.md)，实际验收见[项目状态](../project-status.md)。产品范围以[需求](../requirements.md)为准；工程结构选择见[原生工程决策](native-apple-foundation.md)。
+日期：2026-11-18。状态：接受；主产品采用完整 Remodex 与原生双 App，早期 Swift/Tailscale HTTPS 实现保留为检查点。具体信任选择见[设备信任与主机服务](device-trust-and-host-service.md)，实际验收见[项目状态](../project-status.md)。产品范围以[需求](../requirements.md)为准；工程结构选择见[原生工程决策](native-apple-foundation.md)。
 
 ## 背景与依据
 
@@ -19,7 +19,7 @@ iPhone / Watch 原生入口（语音、文字；后续图片/视频）
   → 实际执行事件/结果 → 原任务摘要/系统通知
 ```
 
-iPhone–Mac 的文字/短语音与任务控制子集已按该边界连接；Watch、媒体和额外 harness 仍是后续范围。后端设计面向不同 harness，首个实现以 Codex 完整原生能力为基准；公共语义、capability 协商与原生扩展契约唯一维护在[Harness 规范](../standards/harness-integration.md)。自己的服务器是部署位置，Claude Code/Pi/Hermes/OpenClaw 等是执行器，两者独立；不能用 hostID 代替 harness 身份。只在实际实现共享行为时抽 package，避免先造空框架。保留自己的原生前台，不整仓 fork 第三方客户端；来源由[引用登记](../../references/README.md)维护，当前没有采用第三方运行时代码。
+iPhone–Mac 的文字/短语音与任务控制子集已按该边界连接；Watch、媒体和额外 harness 仍是后续范围。后端设计面向不同 harness，首个实现以 Codex 完整原生能力为基准；公共语义、capability 协商与原生扩展契约唯一维护在[Harness 规范](../standards/harness-integration.md)。自己的服务器是部署位置，Claude Code/Pi/Hermes/OpenClaw 等是执行器，两者独立；不能用 hostID 代替 harness 身份。只在实际实现共享行为时抽 package，避免先造空框架。所有者后续明确采用完整 Remodex 客户端/bridge/relay，并以 Munie 品牌定制；这取代此前仅自建窄协议前台的选择。固定源码、原作者署名、许可证及修改边界见[移植记录](../../references/remodex-adoption.md)。
 
 app 负责交互、权限请求、可恢复输入和设备凭据的安全保存；当前 Mac gateway 负责授权、执行主机与项目映射、持久请求状态和受限事件流；Codex adapter 负责上游版本/schema 与错误映射。语音理解/视觉预处理是输入层，不能代替真实执行、伪造工具结果或绕过审批。原始音视频默认不进入执行日志。
 
@@ -27,7 +27,7 @@ app 负责交互、权限请求、可恢复输入和设备凭据的安全保存�
 
 ## 状态契约与协议演进
 
-当前协议 v1 是单 Mac、单 Codex、固定业务操作：HTTPS origin、配对 hostID 与 bearer 共同绑定主机；请求携带 `protocolVersion`、`requestID`、允许的 `projectID`、操作和受限 payload，主机维护原生 `threadID`/`turnID`。手机通过有界权威快照恢复，不实现事件 journal/cursor。身份来自认证会话，不能相信 payload 自报的设备身份。未来多 host/harness 协议再显式增加 `hostID`/`harnessID` 命名空间与能力协商；若引入事件流，另实现 `streamID`、单调 `sequence`、cursor/epoch及缺口恢复，不能把这些设计字段说成当前已经存在。
+下表定义概念状态，不能把产品接收请求或原生 ACK 当成执行/取消完成。Remodex 的实际协议与能力映射见[架构](../architecture.md)及[能力记录](../../references/codex-product-coverage.json)。保留的原生协议 v1 是单 Mac、单 Codex、固定业务操作：HTTPS origin、配对 hostID 与 bearer 共同绑定主机；请求携带 `protocolVersion`、`requestID`、允许的 `projectID`、操作和受限 payload，主机维护原生 `threadID`/`turnID`。其手机通过有界权威快照恢复，不实现事件 journal/cursor。身份来自认证会话，不能相信 payload 自报的设备身份。未来多 host/harness 协议再显式增加 `hostID`/`harnessID` 命名空间与能力协商；若引入事件流，另实现 `streamID`、单调 `sequence`、cursor/epoch及缺口恢复，不能把这些设计字段说成当前已经存在。
 
 | 本项目状态 | 进入条件 / UI 语义 |
 |---|---|

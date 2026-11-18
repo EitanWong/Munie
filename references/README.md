@@ -30,6 +30,7 @@ transitive dependencies, media, models, trademarks or SDK terms.
 
 ## Current mechanism research
 
+- [Native desktop product runtime](desktop-product-runtime.md): bundled Node/Codex provenance, actual GUI/bridge boundary, nearby pairing, developer-only packaging and unresolved distribution/away-mode gates.
 - [Remodex source adoption](remodex-adoption.md): exact copied source inventory, Swift/npm locks, exclusions, retained notices and individual unresolved redistribution items.
 - [iPhone–Mac product implementation](product-remote-implementation.md): official native networking/login-item/input/notification APIs, Tailscale Serve trust boundary and version/license provenance, mature HTTP alternatives and explicit unexecuted device/network limits.
 - [Native entry and remote Codex](entry-point-research.md): official protocol, pairing/replay and pinned Remodex/Chums/OpenVision source observations.

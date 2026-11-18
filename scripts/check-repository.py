@@ -105,12 +105,13 @@ def validate_documentation(root):
             ', '.join(str(path.relative_to(docs)) for path in sorted(orphans)))
 
 
-def validate_swift_package(package_root, manifest):
+def validate_swift_package(package_root, manifest, required_platforms=None):
     """Reject local packages that silently drop a shipping platform or conventional source roots."""
     platforms = {item['platformName'] for item in manifest.get('platforms', [])}
-    require(APPLE_PLATFORMS <= platforms,
+    required_platforms = APPLE_PLATFORMS if required_platforms is None else required_platforms
+    require(required_platforms <= platforms,
             f'{package_root.name} must declare every Apple platform: '
-            f'{", ".join(sorted(APPLE_PLATFORMS - platforms))}')
+            f'{", ".join(sorted(required_platforms - platforms))}')
     for target in manifest['targets']:
         # Local shipping packages use SwiftPM's standard Sources/Tests layout.
         # The root host-only presentation harness intentionally uses custom app paths.
@@ -128,7 +129,10 @@ def check_swift_packages(root):
     for manifest in manifests:
         result = subprocess.run(['swift', 'package', '--package-path', str(manifest.parent),
                                  'dump-package'], check=True, text=True, capture_output=True)
-        validate_swift_package(manifest.parent, json.loads(result.stdout))
+        # This shared pairing package is consumed only by the iPhone and Mac
+        # targets. Declaring Watch/TV/Vision would imply unimplemented support.
+        required = {'ios', 'macos'} if manifest.parent.name == 'MunieNearby' else APPLE_PLATFORMS
+        validate_swift_package(manifest.parent, json.loads(result.stdout), required)
 
 
 def validate_xcode_project(project):

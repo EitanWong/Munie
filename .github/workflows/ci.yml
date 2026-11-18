@@ -56,9 +56,12 @@ jobs:
             build/core-performance*.json
             packages/MunieCore/.build/debug/codecov/
             packages/MunieRemote/.build/debug/codecov/
+            packages/MunieNearby/.build/debug/codecov/
             build/product-guardian.json
             .build/debug/codecov/
             build/ios-tests.*/Results.xcresult
+            build/desktop-tests.*/Results.xcresult
+            build/desktop-bundle.*/Resources/Runtime/manifest.json
             build/remodex-ios-tests.*/
           include-hidden-files: true
           if-no-files-found: ignore

@@ -10,12 +10,13 @@ The adopted app is in acceptance testing. Its main controls have English and Sim
 
 ## Connect iPhone and Mac
 
-1. Install Node.js 22+ and a native Codex executable on the Mac. Run `./scripts/setup-remodex.sh` to install locked dependencies without lifecycle scripts.
-2. Prepare private directories on the Mac with `mkdir -m 700 -p "$HOME/Library/Application Support/MunieRemodex/state" "$HOME/Library/Application Support/MunieRemodex/codex-home"`, then sign in locally with `CODEX_HOME="$HOME/Library/Application Support/MunieRemodex/codex-home" /absolute/path/to/codex login`. Start `./scripts/run-remodex-local.sh --codex /absolute/path/to/codex --project /absolute/authorized/project --state-dir "$HOME/Library/Application Support/MunieRemodex/state" --codex-home "$HOME/Library/Application Support/MunieRemodex/codex-home" --advertise-relay wss://YOUR_HOST:8443`. Reuse these paths to retain pairing identity and native history. Without explicit paths the launcher creates a fresh private state/account. Startup submits no task.
-3. Enroll the Mac and iPhone in the same private Tailscale network. On the Mac, configure Serve HTTPS on port 8443 to the loopback relay at `127.0.0.1:9275`; the iPhone connects through Tailscale. The launcher does not enroll an account or change Serve. Keep the Mac reachable and awake.
-4. Build the `MunieRemodex` Xcode scheme, scan the launcher's QR code, then open the granted project and send a task. The client authenticates the scanned Mac identity and encrypts relay messages end to end. Credentials stay on the Mac.
+The product setup is two apps: Munie on your Mac and Munie on your iPhone. In the new local desktop build:
 
-The launcher preserves the earlier checkpoint service on port 9274. No TestFlight delivery, completed bilingual UX, microphone or background-push acceptance is implied by this setup. The [development guide](docs/development.md) and [testing guide](docs/testing.md) distinguish the adopted and retained schemes.
+1. Open Munie on the Mac, sign in to Codex in the browser when prompted, and use the default workspace or choose a project folder.
+2. Open Munie on the iPhone and choose the automatically discovered Mac.
+3. Compare the code on both screens and confirm the pairing. Then start a task from the phone.
+
+Dependencies, local service startup and connection details belong inside the Mac app. Ordinary setup has no terminal commands, npm installation or server-address fields. Nearby connections are the current product slice; away-from-home automatic connectivity remains unfinished. Local build/acceptance and distribution limits are recorded in [project status](docs/project-status.md). Installable public releases are not yet available; [development](docs/development.md) contains developer-only build and retained network diagnostics.
 
 ## Start developing
 
@@ -39,12 +40,14 @@ Documentation uses topic names and indexes, with one authoritative source per to
 | Path | Responsibility |
 |---|---|
 | `apps/MunieRemodex/` | Primary adopted native iPhone app, unit/UI tests and notices |
+| `apps/MunieDesktop/`, `apps/MunieDesktopTests/` | Native Mac companion, bundled execution lifecycle and offline app tests |
 | `apps/MunieRemodexBridge/`, `apps/MunieRemodexRelay/` | Adopted Mac bridge and private self-hosted relay |
 | `apps/Munie/` | Retained native multi-destination checkpoint and resources |
 | `apps/MunieWatch/` | Watch-specific interaction in a separate watchOS app target |
 | `apps/MunieTests/`, `apps/MunieUITests/` | App unit and iOS UI test targets |
 | `apps/MunieMacHost/`, `apps/MunieHost/` | Native Mac host UI, supervised execution, ledger and transport |
 | `packages/MunieRemote/` | Shared protocol, bounded transport and client recovery |
+| `packages/MunieNearby/` | Bounded, explicitly confirmed nearby discovery and pairing shared by iPhone and Mac |
 | `packages/MunieCore/` | Reusable capture models, durable storage and core tests |
 | `docs/` | Product decisions, architecture, workflow, research and project status |
 | `references/` | Pinned third-party registry and ignored source checkouts |

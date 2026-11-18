@@ -16,6 +16,8 @@ packages:
     path: packages/MunieCore
   MunieRemote:
     path: packages/MunieRemote
+  MunieNearby:
+    path: packages/MunieNearby
   MunieHostRuntime:
     path: .
   RemodexTextKit:
@@ -51,6 +53,7 @@ targets:
       - path: apps/MunieRemodex/Resources
         excludes: [Info.plist]
     dependencies:
+      - package: MunieNearby
       - package: RemodexTextKit
       - package: Runestone
       - package: Citadel
@@ -177,6 +180,48 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME[sdk=appletv*]: ''
         ASSETCATALOG_COMPILER_APPICON_NAME[sdk=xr*]: ''
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+  MunieDesktop:
+    type: application
+    platform: macOS
+    sources:
+      - path: apps/MunieDesktop
+      - path: apps/Munie/Resources/Assets.xcassets
+    dependencies:
+      - package: MunieNearby
+    configFiles:
+      Debug: config/Signing.xcconfig
+      Release: config/Signing.xcconfig
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.munie.desktop
+        PRODUCT_NAME: Munie
+        PRODUCT_MODULE_NAME: MunieDesktop
+        ARCHS: arm64
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Munie
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: Find your iPhone and securely pair with it when you choose to connect.
+        INFOPLIST_FILE: config/Desktop-Info.plist
+        ENABLE_APP_SANDBOX: NO
+        ENABLE_HARDENED_RUNTIME: YES
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+    postBuildScripts:
+      - name: Embed verified Munie execution resources
+        script: python3 "$SRCROOT/scripts/embed-desktop-runtime.py"
+        basedOnDependencyAnalysis: false
+  MunieDesktopTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources: [apps/MunieDesktopTests]
+    dependencies:
+      - target: MunieDesktop
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.munie.desktop.tests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/Munie.app/Contents/MacOS/Munie
   MunieHost:
     type: application
     platform: macOS
@@ -259,6 +304,17 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: app.munie.uitests
         GENERATE_INFOPLIST_FILE: YES
 schemes:
+  MunieDesktop:
+    build:
+      targets:
+        MunieDesktop: all
+    test:
+      gatherCoverageData: true
+      targets:
+        - name: MunieDesktopTests
+          parallelizable: false
+    archive:
+      config: Release
   MunieRemodex:
     build:
       targets:

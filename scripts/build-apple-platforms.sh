@@ -25,6 +25,8 @@ build_platform() {
 build_platform ios Munie 'generic/platform=iOS Simulator' build-for-testing build/DerivedData
 build_platform macos Munie 'generic/platform=macOS' build build/DerivedData-macos
 build_platform macos-host MunieHost 'generic/platform=macOS' build build/DerivedData-host
+build_platform macos-desktop MunieDesktop 'generic/platform=macOS' build-for-testing build/DerivedData-desktop
+build_platform macos-desktop-release MunieDesktop 'generic/platform=macOS' build build/DerivedData-desktop-release Release
 build_platform tvos Munie 'generic/platform=tvOS Simulator' build build/DerivedData-tvos
 build_platform visionos Munie 'generic/platform=visionOS Simulator' build build/DerivedData-visionos
 build_platform watchos MunieWatch 'generic/platform=watchOS Simulator' build build/DerivedData-watchos

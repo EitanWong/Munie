@@ -88,6 +88,14 @@ Apply the [Apple platform acceptance matrix](standards/platform-acceptance.md) t
 
 For the iPhone–Mac slice, apply the relevant matrix: permissions revoked, locked/cold start, calls/audio interruptions, offline drafts, Wi-Fi↔cellular change, duplicate retry, cancellation, credentials revoked and host unavailable. Record literal inputs, state transitions and actual results. Same-LAN success does not establish outside-LAN operation.
 
+### Primary paired-product acceptance
+
+Use the production Mac and iPhone Munie entry points with an owner-authorized disposable project. Record build identities, device and OS, network path and the source of each observation. Other test accounts, forced endpoints and DEBUG selectors belong to developer acceptance, not this run.
+
+1. Sign in from Mac Munie and select the disposable folder. On iPhone open Nearby Macs, select the intended Mac, and compare the codes before confirming on both devices. Verify the project appears after initialization. For wrong-Mac, deny/expire and local-network refusal cases, check that no new trust is saved. Use only dedicated test pairings for removal.
+2. Open a chat in that project and send a short fixed-marker text task. Check the response and terminal state on the same native thread/turn. For an approved command, compare the displayed command and directory before one-time approval and verify only the authorized marker. For cancellation, observe the shell's start marker, interrupt its exact turn, confirm the host's terminal state and verify the late marker is still absent after the original delay. A response acknowledging Stop alone is not a pass.
+3. Resume that same chat after link loss, iPhone cold launch and Mac service restart. Compare native thread/turn IDs and history; confirm the original prompt and authorized effect occur only once. For a lost response, check the original thread before any new send; absence from a short history page is not evidence that submission failed.
+
 No hardware, user-study, remote-task or distribution result is implied by the repository scaffold.
 
 ## Performance evidence

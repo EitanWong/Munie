@@ -133,6 +133,57 @@ final class TurnViewModelQueueTests: XCTestCase {
         XCTAssertEqual(service.lastErrorMessage?.hasPrefix("Queue paused:"), true)
     }
 
+    func testResumeDoesNotReplayQueuedTurnAfterLostAcknowledgement() async {
+        let service = makeService()
+        service.isConnected = true
+        service.syncRealtimeEnabled = false
+        let threadID = "thread-queue"
+        let viewModel = makeViewModel()
+        service.queuedTurnDraftsByThread[threadID] = [makeDraft(text: "append once")]
+        var starts = 0
+        service.requestTransportOverride = { method, params in
+            if let response = self.ancillaryRuntimeResponse(method: method, params: params) { return response }
+            XCTAssertEqual(method, "turn/start")
+            starts += 1
+            throw CodexServiceError.disconnected
+        }
+
+        viewModel.flushQueueIfPossible(codex: service, threadID: threadID)
+        await waitForSendCompletion(viewModel)
+        XCTAssertEqual(starts, 1)
+        XCTAssertTrue(viewModel.isQueuePaused(codex: service, threadID: threadID))
+        let message = service.messagesByThread[threadID]?.first(where: { $0.role == .user })
+        XCTAssertEqual(message?.text, "append once")
+        XCTAssertEqual(message?.deliveryState.rawValue, "unconfirmed")
+
+        viewModel.resumeQueueAndFlushIfPossible(codex: service, threadID: threadID)
+        await waitForSendCompletion(viewModel)
+        XCTAssertEqual(starts, 1, "Resuming the queue must not resend a possibly accepted turn")
+        XCTAssertEqual(viewModel.queuedCount(codex: service, threadID: threadID), 0)
+    }
+
+    func testDirectSendDoesNotRestoreDraftAfterLostAcknowledgement() async {
+        let service = makeService()
+        service.isConnected = true
+        service.syncRealtimeEnabled = false
+        let threadID = "thread-queue"
+        let viewModel = makeViewModel()
+        viewModel.input = "append once"
+        service.requestTransportOverride = { method, params in
+            if let response = self.ancillaryRuntimeResponse(method: method, params: params) { return response }
+            XCTAssertEqual(method, "turn/start")
+            throw CodexServiceError.disconnected
+        }
+
+        viewModel.sendTurn(codex: service, threadID: threadID)
+        await waitForSendCompletion(viewModel)
+
+        XCTAssertEqual(viewModel.input, "")
+        let message = service.messagesByThread[threadID]?.first(where: { $0.role == .user })
+        XCTAssertEqual(message?.text, "append once")
+        XCTAssertEqual(message?.deliveryState.rawValue, "unconfirmed")
+    }
+
     func testResumeQueueClearsPauseState() {
         let service = makeService()
         service.isConnected = false
@@ -682,6 +733,40 @@ final class TurnViewModelQueueTests: XCTestCase {
         XCTAssertEqual(recordedMethods, ["thread/turns/list", "turn/start"])
         XCTAssertEqual(viewModel.queuedCount(codex: service, threadID: "thread-queue"), 0)
         XCTAssertEqual(service.activeTurnID(for: "thread-queue"), "turn-new")
+    }
+
+    func testSteerFallbackStartIsNotReplayedAfterLostAcknowledgement() async {
+        let service = makeService()
+        let threadID = "thread-queue"
+        service.isConnected = true
+        service.syncRealtimeEnabled = false
+        service.markThreadAsRunning(threadID)
+        service.resumedThreadIDs.insert(threadID)
+        var starts = 0
+        service.requestTransportOverride = { method, params in
+            if let response = self.ancillaryRuntimeResponse(method: method, params: params) { return response }
+            if method == "thread/turns/list" {
+                return RPCMessage(id: .string("idle"), result: .object(["data": .array([])]), includeJSONRPC: false)
+            }
+            XCTAssertEqual(method, "turn/start")
+            starts += 1
+            throw CodexServiceError.disconnected
+        }
+
+        let viewModel = makeViewModel()
+        let draft = makeDraft(text: "append once")
+        service.queuedTurnDraftsByThread[threadID] = [draft]
+        viewModel.steerQueuedDraft(id: draft.id, codex: service, threadID: threadID)
+        await waitForSteerCompletion(viewModel)
+        XCTAssertEqual(starts, 1)
+        XCTAssertTrue(viewModel.isQueuePaused(codex: service, threadID: threadID))
+        XCTAssertEqual(viewModel.queuedCount(codex: service, threadID: threadID), 0)
+        XCTAssertEqual(service.messagesByThread[threadID]?.first(where: { $0.role == .user })?.deliveryState.rawValue, "unconfirmed")
+
+        service.clearRunningState(for: threadID)
+        viewModel.resumeQueueAndFlushIfPossible(codex: service, threadID: threadID)
+        await waitForSendCompletion(viewModel)
+        XCTAssertEqual(starts, 1)
     }
 
     func testRestoreQueuedDraftMovesSelectedRowIntoComposerAndRemovesItFromQueue() {
@@ -1287,6 +1372,60 @@ final class TurnViewModelQueueTests: XCTestCase {
         XCTAssertNil(service.activeTurnId)
         XCTAssertNil(service.lastErrorMessage)
         XCTAssertNil(service.turnTerminalState(for: "turn-finished"))
+    }
+
+    func testInterruptDoesNotRetargetToSuccessorTurn() async throws {
+        try await assertStaleInterruptDoesNotRetarget(successorFinishedWhileReading: false)
+    }
+
+    func testInterruptRefreshDoesNotReviveFinishedSuccessor() async throws {
+        try await assertStaleInterruptDoesNotRetarget(successorFinishedWhileReading: true)
+    }
+
+    private func assertStaleInterruptDoesNotRetarget(successorFinishedWhileReading: Bool) async throws {
+        let service = makeService()
+        service.isConnected = true
+        service.supportsTurnPagination = false
+        let threadID = "thread-queue"
+        service.setActiveTurnID("turn-finished", for: threadID)
+        service.markThreadAsRunning(threadID)
+        var interruptedTurns: [String] = []
+        service.requestTransportOverride = { method, params in
+            switch method {
+            case "turn/interrupt":
+                let turnID = try XCTUnwrap(params?.objectValue?["turnId"]?.stringValue)
+                interruptedTurns.append(turnID)
+                if turnID == "turn-finished" {
+                    throw CodexServiceError.rpcError(RPCError(code: -32000, message: "turn already finished"))
+                }
+                return RPCMessage(id: .string("stop"), result: .object([:]), includeJSONRPC: false)
+            case "thread/read":
+                if successorFinishedWhileReading {
+                    service.recordTurnTerminalState(threadId: threadID, turnId: "turn-successor", state: .completed)
+                }
+                return RPCMessage(id: .string("read"), result: .object([
+                    "thread": .object(["turns": .array([
+                        .object(["id": .string("turn-finished"), "status": .string("completed")]),
+                        .object(["id": .string("turn-successor"), "status": .string("in_progress")]),
+                    ])]),
+                ]), includeJSONRPC: false)
+            default:
+                XCTFail("Unexpected method \(method)")
+                throw CodexServiceError.invalidInput(method)
+            }
+        }
+
+        try await service.interruptTurn(turnId: "turn-finished", threadId: threadID)
+
+        XCTAssertEqual(interruptedTurns, ["turn-finished"])
+        if successorFinishedWhileReading {
+            XCTAssertNil(service.activeTurnID(for: threadID))
+            XCTAssertFalse(service.threadHasActiveOrRunningTurn(threadID))
+            XCTAssertEqual(service.turnTerminalState(for: "turn-successor", threadId: threadID), .completed)
+        } else {
+            XCTAssertEqual(service.activeTurnID(for: threadID), "turn-successor")
+            XCTAssertTrue(service.threadHasActiveOrRunningTurn(threadID))
+        }
     }
 
     func testInterruptTurnKeepsStartingRunWhenStaleTurnAlreadyFinished() async {

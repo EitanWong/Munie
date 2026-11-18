@@ -20,6 +20,14 @@ struct CodexApprovalRequest: Identifiable, Sendable {
     let threadId: String?
     let turnId: String?
     let params: JSONValue?
+
+    var workingDirectory: String? {
+        guard let cwd = params?.objectValue?["cwd"]?.stringValue,
+              !cwd.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+        return cwd
+    }
 }
 
 struct CodexRecentActivityLine {

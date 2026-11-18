@@ -133,7 +133,9 @@ final class TurnComposerSendAvailabilityTests: XCTestCase {
         var didOpenBeforeTurnStart = false
         let titleExpectation = expectation(description: "New thread automatic title generation completes")
         service.requestTransportOverride = { method, params in
-            if let response = self.ancillaryRuntimeResponse(method: method, params: params) { return response }
+            if let response = self.ancillaryRuntimeResponse(
+                method: method, params: params, handlesAutomaticTitle: false
+            ) { return response }
             recordedMethods.append(method)
             switch method {
             case "thread/start":
@@ -201,6 +203,52 @@ final class TurnComposerSendAvailabilityTests: XCTestCase {
         XCTAssertEqual(service.messages(for: "thread-new").filter { $0.role == .user }.count, 1)
         XCTAssertEqual(service.messages(for: "thread-new").first?.turnId, "turn-new")
         XCTAssertEqual(service.thread(for: "thread-new")?.displayTitle, "First message")
+    }
+
+    func testFirstSendWithLostAcknowledgementKeepsOnlyRealThreadMessage() async {
+        let service = makeService()
+        service.isConnected = true
+        service.isInitialized = true
+        service.syncRealtimeEnabled = false
+        let viewModel = TurnViewModel()
+        let draftID = "draft-thread"
+        let threadID = "thread-new"
+        var sentMethods: [String] = []
+        service.requestTransportOverride = { method, params in
+            if let response = self.ancillaryRuntimeResponse(method: method, params: params) { return response }
+            switch method {
+            case "thread/start":
+                sentMethods.append(method)
+                return RPCMessage(id: .string("new"), result: .object([
+                    "thread": .object(["id": .string(threadID), "cwd": .string("/tmp/remodex-local")]),
+                ]), includeJSONRPC: false)
+            case "workspace/checkpointCapture":
+                return self.workspaceCheckpointResponse(kind: "messageStart")
+            case "turn/start":
+                sentMethods.append(method)
+                throw CodexServiceError.disconnected
+            default:
+                XCTFail("Unexpected method \(method)")
+                throw CodexServiceError.invalidInput(method)
+            }
+        }
+        viewModel.input = "First message"
+        viewModel.saveLocalDraft(codex: service, threadID: draftID, persistToDisk: true)
+        let didStart = viewModel.sendNewThread(
+            codex: service, draftThreadID: draftID, preferredProjectPath: "/tmp/remodex-local"
+        ) { thread in
+            XCTAssertEqual(thread.id, threadID)
+        }
+        await waitForSendCompletion(viewModel)
+
+        XCTAssertTrue(didStart)
+        XCTAssertEqual(sentMethods, ["thread/start", "turn/start"])
+        XCTAssertTrue(service.messages(for: draftID).isEmpty)
+        let messages = service.messages(for: threadID).filter { $0.role == .user }
+        XCTAssertEqual(messages.map(\.text), ["First message"])
+        XCTAssertEqual(messages.first?.deliveryState.rawValue, "unconfirmed")
+        XCTAssertNil(service.composerDraftsByThreadID[draftID])
+        XCTAssertNil(service.composerDraftsByThreadID[threadID])
     }
 
     func testLocalDraftRestoresComposerStateForSameThread() {
@@ -1070,7 +1118,9 @@ final class TurnComposerSendAvailabilityTests: XCTestCase {
         )
     }
 
-    private func ancillaryRuntimeResponse(method: String, params: JSONValue?) -> RPCMessage? {
+    private func ancillaryRuntimeResponse(
+        method: String, params: JSONValue?, handlesAutomaticTitle: Bool = true
+    ) -> RPCMessage? {
         let result: JSONValue
         switch method {
         case "workspace/checkpointCapture", "workspace/checkpointCopy", "thread/name/set":
@@ -1082,6 +1132,8 @@ final class TurnComposerSendAvailabilityTests: XCTestCase {
             ])])
         case "thread/turns/list":
             result = .object(["data": .array([]), "nextCursor": .null])
+        case "thread/generateTitle" where handlesAutomaticTitle:
+            result = .object(["title": params?.objectValue?["message"] ?? .string("Test chat")])
         default:
             return nil
         }

@@ -619,9 +619,7 @@ extension CodexService {
             }
         }
 
-        // A synthetic placeholder id would be rejected by the app-server; resolve
-        // the real in-flight turn id first and keep the placeholder only as a
-        // last resort (the refresh-retry below still covers that path).
+        // Resolve a synthetic placeholder before sending any interrupt.
         if let placeholderTurnID = normalizedTurnID,
            Self.isSyntheticPlaceholderTurnID(placeholderTurnID),
            let placeholderThreadID = normalizedThreadID
@@ -634,10 +632,9 @@ extension CodexService {
             setActiveTurnID(refreshedNormalizedTurnID, for: placeholderThreadID)
         }
 
-        guard let normalizedTurnID else {
+        guard let normalizedTurnID, !Self.isSyntheticPlaceholderTurnID(normalizedTurnID) else {
             throw CodexServiceError.invalidInput("turn/interrupt requires a non-empty turnId")
         }
-        var latestAttemptedTurnID = normalizedTurnID
 
         let resolvedThreadID = normalizedThreadID
             ?? threadIdByTurnID[normalizedTurnID]
@@ -675,43 +672,23 @@ extension CodexService {
                shouldRetryInterruptWithRefreshedTurnID(finalError) {
                 do {
                     if let refreshedTurnID = try await resolveInFlightTurnID(threadId: resolvedThreadID),
-                       refreshedTurnID != normalizedTurnID {
-                        latestAttemptedTurnID = refreshedTurnID
-                        do {
-                            try await sendInterruptRequest(
-                                turnId: refreshedTurnID,
-                                threadId: resolvedThreadID,
-                                useSnakeCaseParams: false
-                            )
+                       refreshedTurnID != normalizedTurnID,
+                       turnTerminalState(for: refreshedTurnID, threadId: resolvedThreadID) == nil {
+                        // A Stop tap applies only to the turn it named. Refresh the UI, not the action.
+                        if activeTurnID(for: resolvedThreadID).map({ $0 == normalizedTurnID }) ?? true {
                             setActiveTurnID(refreshedTurnID, for: resolvedThreadID)
                             threadIdByTurnID[refreshedTurnID] = resolvedThreadID
-                            lastErrorMessage = nil
-                            return
-                        } catch {
-                            finalError = error
-                            if shouldRetryInterruptWithSnakeCaseParams(error) {
-                                do {
-                                    try await sendInterruptRequest(
-                                        turnId: refreshedTurnID,
-                                        threadId: resolvedThreadID,
-                                        useSnakeCaseParams: true
-                                    )
-                                    setActiveTurnID(refreshedTurnID, for: resolvedThreadID)
-                                    threadIdByTurnID[refreshedTurnID] = resolvedThreadID
-                                    lastErrorMessage = nil
-                                    return
-                                } catch {
-                                    finalError = error
-                                }
-                            }
+                            markThreadAsRunning(resolvedThreadID)
                         }
+                        lastErrorMessage = nil
+                        return
                     }
                 } catch {
                     let refreshResolution = staleInterruptResolution(for: error)
                     if refreshResolution == .startingWithoutTurnID {
                         preserveStartingRunAfterStaleInterrupt(
                             threadId: resolvedThreadID,
-                            staleTurnId: latestAttemptedTurnID
+                            staleTurnId: normalizedTurnID
                         )
                         lastErrorMessage = userFacingTurnErrorMessageForFooter(from: error)
                         throw error
@@ -727,7 +704,7 @@ extension CodexService {
                staleResolution.shouldClearRunningState {
                 clearRunningStateAfterStaleInterrupt(
                     threadId: resolvedThreadID,
-                    turnId: latestAttemptedTurnID,
+                    turnId: normalizedTurnID,
                     resolution: staleResolution
                 )
                 lastErrorMessage = nil
@@ -1730,6 +1707,11 @@ extension CodexService {
         var didDowngradePlanModeForRuntime = false
         var includesServiceTier = !isOpenCodeThread && supportsServiceTier
         let accessConfiguration = runtimeAccessConfiguration()
+        var didAttemptTurnStart = false
+        let recordDispatch: @MainActor () -> Void = {
+            didAttemptTurnStart = true
+            onDispatch?()
+        }
 
         if collaborationMode != nil, effectiveCollaborationMode == nil {
             debugRuntimeLog(
@@ -1738,6 +1720,7 @@ extension CodexService {
         }
 
         while true {
+            didAttemptTurnStart = false
             do {
                 if !isOpenCodeThread {
                     try await waitForRuntimeSettingsUpdate(threadId: threadId)
@@ -1762,12 +1745,12 @@ extension CodexService {
                     await messageStartCheckpointTask.value
                 }
                 let response = isOpenCodeThread
-                    ? try await sendRequest(method: "turn/start", params: .object(requestParams), onDispatch: onDispatch)
+                    ? try await sendRequest(method: "turn/start", params: .object(requestParams), onDispatch: recordDispatch)
                     : try await sendRequestWithSandboxFallback(
                         method: "turn/start",
                         baseParams: requestParams,
                         accessConfiguration: accessConfiguration,
-                        onDispatch: onDispatch
+                        onDispatch: recordDispatch
                     )
                 let resolvedTurnID = handleSuccessfulTurnStartResponse(
                     response,
@@ -1831,6 +1814,16 @@ extension CodexService {
 
                 if consumeUnsupportedServiceTier(error, includesServiceTier: &includesServiceTier) {
                     continue
+                }
+
+                if didAttemptTurnStart, isUnconfirmedTurnDelivery(error) {
+                    let deliveryError = CodexTurnDeliveryUnconfirmed()
+                    if messagesByThread[threadId]?.first(where: { $0.id == pendingMessageId })?.deliveryState == .pending {
+                        markMessageDeliveryState(threadId: threadId, messageId: pendingMessageId, state: .unconfirmed)
+                    }
+                    requestImmediateActiveThreadSync(threadId: threadId, forceHistoryRefresh: true)
+                    lastErrorMessage = deliveryError.localizedDescription
+                    throw deliveryError
                 }
 
                 try handleTurnStartFailure(
@@ -2916,6 +2909,12 @@ extension CodexService {
         for collaborationMode: CodexCollaborationModeKind?
     ) -> Bool {
         collaborationMode == .plan && supportsTurnCollaborationMode
+    }
+
+    private func isUnconfirmedTurnDelivery(_ error: Error) -> Bool {
+        guard let serviceError = error as? CodexServiceError,
+              case .rpcError(let rpcError) = serviceError else { return true }
+        return rpcError.message == "Could not continue this Codex Desktop-owned thread from the phone."
     }
 
     // Applies common failure bookkeeping for turn/start primary and fallback attempts.

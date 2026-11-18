@@ -1,3 +1,4 @@
+// Munie modification: distinguish an unconfirmed send from a known failure.
 // FILE: CodexMessage.swift
 // Purpose: Defines chat messages and timestamp metadata rendered in each thread timeline.
 // Layer: Model
@@ -14,6 +15,7 @@ enum CodexMessageRole: String, Codable, Hashable, Sendable {
 
 enum CodexMessageDeliveryState: String, Codable, Hashable, Sendable {
     case pending
+    case unconfirmed
     case confirmed
     case failed
 }

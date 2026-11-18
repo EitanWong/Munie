@@ -55,6 +55,8 @@ Exact-head [PR #23 CI 44370856774](https://github.com/EitanWong/Munie/actions/ru
 
 ## Adopted foundation checkpoint
 
+The isolated [managed-away admission prototype](decisions/managed-away-connection.md) passed 53 relay tests on bundled Node 24.22.1, including seven generated-key/interop tests. It is not imported by any listener: no external route, endpoint, account or mobile setting is enabled. The next implementation boundary is socket admission and lifecycle on a loopback-only pilot endpoint, before connecting either app.
+
 The following evidence describes the adopted base and its earlier five-page onboarding. The current product flow above supersedes its terminal-based setup; original logs and diagnostic failures remain retained.
 
 | Area | Observed result / remaining work |

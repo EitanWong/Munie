@@ -43,20 +43,31 @@ function createManagedRelayAdmission({
     return challenge;
   }
 
-  function admit(id, proof) {
+  function prepare(id, proof, expectedRole) {
     const pending = challenges.get(id);
     if (!pending) return null;
     challenges.delete(id);
     const { challenge, state } = pending;
     const { expiresAt, role, macKey, phoneKey } = challenge;
-    if (expiresAt <= now() || devices.get(macKey) !== state) return null;
+    if ((expectedRole !== undefined && role !== expectedRole)
+        || expiresAt <= now() || devices.get(macKey) !== state) return null;
     const signature = decode(proof, 64);
     if (!signature || !validSignature(challenge, signature)) return null;
 
-    if (role === "phone") return state.registration;
-    const admitted = Object.freeze({ macKey, phoneKey, generation: id });
-    devices.set(macKey, { registration: admitted });
-    return admitted;
+    let consumed = false;
+    return () => {
+      if (consumed) return null;
+      consumed = true;
+      if (expiresAt <= now() || devices.get(macKey) !== state) return null;
+      if (role === "phone") return state.registration;
+      const admitted = Object.freeze({ macKey, phoneKey, generation: id });
+      devices.set(macKey, { registration: admitted });
+      return admitted;
+    };
+  }
+
+  function admit(id, proof) {
+    return prepare(id, proof)?.() ?? null;
   }
 
   function isCurrent(registration) {
@@ -69,7 +80,7 @@ function createManagedRelayAdmission({
     return true;
   }
 
-  return { issue, admit, isCurrent, deactivate };
+  return { issue, prepare, admit, isCurrent, deactivate };
 }
 
 function managedAdmissionTranscript(challenge) {

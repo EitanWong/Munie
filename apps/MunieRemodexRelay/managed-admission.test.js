@@ -113,6 +113,28 @@ test("invalidated challenges do not block a different Mac at capacity", () => {
   assert.ok(issue("mac", other));
 });
 
+test("a prepared proof still requires a current and unexpired generation at commit", () => {
+  let time = 1000;
+  const { admission, mac, phone, issue, register } = setup({ now: () => time });
+  const macChallenge = issue("mac");
+  const preparedMac = admission.prepare(macChallenge.id, mac.sign(macChallenge), "mac");
+  assert.ok(preparedMac);
+  assert.equal(issue("phone"), null);
+  time = macChallenge.expiresAt;
+  assert.equal(preparedMac(), null);
+  const original = register();
+  const phoneChallenge = issue("phone");
+  const preparedPhone = admission.prepare(phoneChallenge.id, phone.sign(phoneChallenge), "phone");
+  assert.ok(preparedPhone);
+  assert.equal(admission.deactivate(original), true);
+  assert.equal(preparedPhone(), null);
+  const replacement = register();
+  const freshPhone = issue("phone");
+  const preparedFresh = admission.prepare(freshPhone.id, phone.sign(freshPhone), "phone");
+  assert.equal(preparedFresh(), replacement);
+  assert.equal(preparedFresh(), null);
+});
+
 test("transcript and signature match the fixed UTF-8 interoperability vector", () => {
   // Phone key is RFC 8032 test vector 1; the expected signature was produced
   // against the literal wire bytes below, independently of the module encoder.

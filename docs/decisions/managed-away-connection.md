@@ -1,6 +1,6 @@
 # App-managed away connection / App 管理的离家连接
 
-Status: isolated admission prototype. Not enabled for either app or any relay listener.
+Status: loopback-only development pilot. Not enabled for either app or any deployed relay listener.
 
 ## Decision
 
@@ -11,6 +11,8 @@ For a pilot, the Mac app should opt in to one fixed Munie HTTPS/WSS origin and i
 ## Prototype and deployment gates
 
 The [admission module](../../apps/MunieRemodexRelay/managed-admission.js) uses Node's standard Ed25519 APIs and no new dependency. Its one-use, 15-second challenge binds the audience, role, exact public keys, nonce and registration generation. Registrations are bounded by a configured pilot allowlist and pending challenges by a fixed capacity. Expiry uses service time. A replacement or deactivation invalidates old proofs; generation checks let the eventual listener reject a stale callback. This in-memory module does not open a port, provision keys, close sockets, or carry task data.
+
+The separate [loopback pilot](../../apps/MunieRemodexRelay/managed-relay-pilot.js) accepts challenges and WebSocket connections on an ephemeral `127.0.0.1` port, using only generated fixture keys in tests. It verifies and consumes the proof before the upgrade but commits the registration in the successful upgrade callback. A rejected upgrade does not replace a live route. An absent phone is not a Mac disconnect; the pilot reports a dropped frame via a control ping and neither buffers nor replays it. The HTTP `101` response alone is not authenticated readiness: app integration must wait for the end-to-end handshake and initialization. This listener is not exposed by the packaged host or existing relay entry point.
 
 Before enabling an endpoint, require ordinary TLS certificate validation, bounded requests and upgrades, admission and route replacement as one operation, per-role issuance limits before challenge allocation, and no public pairing or push routes. Bind disable, disconnect and revocation to the correct sockets. Deactivation clears one registration; it does not prevent the allowlisted Mac from registering again, so the Mac adapter must stop registration on disable and only register currently trusted phones. Verify outage/fallback and replay with generated keys and no external account. Only then choose the hosting operator, service domain, capacity budget and minimal operational metadata retention. No deployment, cost commitment or credential access is part of the prototype.
 

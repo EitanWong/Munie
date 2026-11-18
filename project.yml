@@ -220,6 +220,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.munie.desktop.tests
+        ARCHS: arm64
         GENERATE_INFOPLIST_FILE: YES
         TEST_HOST: $(BUILT_PRODUCTS_DIR)/Munie.app/Contents/MacOS/Munie
   MunieHost:

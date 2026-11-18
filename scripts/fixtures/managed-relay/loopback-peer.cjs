@@ -1,6 +1,7 @@
 // Local protocol fixture only. It does not open a Codex account or start an app-server.
 const { generateKeyPairSync, randomUUID } = require('node:crypto');
 const { writeFileSync, renameSync } = require('node:fs');
+const { createServer } = require('node:net');
 const path = require('node:path');
 
 async function main() {
@@ -16,6 +17,13 @@ async function main() {
   const macKey = mac.publicKey.export({ format: 'jwk' }).x;
   const phoneKey = phone.publicKey.export({ format: 'jwk' }).x;
   const macDeviceId = randomUUID(), phoneDeviceId = randomUUID(), sessionId = randomUUID();
+  const lan = createServer();
+  await new Promise((resolve, reject) => {
+    lan.once('error', reject);
+    lan.listen(0, '127.0.0.1', resolve);
+  });
+  const lanURL = `ws://127.0.0.1:${lan.address().port}/relay`;
+  await new Promise((resolve, reject) => lan.close((error) => error ? reject(error) : resolve()));
   const audience = 'munie-loopback.invalid';
   const relay = await startManagedRelayPilot({ audience, allowedMacKeys: [macKey] });
   const state = {
@@ -70,7 +78,7 @@ async function main() {
     await response.body.cancel();
     if (response.ok) {
       writeFileSync(`${readyPath}.new`, JSON.stringify({
-        origin: relay.origin, macDeviceId, macIdentityPublicKey: base64(macKey), phoneDeviceId,
+        origin: relay.origin, lanURL, macDeviceId, macIdentityPublicKey: base64(macKey), phoneDeviceId,
         phoneIdentityPublicKey: base64(phoneKey),
         phoneIdentityPrivateKey: base64(phone.privateKey.export({ format: 'jwk' }).d),
       }), {mode: 0o600});

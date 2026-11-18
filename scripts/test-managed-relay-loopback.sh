@@ -26,7 +26,9 @@ FIXTURE_PID=$!
 cleanup() {
   kill -TERM "$FIXTURE_PID" 2>/dev/null || true
   wait "$FIXTURE_PID" 2>/dev/null || true
-  rm -f "$READY" "$READY.new"
+  for file in "$READY" "$READY.new"; do
+    if [ -f "$file" ]; then unlink "$file"; fi
+  done
 }
 trap cleanup EXIT
 
@@ -40,6 +42,7 @@ if [ ! -s "$READY" ]; then
 fi
 
 export TEST_RUNNER_MUNIE_MANAGED_LOOPBACK_FIXTURE="$(jq -c . "$READY")"
+export TEST_RUNNER_MUNIE_DEV_MANAGED_RELAY_ORIGIN="$(jq -er .origin "$READY")"
 export TEST_RUNNER_REMODEX_ACCEPTANCE_RUN_ID="$(uuidgen)"
 xcodebuild -project Munie.xcodeproj -scheme MunieRemodex -configuration Debug \
   -destination "platform=iOS Simulator,id=$SIMULATOR_ID" -derivedDataPath "$DERIVED_DATA" \

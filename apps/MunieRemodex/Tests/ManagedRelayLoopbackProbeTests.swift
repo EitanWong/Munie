@@ -7,7 +7,7 @@
   final class ManagedRelayLoopbackProbeTests: XCTestCase {
     nonisolated deinit {}
 
-    func testManagedReconnectUsesEncryptedInitializeAndPreservesLANHint() async throws {
+    func testUnreachableLANFallsBackToManagedEncryptedInitializeAndPreservesLANHint() async throws {
       guard let fixtureJSON = ProcessInfo.processInfo.environment["MUNIE_MANAGED_LOOPBACK_FIXTURE"]
       else {
         throw XCTSkip("Loopback interoperability fixture was not started")
@@ -18,8 +18,9 @@
         phoneDeviceId: fixture.phoneDeviceId,
         phoneIdentityPrivateKey: fixture.phoneIdentityPrivateKey,
         phoneIdentityPublicKey: fixture.phoneIdentityPublicKey)
-      let lanURL = "ws://127.0.0.1:0/relay"
+      let lanURL = fixture.lanURL
       let lanSessionID = UUID().uuidString.lowercased()
+      let lanSocket = "\(lanURL)/\(lanSessionID)"
       let mac = CodexTrustedMacRecord(
         macDeviceId: fixture.macDeviceId,
         macIdentityPublicKey: fixture.macIdentityPublicKey, lastPairedAt: .now, relayURL: lanURL)
@@ -32,7 +33,11 @@
       service.syncRealtimeEnabled = false
 
       do {
-        try await service.connectManagedRelay(origin: fixture.origin, pinnedMac: mac)
+        try await ContentViewModel().connect(
+          codex: service, serverURL: lanSocket, shouldAttemptManagedFallback: { true })
+        XCTAssertEqual(
+          service.connectedServerIdentity, lanSocket, "The saved LAN route was tried first")
+        XCTAssertNotNil(service.managedRelayAttemptID)
         XCTAssertTrue(service.isConnected)
         XCTAssertTrue(service.isInitialized)
         XCTAssertTrue(
@@ -50,7 +55,7 @@
     }
 
     private struct Fixture: Decodable {
-      let origin: String
+      let lanURL: String
       let macDeviceId: String
       let macIdentityPublicKey: String
       let phoneDeviceId: String

@@ -57,6 +57,8 @@ struct ContentView: View {
     @State private var selectedThread: CodexThread?
     @State private var navigationPath: [ContentNavigationRoute] = []
     @State private var isShowingManualScanner = false
+    @State private var isShowingAdvancedQRScanner = false
+    @State private var nearbyPairingRoute = NearbyPairingRoute()
     @State private var isShowingMyMacsScanner = false
     @State private var hasDismissedAutomaticScanner = false
     @State private var scannerCanReturnToOnboarding = false
@@ -240,6 +242,14 @@ struct ContentView: View {
             .onChange(of: codex.normalizedRelaySessionId) { _, _ in
                 resetSavedMacWakeRecoveryState()
             }
+            .onChange(of: codex.hasReconnectCandidate) { hadPairing, hasPairing in
+                guard hadPairing, !hasPairing, hasSeenOnboarding,
+                      !codex.isConnected, !isShowingManualScanner,
+                      !nearbyPairingRoute.isPresented, !viewModel.isSwitchingMac else { return }
+                isShowingSettingsCover = false
+                isShowingDevicesSettingsSheet = false
+                presentManualScannerAfterStoppingReconnect()
+            }
     }
 
     private var rootContentWithLifecycleObservers: some View {
@@ -365,7 +375,7 @@ struct ContentView: View {
     private var rootContentWithBannerOverlay: some View {
         rootContentWithPresentations
             .overlay {
-                if viewModel.isSwitchingMac {
+                if viewModel.isSwitchingMac && !nearbyPairingRoute.isPresented {
                     deviceSwitchingOverlay
                 }
             }
@@ -452,7 +462,7 @@ struct ContentView: View {
         } else if !subscriptions.hasAppAccess {
             SubscriptionGateView()
         } else if shouldShowQRScanner {
-            qrScannerBody
+            pairingBody
         } else {
             mainAppBody
         }
@@ -480,10 +490,99 @@ struct ContentView: View {
 
     // Lets the scanner step back into onboarding on first run, or into the empty state later on.
     private var scannerBackAction: (() -> Void)? {
+        if isShowingAdvancedQRScanner {
+            return { isShowingAdvancedQRScanner = false }
+        }
         if scannerCanReturnToOnboarding {
             return { returnFromScannerToOnboarding() }
         }
         return { dismissScannerToHome() }
+    }
+
+    @ViewBuilder
+    private var pairingBody: some View {
+        if isShowingAdvancedQRScanner {
+            qrScannerBody
+        } else {
+            nearbyPairingBody
+        }
+    }
+
+    private var nearbyPairingBody: some View {
+        let requestID = nearbyPairingRoute.id
+        return NearbyMacConnectionView(
+            allowsDiscovery: true,
+            isSelected: true,
+            onPairing: { payload in
+                guard nearbyPairingRoute.hold(
+                    requestID, targetMacDeviceID: payload.macDeviceId, targetSessionID: payload.sessionId
+                ) else { return false }
+                guard !viewModel.isSwitchingMac else {
+                    // This screen does not own an already-running saved/QR Mac switch.
+                    nearbyPairingRoute.preserveExistingConnectionAfterFailure(requestID)
+                    return false
+                }
+                isShowingManualScanner = true
+                let snapshot = captureMacContextTransitionSnapshot()
+                let previousSessionID = codex.normalizedRelaySessionId
+                let previousMacID = codex.normalizedCurrentTrustedMacDeviceId
+                prepareForMacContextTransition()
+                do {
+                    // Use the existing awaited Mac switch: it interrupts old runs,
+                    // saves/restores the Mac-scoped session and owns switch cancellation.
+                    try await viewModel.switchToScannedMac(pairingPayload: payload, codex: codex)
+                    let connectedToTarget = !Task.isCancelled && nearbyPairingRoute.matchesConnectedTarget(
+                        requestID,
+                        currentMacDeviceID: codex.normalizedCurrentTrustedMacDeviceId,
+                        relaySessionID: codex.normalizedRelaySessionId,
+                        isConnected: codex.isConnected, isInitialized: codex.isInitialized
+                    )
+                    if !connectedToTarget {
+                        preserveNearbyOriginalConnectionIfUnchanged(
+                            requestID, sessionID: previousSessionID, macID: previousMacID)
+                    }
+                    return connectedToTarget
+                } catch {
+                    restoreMacContextTransitionSnapshotIfStillConnected(snapshot)
+                    preserveNearbyOriginalConnectionIfUnchanged(
+                        requestID, sessionID: previousSessionID, macID: previousMacID)
+                    return false
+                }
+            },
+            onConnected: {
+                guard nearbyPairingRoute.finish(requestID) else { return }
+                isShowingManualScanner = false
+                isShowingMyMacsScanner = false
+                hasDismissedAutomaticScanner = true
+                scannerCanReturnToOnboarding = false
+                navigationPath.removeAll()
+            },
+            onCancelConnection: {
+                guard nearbyPairingRoute.id == requestID else { return }
+                // A switch can fail before touching the current live Mac. Preserve
+                // that restored session instead of treating it as a failed new socket.
+                if nearbyPairingRoute.preservesExistingConnectionOnFailure { return }
+                await viewModel.requestMacSwitchCancellation(codex: codex)
+                codex.shouldAutoReconnectOnForeground = false
+                codex.cancelTrustedSessionResolve()
+                await codex.disconnect()
+                codex.connectionRecoveryState = .idle
+            },
+            onBack: scannerBackAction,
+            onScanQRCode: {
+                isShowingAdvancedQRScanner = true
+                isShowingManualScanner = true
+            },
+            onPairWithCode: presentManualPairingEntryAfterStoppingReconnect
+        )
+        .id(requestID)
+    }
+
+    private func preserveNearbyOriginalConnectionIfUnchanged(_ requestID: UUID, sessionID: String?, macID: String?) {
+        guard !Task.isCancelled, codex.isConnected, codex.isInitialized,
+              codex.normalizedRelaySessionId == sessionID,
+              codex.normalizedCurrentTrustedMacDeviceId == macID else { return }
+        nearbyPairingRoute.preserveExistingConnectionAfterFailure(requestID)
     }
 
     private var qrScannerBody: some View {
@@ -491,6 +590,8 @@ struct ContentView: View {
             onBack: scannerBackAction,
             onScan: { pairingPayload in
                 Task {
+                    _ = nearbyPairingRoute.finish(nearbyPairingRoute.id)
+                    isShowingAdvancedQRScanner = false
                     isShowingManualScanner = false
                     hasDismissedAutomaticScanner = false
                     scannerCanReturnToOnboarding = false
@@ -710,7 +811,7 @@ struct ContentView: View {
             shouldOfferWakeAction: shouldOfferWakeSavedMacDisplayAction,
             isPreparingManualScanner: isPreparingManualScanner,
             isResolvingManualPairingCode: isResolvingManualPairingCode,
-            offlinePrimaryButtonTitle: codex.hasReconnectCandidate ? String(localized: "Reconnect") : String(localized: "Scan QR Code"),
+            offlinePrimaryButtonTitle: codex.hasReconnectCandidate ? String(localized: "Reconnect") : String(localized: "Find My Mac"),
             onPrimaryAction: {
                 if homeConnectionPhase == .offline && !codex.hasReconnectCandidate {
                     presentAutomaticScanner()
@@ -741,7 +842,7 @@ struct ContentView: View {
             statusMessage: codex.lastErrorMessage,
             canForgetPair: codex.hasReconnectCandidate && !codex.isConnected,
             onForgetPair: {
-                codex.forgetReconnectCandidate()
+                forgetPairAndFindMac()
             }
         )
     }
@@ -793,7 +894,7 @@ struct ContentView: View {
                 statusMessage: codex.lastErrorMessage,
                 securityLabel: codex.secureConnectionState.statusLabel,
                 trustedPairPresentation: codex.trustedPairPresentation,
-                offlinePrimaryButtonTitle: codex.hasReconnectCandidate ? String(localized: "Reconnect") : String(localized: "Scan QR Code"),
+                offlinePrimaryButtonTitle: codex.hasReconnectCandidate ? String(localized: "Reconnect") : String(localized: "Find My Mac"),
                 onPrimaryAction: {
                     if homeConnectionPhase == .offline && !codex.hasReconnectCandidate {
                         presentAutomaticScanner()
@@ -864,7 +965,7 @@ struct ContentView: View {
                 statusMessage: codex.lastErrorMessage,
                 securityLabel: codex.secureConnectionState.statusLabel,
                 trustedPairPresentation: codex.trustedPairPresentation,
-                offlinePrimaryButtonTitle: codex.hasReconnectCandidate ? String(localized: "Reconnect") : String(localized: "Scan QR Code"),
+                offlinePrimaryButtonTitle: codex.hasReconnectCandidate ? String(localized: "Reconnect") : String(localized: "Find My Mac"),
                 onPrimaryAction: {
                     if homeConnectionPhase == .offline && !codex.hasReconnectCandidate {
                         presentAutomaticScanner()
@@ -1426,21 +1527,16 @@ struct ContentView: View {
         }
     }
 
-    // Keeps first-run installs in the scanner by default, while still letting users back out later.
+    // Post-onboarding pairing defaults to nearby discovery. A held handoff must
+    // outlive early isConnected and remembered-pairing changes until Attempt commits.
     private var shouldShowQRScanner: Bool {
-        guard !codex.isConnected else {
-            return false
-        }
-
-        if isShowingManualScanner {
-            return true
-        }
-
-        if viewModel.isAttemptingAutoReconnect || shouldShowReconnectShell || isPreparingManualScanner {
-            return false
-        }
-
-        return !codex.hasReconnectCandidate && !hasDismissedAutomaticScanner
+        nearbyPairingRoute.shouldPresent(
+            isConnected: codex.isConnected,
+            hasReconnectCandidate: codex.hasReconnectCandidate,
+            isManualPairing: isShowingManualScanner,
+            isRecovering: viewModel.isAttemptingAutoReconnect || shouldShowReconnectShell || isPreparingManualScanner,
+            hasDismissedAutomaticPairing: hasDismissedAutomaticScanner
+        )
     }
 
     // Shows the remembered pairing shell while a saved pairing can still be retried.
@@ -1833,7 +1929,7 @@ struct ContentView: View {
         }
     }
 
-    // Switches the user back to the QR path when the old relay session is no longer useful.
+    // Switches the user to nearby pairing when the old relay session is no longer useful.
     private func presentManualScannerForBridgeRecovery() {
         guard !isShowingManualScanner else {
             return
@@ -1841,11 +1937,17 @@ struct ContentView: View {
 
         hasDismissedAutomaticScanner = false
         scannerCanReturnToOnboarding = false
+        nearbyPairingRoute.present()
+        isShowingAdvancedQRScanner = false
         isShowingManualScanner = true
         dismissPresentedRootSheet()
 
+        let requestID = nearbyPairingRoute.id
         Task {
-            await viewModel.stopAutoReconnectForManualScan(codex: codex)
+            if nearbyPairingRoute.id == requestID, nearbyPairingRoute.targetMacDeviceID == nil,
+               !codex.isConnected {
+                await viewModel.stopAutoReconnectForManualScan(codex: codex)
+            }
         }
     }
 
@@ -1857,10 +1959,16 @@ struct ContentView: View {
 
         hasDismissedAutomaticScanner = false
         scannerCanReturnToOnboarding = false
+        nearbyPairingRoute.present()
+        isShowingAdvancedQRScanner = false
         isShowingManualScanner = true
 
+        let requestID = nearbyPairingRoute.id
         Task {
-            await viewModel.stopAutoReconnectForManualScan(codex: codex)
+            if nearbyPairingRoute.id == requestID, nearbyPairingRoute.targetMacDeviceID == nil,
+               !codex.isConnected {
+                await viewModel.stopAutoReconnectForManualScan(codex: codex)
+            }
         }
     }
 
@@ -1880,12 +1988,16 @@ struct ContentView: View {
     private func presentAutomaticScanner() {
         withAnimation {
             hasDismissedAutomaticScanner = false
+            nearbyPairingRoute.present()
+            isShowingAdvancedQRScanner = false
         }
     }
 
     // Hides the scanner without forcing the user straight back into the camera on the next render pass.
     private func dismissScannerToHome() {
         withAnimation {
+            _ = nearbyPairingRoute.finish(nearbyPairingRoute.id)
+            isShowingAdvancedQRScanner = false
             isShowingManualScanner = false
             isShowingMyMacsScanner = false
             hasDismissedAutomaticScanner = true
@@ -1900,6 +2012,8 @@ struct ContentView: View {
         codex.lastErrorMessage = nil
 
         withAnimation {
+            _ = nearbyPairingRoute.finish(nearbyPairingRoute.id)
+            isShowingAdvancedQRScanner = false
             isShowingManualScanner = false
             isShowingMyMacsScanner = false
             hasDismissedAutomaticScanner = false
@@ -1908,15 +2022,15 @@ struct ContentView: View {
         }
     }
 
-    // Keeps QR and code recovery as one quiet secondary row under the main reconnect CTA.
+    // Nearby pairing is the ordinary recovery path; legacy code entry is explicitly advanced.
     private var reconnectSecondaryActions: some View {
         HStack(spacing: 10) {
-            secondaryReconnectActionButton(String(localized: "New QR Code")) {
+            secondaryReconnectActionButton(String(localized: "Find My Mac")) {
                 presentManualScannerAfterStoppingReconnect()
             }
             .disabled(isPreparingManualScanner)
 
-            secondaryReconnectActionButton(String(localized: "Pair with Code")) {
+            secondaryReconnectActionButton(String(localized: "Advanced: Pair with Code")) {
                 presentManualPairingEntryAfterStoppingReconnect()
             }
             .disabled(isPreparingManualScanner || isResolvingManualPairingCode)
@@ -1926,11 +2040,16 @@ struct ContentView: View {
     // Keeps the destructive saved-pair action visually separate from the reconnect controls.
     private var reconnectFooterAction: some View {
         Button(String(localized: "Forget Pair")) {
-            codex.forgetReconnectCandidate()
+            forgetPairAndFindMac()
         }
         .font(AppFont.caption(weight: .semibold))
         .foregroundStyle(.secondary)
         .buttonStyle(.plain)
+    }
+
+    private func forgetPairAndFindMac() {
+        codex.forgetReconnectCandidate()
+        presentManualScannerAfterStoppingReconnect()
     }
 
     // Mirrors the reconnect button corner language in a lighter outline-only treatment.
@@ -2003,6 +2122,8 @@ struct ContentView: View {
                 isShowingManualPairingEntry = false
                 manualPairingCode = ""
                 withAnimation {
+                    _ = nearbyPairingRoute.finish(nearbyPairingRoute.id)
+                    isShowingAdvancedQRScanner = false
                     hasSeenOnboarding = true
                     isShowingManualScanner = false
                     hasDismissedAutomaticScanner = true
@@ -2216,6 +2337,8 @@ struct ContentView: View {
             Task {
                 await codex.disconnect()
                 codex.forgetTrustedMac(deviceId: deviceId)
+                isShowingDevicesSettingsSheet = false
+                presentManualScannerAfterStoppingReconnect()
             }
             return
         }

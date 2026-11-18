@@ -8,6 +8,8 @@ The new `MunieDesktop` Mac companion owns bundled Node/Codex, the existing Remod
 
 `MunieNearby` is shared only by iPhone and Mac. Its local discovery advertises a name/version without bootstrap secrets. A bounded, expiring, one-use encrypted exchange shows the same verification code on both devices; user confirmation on both sides precedes release of the actual existing Remodex pairing payload. The iPhone then uses the same `CodexService` secure transport and task screens. Discovery is not device authorization. Local-network permission denial, unavailable Mac, cancellation and expiry remain explicit states.
 
+Nearby pairing also owns the ordinary post-onboarding new-Mac and forgotten-pairing routes. A route remains visible through intermediate socket/trust state until its own initialized handoff commits; cancellation finishes teardown before retry. QR/manual codes are advanced recovery options. Compatibility prompts direct users to matching Mac/iPhone app versions without rendering developer commands. On Mac, removing pairing requires explicit confirmation and the exact current local device ID. The helper clears all existing phone trust and restarts the service; the UI warns that this disconnects phones and may stop active work. Failed restart is reconciled from actual status rather than restoring an obsolete pairing snapshot.
+
 This new path is currently a nearby network product slice. It does not configure public infrastructure, enroll a VPN, or turn LAN acceptance into cellular acceptance. The private Tailscale path below is retained developer/acceptance infrastructure, not a required setup step in the new ordinary-user onboarding.
 
 ```text

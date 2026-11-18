@@ -4,6 +4,8 @@ import SwiftUI
 struct DesktopHostView: View {
   let coordinator: DesktopCoordinator
   @ObservedObject var nearby: NearbyPairingHost
+  @State private var showingRemovePairing = false
+  @State private var deviceToRemove: DesktopPairedDevice?
 
   private var controller: DesktopHostController { coordinator.controller }
 
@@ -13,6 +15,7 @@ struct DesktopHostView: View {
         header
         accountSection
         projectSection
+        pairedPhoneSection
         pairingSection
         if let error = controller.error {
           Label(String(localized: error, table: "Desktop"), systemImage: "exclamationmark.triangle")
@@ -24,6 +27,23 @@ struct DesktopHostView: View {
       .padding(28)
     }
     .onChange(of: controller.ready) { _, _ in coordinator.updateNearbyAvailability() }
+    .alert(
+      String(localized: "Remove iPhone Pairing?", table: "Desktop"),
+      isPresented: $showingRemovePairing
+    ) {
+      Button(String(localized: "Remove Pairing", table: "Desktop"), role: .destructive) {
+        guard let device = deviceToRemove else { return }
+        deviceToRemove = nil
+        Task { await controller.revokePairing(deviceID: device.id) }
+      }
+      Button(String(localized: "Keep Pairing", table: "Desktop"), role: .cancel) {
+        deviceToRemove = nil
+      }
+    } message: {
+      Text(
+        "This removes all current iPhone pairings and disconnects them. The Mac service restarts and active work may stop. Pair again to reconnect.",
+        tableName: "Desktop")
+    }
   }
 
   private var header: some View {
@@ -100,12 +120,56 @@ struct DesktopHostView: View {
         Button(String(localized: "Choose Another Project…", table: "Desktop")) {
           Task { await coordinator.chooseProject() }
         }
-        .disabled(!controller.ready || controller.projectBusy)
+        .disabled(!controller.ready || controller.projectBusy || controller.deviceBusy)
         .accessibilityIdentifier("desktop.chooseProject")
       }
       .frame(maxWidth: .infinity, alignment: .leading)
       .padding(8)
     }
+  }
+
+  private var pairedPhoneSection: some View {
+    GroupBox {
+      VStack(alignment: .leading, spacing: 10) {
+        Text("Paired iPhone", tableName: "Desktop").font(.headline)
+        if !controller.hasPairingStatus {
+          Text("Start Munie to check the paired iPhone.", tableName: "Desktop")
+            .foregroundStyle(.secondary)
+        } else if controller.pairedDevices.isEmpty {
+          Text("No iPhone is paired with this Mac.", tableName: "Desktop")
+            .foregroundStyle(.secondary)
+        } else {
+          Label(String(localized: "iPhone pairing saved", table: "Desktop"), systemImage: "iphone")
+          Text(
+            "Pairing allows your iPhone to connect. It does not mean the iPhone is online now.",
+            tableName: "Desktop"
+          )
+          .font(.caption).foregroundStyle(.secondary)
+          if controller.pairedDevices.count > 1 {
+            Text(
+              "More than one pairing was found. Removing pairing clears all of them.",
+              tableName: "Desktop"
+            )
+            .foregroundStyle(.secondary)
+          }
+          HStack {
+            Button(String(localized: "Remove Pairing…", table: "Desktop"), role: .destructive) {
+              deviceToRemove = controller.pairedDevices.first
+              showingRemovePairing = deviceToRemove != nil
+            }
+            .disabled(!controller.canRemovePairing)
+            .accessibilityIdentifier("desktop.removePairing")
+            if controller.deviceBusy {
+              ProgressView().controlSize(.small)
+              Text("Removing pairing…", tableName: "Desktop")
+            }
+          }
+        }
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .padding(8)
+    }
+    .accessibilityIdentifier("desktop.pairedPhone")
   }
 
   @ViewBuilder private var pairingSection: some View {
@@ -123,7 +187,7 @@ struct DesktopHostView: View {
             Button(String(localized: "Allow iPhone", table: "Desktop")) {
               Task { await coordinator.approvePairing(request.id) }
             }
-            .disabled(coordinator.pairingBusy || !controller.ready)
+            .disabled(coordinator.pairingBusy || !controller.ready || controller.deviceBusy)
             .buttonStyle(.borderedProminent)
             .accessibilityIdentifier("desktop.approvePairing")
             Button(String(localized: "Decline", table: "Desktop")) {

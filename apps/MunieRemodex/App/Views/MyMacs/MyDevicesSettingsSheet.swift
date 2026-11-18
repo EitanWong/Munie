@@ -79,7 +79,7 @@ struct MyDevicesSettingsSheet: View {
 
                 Section {
                     addConnectionRow
-                    Button(String(localized: "Pair with Code"), systemImage: "keyboard", action: handlePairWithCode)
+                    Button(String(localized: "Advanced: Pair with Code"), systemImage: "keyboard", action: handlePairWithCode)
                         .disabled(isSwitchingMac)
                 }
             }
@@ -118,7 +118,7 @@ struct MyDevicesSettingsSheet: View {
                 Button(String(localized: "Cancel"), role: .cancel, action: cancelPendingForget)
             },
             message: {
-                Text(String(localized: "The paired device will be removed from this iPhone. Scan its QR code again to reconnect."))
+                Text(String(localized: "The paired device will be removed from this iPhone. Find your Mac nearby to pair again."))
             }
         )
     }
@@ -230,7 +230,7 @@ struct MyDevicesSettingsSheet: View {
             Button {
                 handleScanQRCode()
             } label: {
-                Label(String(localized: "Scan QR"), systemImage: "qrcode.viewfinder")
+                Label(String(localized: "Find My Mac"), systemImage: "laptopcomputer")
                     .labelStyle(.iconOnly)
             }
             .tint(.blue)
@@ -238,7 +238,7 @@ struct MyDevicesSettingsSheet: View {
             Button {
                 handlePairWithCode()
             } label: {
-                Label(String(localized: "Pair with Code"), systemImage: "keyboard")
+                Label(String(localized: "Advanced: Pair with Code"), systemImage: "keyboard")
                     .labelStyle(.iconOnly)
             }
             .tint(.gray)

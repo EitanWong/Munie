@@ -4816,6 +4816,134 @@
           }
         }
       }
+    },
+    "Advanced Pairing": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Advanced Pairing"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高级配对"
+          }
+        }
+      }
+    },
+    "Advanced: Pair with Code": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Advanced: Pair with Code"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高级：使用配对码"
+          }
+        }
+      }
+    },
+    "The paired device will be removed from this iPhone. Find your Mac nearby to pair again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The paired device will be removed from this iPhone. Find your Mac nearby to pair again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此设备将从这台 iPhone 移除。请在附近查找你的 Mac 以重新配对。"
+          }
+        }
+      }
+    },
+    "Update Munie on Your Mac": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update Munie on Your Mac"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新 Mac 上的 Munie"
+          }
+        }
+      }
+    },
+    "Update Munie on This iPhone": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update Munie on This iPhone"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新此 iPhone 上的 Munie"
+          }
+        }
+      }
+    },
+    "Install compatible Munie builds on both devices. After updating the Mac app, open it and reconnect from this iPhone.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Install compatible Munie builds on both devices. After updating the Mac app, open it and reconnect from this iPhone."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请在两台设备上安装相互兼容的 Munie 版本。更新 Mac App 后将其打开，再从这台 iPhone 重新连接。"
+          }
+        }
+      }
+    },
+    "Install compatible Munie builds on both devices. After updating this iPhone app, open it and reconnect to your Mac.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Install compatible Munie builds on both devices. After updating this iPhone app, open it and reconnect to your Mac."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请在两台设备上安装相互兼容的 Munie 版本。更新此 iPhone App 后将其打开，再重新连接你的 Mac。"
+          }
+        }
+      }
+    },
+    "This operation requires compatible Munie versions on your Mac and iPhone.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This operation requires compatible Munie versions on your Mac and iPhone."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此操作需要 Mac 和 iPhone 上相互兼容的 Munie 版本。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

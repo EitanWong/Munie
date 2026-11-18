@@ -8,6 +8,9 @@ struct NearbyMacConnectionView: View {
   let onPairing: (CodexPairingQRPayload) async -> Bool
   let onConnected: () -> Void
   let onCancelConnection: () async -> Void
+  var onBack: (() -> Void)? = nil
+  var onScanQRCode: (() -> Void)? = nil
+  var onPairWithCode: (() -> Void)? = nil
   @Environment(\.scenePhase) private var scenePhase
   @StateObject private var client = NearbyPairingClient()
   @StateObject private var connection = NearbyConnectionAttempt()
@@ -17,6 +20,11 @@ struct NearbyMacConnectionView: View {
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 24) {
+        if let onBack {
+          Button(String(localized: "Back"), systemImage: "chevron.left", action: onBack)
+            .disabled(!canLeavePairing)
+            .accessibilityIdentifier("munie.nearby.back")
+        }
         Image(systemName: "laptopcomputer.and.iphone")
           .font(.system(size: 48))
           .foregroundStyle(.white)
@@ -34,6 +42,23 @@ struct NearbyMacConnectionView: View {
         .fixedSize(horizontal: false, vertical: true)
 
         connectionContent
+
+        if onScanQRCode != nil || onPairWithCode != nil {
+          Menu(String(localized: "Advanced Pairing")) {
+            if let onScanQRCode {
+              Button(
+                String(localized: "Scan QR Code"), systemImage: "qrcode.viewfinder",
+                action: onScanQRCode)
+            }
+            if let onPairWithCode {
+              Button(
+                String(localized: "Pair with Code"), systemImage: "keyboard", action: onPairWithCode
+              )
+            }
+          }
+          .disabled(!canLeavePairing)
+          .accessibilityIdentifier("munie.nearby.advanced")
+        }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
       .padding(28)
@@ -68,7 +93,9 @@ struct NearbyMacConnectionView: View {
       if phase == .idle { beginDiscoveryIfAllowed() }
     }
     .onChange(of: client.receivedPayload) { _, data in
-      guard let data, connection.phase == .idle else { return }
+      guard let data, active, isSelected, scenePhase == .active, connection.phase == .idle else {
+        return
+      }
       do {
         let payload = try NearbyPairingPayloadValidator.decode(data)
         client.stop()
@@ -188,6 +215,11 @@ struct NearbyMacConnectionView: View {
       connection.phase == .idle, client.state == .idle
     else { return }
     client.start()
+  }
+
+  private var canLeavePairing: Bool {
+    (connection.phase == .idle || connection.phase == .failed)
+      && (client.state == .idle || client.state == .browsing || client.state == .failed)
   }
 
   private var retryButton: some View {

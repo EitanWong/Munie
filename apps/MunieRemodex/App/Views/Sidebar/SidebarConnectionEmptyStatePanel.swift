@@ -1,3 +1,4 @@
+// Munie modification: nearby pairing is the ordinary recovery path; legacy code entry is advanced.
 // FILE: SidebarConnectionEmptyStatePanel.swift
 // Purpose: Centered connect/reconnect/scan-QR card shown in the sidebar when
 //          the relay session is offline and there are no cached chats.
@@ -174,10 +175,10 @@ struct SidebarConnectionEmptyStatePanel: View {
 
     private var secondaryActions: some View {
         HStack(spacing: 10) {
-            secondaryButton("New QR Code", systemName: "qrcode.viewfinder", action: onScanNewQR)
+            secondaryButton(String(localized: "Find My Mac"), systemName: "laptopcomputer", action: onScanNewQR)
                 .disabled(isPreparingManualScanner)
 
-            secondaryButton("Pair with Code", systemName: "keyboard", action: onPairWithCode)
+            secondaryButton(String(localized: "Advanced: Pair with Code"), systemName: "keyboard", action: onPairWithCode)
                 .disabled(isPreparingManualScanner || isResolvingManualPairingCode)
         }
     }
@@ -286,7 +287,7 @@ struct SidebarConnectionEmptyStatePanel: View {
         shouldOfferWakeAction: false,
         isPreparingManualScanner: false,
         isResolvingManualPairingCode: false,
-        offlinePrimaryButtonTitle: "Scan QR Code",
+        offlinePrimaryButtonTitle: "Find My Mac",
         onPrimaryAction: {},
         onScanNewQR: {},
         onPairWithCode: {},

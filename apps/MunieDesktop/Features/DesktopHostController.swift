@@ -28,6 +28,10 @@ enum DesktopAccountState: Equatable {
   case signedIn
 }
 
+struct DesktopPairedDevice: Equatable, Sendable, Identifiable {
+  let id: String
+}
+
 @MainActor @Observable
 final class DesktopHostController {
   typealias RuntimeFactory = @Sendable () async throws -> any DesktopHostRuntime
@@ -35,7 +39,9 @@ final class DesktopHostController {
   private(set) var serviceState: DesktopServiceState = .stopped
   private(set) var accountState: DesktopAccountState = .unknown
   private(set) var projectName = ""
-  private(set) var deviceCount = 0
+  private(set) var pairedDevices: [DesktopPairedDevice] = []
+  private(set) var hasPairingStatus = false
+  private(set) var revokingDeviceID: String?
   private(set) var error: String.LocalizationValue?
   private(set) var accountBusy = false
   private(set) var projectBusy = false
@@ -45,6 +51,11 @@ final class DesktopHostController {
   var canStart: Bool { runtime == nil && !busy }
   var canStop: Bool { runtime != nil && stopping == nil }
   var ready: Bool { serviceState == .running }
+  var deviceCount: Int { pairedDevices.count }
+  var deviceBusy: Bool { revokingDeviceID != nil }
+  var canRemovePairing: Bool {
+    ready && !busy && !projectBusy && !deviceBusy && !pairedDevices.isEmpty
+  }
 
   @ObservationIgnored private let makeRuntime: RuntimeFactory
   @ObservationIgnored private let defaultProject: @Sendable () async throws -> URL
@@ -53,6 +64,8 @@ final class DesktopHostController {
   @ObservationIgnored private var stopping: Task<Bool, Never>?
   @ObservationIgnored private var eventTask: Task<Void, Never>?
   @ObservationIgnored private var generation = UUID()
+  @ObservationIgnored private var statusRevision = UUID()
+  @ObservationIgnored private var deviceOperation: UUID?
 
   init(
     makeRuntime: @escaping RuntimeFactory = {
@@ -120,6 +133,7 @@ final class DesktopHostController {
   @discardableResult
   func stop() async -> Bool {
     if let stopping { return await stopping.value }
+    invalidateDeviceOperation()
     serviceState = .stopping
     let task = Task {
       if let starting { await starting.value }
@@ -141,6 +155,7 @@ final class DesktopHostController {
     eventTask?.cancel()
     eventTask = nil
     generation = UUID()
+    invalidateDeviceOperation()
     runtime = nil
     serviceState = .stopped
     accountBusy = false
@@ -151,15 +166,16 @@ final class DesktopHostController {
   }
 
   func refresh() async {
-    guard ready, let runtime else { return }
+    guard ready, !busy, !deviceBusy, !projectBusy, let runtime else { return }
     let operationGeneration = generation
+    let revision = statusRevision
     do {
       let status = try await runtime.request("status", params: .object([:]))
-      guard operationGeneration == generation else { return }
+      guard operationGeneration == generation, revision == statusRevision else { return }
       apply(status)
       await refreshAccount(using: runtime)
     } catch {
-      guard operationGeneration == generation else { return }
+      guard operationGeneration == generation, revision == statusRevision else { return }
       self.error = "Munie could not refresh its status. Try again."
     }
   }
@@ -205,8 +221,9 @@ final class DesktopHostController {
   }
 
   func setProject(_ url: URL) async {
-    guard ready, !projectBusy, url.isFileURL, let runtime else { return }
+    guard ready, !busy, !projectBusy, !deviceBusy, url.isFileURL, let runtime else { return }
     let operationGeneration = generation
+    statusRevision = UUID()
     projectBusy = true
     defer { if operationGeneration == generation { projectBusy = false } }
     do {
@@ -221,12 +238,62 @@ final class DesktopHostController {
     }
   }
 
+  /// The helper currently resets the single supported phone pairing and restarts its service.
+  /// Keep the exact local target check even if the confirmation was opened before a status change.
+  func revokePairing(deviceID: String) async {
+    guard ready, !busy, !projectBusy, !deviceBusy, let runtime else { return }
+    guard pairedDevices.contains(where: { $0.id == deviceID }) else {
+      error = "This iPhone is no longer paired. Refresh to see the current pairing."
+      return
+    }
+    let operationGeneration = generation
+    let operation = UUID()
+    deviceOperation = operation
+    revokingDeviceID = deviceID
+    statusRevision = UUID()
+    defer {
+      if operationGeneration == generation, deviceOperation == operation {
+        deviceOperation = nil
+        revokingDeviceID = nil
+        statusRevision = UUID()
+      }
+    }
+    do {
+      let status = try await runtime.request(
+        "devices/revoke", params: .object(["deviceId": .string(deviceID)]))
+      guard operationGeneration == generation, deviceOperation == operation else { return }
+      guard status["devices"] != nil else { throw DesktopHostFailure.invalidProtocol }
+      if apply(status), serviceState != .cleanupUnconfirmed { error = nil }
+    } catch {
+      guard operationGeneration == generation, deviceOperation == operation else { return }
+      // Status events can already reflect a completed reset even if the restart failed.
+      // Retain that latest actual list rather than restoring a pre-request snapshot.
+      let revision = statusRevision
+      do {
+        let status = try await runtime.request("status", params: .object([:]))
+        guard operationGeneration == generation, deviceOperation == operation else { return }
+        if revision == statusRevision { apply(status) }
+      } catch {
+        guard operationGeneration == generation, deviceOperation == operation else { return }
+      }
+      if serviceState != .cleanupUnconfirmed {
+        self.error =
+          "Pairing removal could not finish. Stop Munie, then start it again to check the pairing."
+      }
+    }
+  }
+
   /// Called only from the explicit Mac confirmation action, never while advertising.
   func pairingPayload() async throws -> Data {
-    guard ready, let runtime else { throw DesktopHostFailure.notRunning }
+    guard ready, !deviceBusy, !projectBusy, let runtime else {
+      throw DesktopHostFailure.notRunning
+    }
     let operationGeneration = generation
+    let revision = statusRevision
     let result = try await runtime.request("pairing/get", params: .object([:]))
-    guard operationGeneration == generation, ready else { throw DesktopHostFailure.notRunning }
+    guard operationGeneration == generation, revision == statusRevision,
+      ready, !busy, !deviceBusy, !projectBusy
+    else { throw DesktopHostFailure.notRunning }
     guard let payload = result["payload"] else {
       throw DesktopHostFailure.invalidProtocol
     }
@@ -259,24 +326,51 @@ final class DesktopHostController {
     guard generation == self.generation else { return }
     switch event {
     case .message(let name, let data):
-      if name == "status" { apply(data) }
+      if name == "status" {
+        statusRevision = UUID()
+        apply(data)
+      }
       if name == "account" { apply(.object(["account": data["account"] ?? data])) }
     case .exited:
       guard serviceState != .stopping, serviceState != .stopped else { return }
+      invalidateDeviceOperation()
       serviceState = .cleanupUnconfirmed
       error = "Munie stopped unexpectedly. Cleanup must be confirmed before restarting."
     case .protocolFailure:
+      invalidateDeviceOperation()
       serviceState = .cleanupUnconfirmed
       error = "Munie lost its local connection. Retry stopping before restarting."
     }
   }
 
-  private func apply(_ value: DesktopJSON) {
+  private func invalidateDeviceOperation() {
+    deviceOperation = nil
+    revokingDeviceID = nil
+    statusRevision = UUID()
+  }
+
+  @discardableResult
+  private func apply(_ value: DesktopJSON) -> Bool {
+    if let records = value["devices"] {
+      guard let records = records.array else {
+        error = "The paired iPhone status is unavailable. Try refreshing."
+        return false
+      }
+      let ids = records.compactMap { $0["id"]?.string }
+      guard ids.count == records.count, ids.allSatisfy({ !$0.isEmpty }),
+        Set(ids).count == ids.count
+      else {
+        error = "The paired iPhone status is unavailable. Try refreshing."
+        return false
+      }
+      pairedDevices = ids.map { DesktopPairedDevice(id: $0) }
+      hasPairingStatus = true
+    }
     let state = value["state"]?.string
     if state == "error", serviceState != .stopping {
       serviceState = .cleanupUnconfirmed
       error = "Munie lost its local connection. Retry stopping before restarting."
-    } else if starting == nil, stopping == nil {
+    } else if starting == nil, stopping == nil, serviceState != .cleanupUnconfirmed {
       switch state {
       case "starting": serviceState = .starting
       case "running": serviceState = .running
@@ -286,7 +380,6 @@ final class DesktopHostController {
       }
     }
     if let project = value["project"]?["name"]?.string { projectName = project }
-    if let devices = value["devices"]?.array { deviceCount = devices.count }
     if let account = value["account"] {
       if account["status"]?.string == "authenticated" {
         accountState = .signedIn
@@ -297,5 +390,6 @@ final class DesktopHostController {
         accountState = .signedOut
       }
     }
+    return true
   }
 }

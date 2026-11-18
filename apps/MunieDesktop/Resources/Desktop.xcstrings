@@ -752,6 +752,246 @@
           }
         }
       }
+    },
+    "Remove iPhone Pairing?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove iPhone Pairing?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除 iPhone 配对？"
+          }
+        }
+      }
+    },
+    "Remove Pairing": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove Pairing"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除配对"
+          }
+        }
+      }
+    },
+    "Keep Pairing": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep Pairing"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保留配对"
+          }
+        }
+      }
+    },
+    "This removes all current iPhone pairings and disconnects them. The Mac service restarts and active work may stop. Pair again to reconnect.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This removes all current iPhone pairings and disconnects them. The Mac service restarts and active work may stop. Pair again to reconnect."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这会移除当前所有 iPhone 配对并断开连接。Mac 服务将重新启动，正在执行的工作可能停止。重新配对后才能再次连接。"
+          }
+        }
+      }
+    },
+    "Paired iPhone": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paired iPhone"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已配对的 iPhone"
+          }
+        }
+      }
+    },
+    "No iPhone is paired with this Mac.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No iPhone is paired with this Mac."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚无 iPhone 与这台 Mac 配对。"
+          }
+        }
+      }
+    },
+    "iPhone pairing saved": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iPhone pairing saved"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已保存 iPhone 配对"
+          }
+        }
+      }
+    },
+    "Pairing allows your iPhone to connect. It does not mean the iPhone is online now.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pairing allows your iPhone to connect. It does not mean the iPhone is online now."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "配对允许你的 iPhone 连接，但不代表 iPhone 当前在线。"
+          }
+        }
+      }
+    },
+    "More than one pairing was found. Removing pairing clears all of them.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "More than one pairing was found. Removing pairing clears all of them."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发现多个配对记录。移除配对会清除所有记录。"
+          }
+        }
+      }
+    },
+    "Remove Pairing…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove Pairing…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除配对…"
+          }
+        }
+      }
+    },
+    "Removing pairing…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Removing pairing…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在移除配对…"
+          }
+        }
+      }
+    },
+    "This iPhone is no longer paired. Refresh to see the current pairing.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This iPhone is no longer paired. Refresh to see the current pairing."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台 iPhone 已不在配对记录中。请刷新以查看当前配对。"
+          }
+        }
+      }
+    },
+    "The paired iPhone status is unavailable. Try refreshing.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The paired iPhone status is unavailable. Try refreshing."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法获取已配对 iPhone 的状态。请尝试刷新。"
+          }
+        }
+      }
+    },
+    "Start Munie to check the paired iPhone.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start Munie to check the paired iPhone."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请启动 Munie 以查看已配对的 iPhone。"
+          }
+        }
+      }
+    },
+    "Pairing removal could not finish. Stop Munie, then start it again to check the pairing.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pairing removal could not finish. Stop Munie, then start it again to check the pairing."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未能完成移除配对。请先停止 Munie，再重新启动以检查配对状态。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

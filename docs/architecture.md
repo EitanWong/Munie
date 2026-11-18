@@ -29,6 +29,8 @@ The client uses the native/catalog default model until the user makes an explici
 
 ## Retained native checkpoint path
 
+The protocol, host-state and on-device voice sections below describe the earlier Swift checkpoint. Their bearer/ledger/storage guarantees do not automatically describe the primary Remodex path above.
+
 ```text
 iPhone / iPad: RemoteView → RemoteCoordinator → RemoteModel
                                ↓ MunieRemote / URLSession HTTPS

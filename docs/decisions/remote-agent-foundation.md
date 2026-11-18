@@ -40,15 +40,15 @@ app 负责交互、权限请求、可恢复输入和设备凭据的安全保存�
 | `completed` / `failed` / `cancelled` | 对应任务的可信终态；结果有来源与时间 |
 | `reconciling` | 发送后失联或崩溃造成结果未知，先核对，禁止猜测成功或重发副作用 |
 
-连接的 `offline/connecting/online` 与任务状态正交：断网不证明 Mac 上任务停止。同一 `requestID` 的主机、harness、项目、操作与 payload 必须不可变，冲突请求明确拒绝并测试；按 ID 去重并返回已接受的任务，当前重连先读权威快照；未来事件流的游标缺口/流重置也必须返回快照。gateway 去重不是上游 exactly-once 保证；在提交上游后、映射落盘前崩溃必须进入不确定状态，不能自动再次执行。协议测试覆盖这个窗口。
+连接的 `offline/connecting/online` 与任务状态正交：断网不证明 Mac 上任务停止。同一 `requestID` 的主机、harness、项目、操作与 payload 必须不可变，冲突请求明确拒绝并测试；按 ID 去重并返回已接受的任务，重连先读权威状态；未来事件流的游标缺口/流重置也必须返回快照。gateway 去重不是上游 exactly-once 保证；在提交上游后、映射落盘前崩溃必须进入不确定状态，不能自动再次执行。保留的原生协议测试覆盖这个窗口；Remodex 的实际字段与验收另列，不能由该测试推断。
 
-批准只影响当前有效请求，展示的动作与权限范围不可变；动作变化生成新的审批请求。双设备并发回答、过期、撤销或重连后先与主机核对；无响应不等于同意。取消回执不等于取消完成。未知事件/版本明确降级或拒绝；不能将无法理解的状态当完成。当前快照摘要/选中正文均有大小上限；未来事件分页/流式输出须有背压与上限，重试有时限与抖动退避；内存和上传不可随任务无限增长。
+批准只影响当前有效请求，展示的动作与权限范围不可变；动作变化生成新的审批请求。双设备并发回答、过期、撤销或重连后先与主机核对；无响应不等于同意。取消回执不等于取消完成。未知事件/版本明确降级或拒绝；不能将无法理解的状态当完成。保留原生协议的快照摘要/选中正文均有大小上限；所有实现的事件分页/流式输出均须有背压与上限，重试有时限与抖动退避；具体达到程度见架构与状态，不能推断所有原生能力已覆盖。
 
-## 网络候选与首个探针
+## 网络候选与首个探针（保留检查点）
 
-2026-11-17 的[固定版本与网络研究](../../references/codex-protocol-research.md)确认本机 0.162.1 有可选 WS Bearer 认证，但默认非 loopback 监听仍可能未认证，WS 传输也仍标实验。继续采用 Mac 本机 stdio adapter 边界；不把“CLI 有认证选项”当成可以直接开放公网。已有本机研究之后，首个产品选择 Tailscale Serve 在同一 Mac 终止私有 HTTPS，再转到 loopback-only 产品服务；不公开 Funnel 或 app-server。Watch HTTPS 与独立网络另验；具体部署和访问限制见信任决策。
+2026-11-17 的[固定版本与网络研究](../../references/codex-protocol-research.md)确认本机 0.162.1 有可选 WS Bearer 认证，但默认非 loopback 监听仍可能未认证，WS 传输也仍标实验。继续采用 Mac 本机 stdio adapter 边界；不把“CLI 有认证选项”当成可以直接开放公网。已有本机研究之后，早期 Swift 检查点选择 Tailscale Serve 在同一 Mac 终止私有 HTTPS，再转到 loopback-only 服务；不公开 Funnel 或 app-server。当前 Remodex 双 App 的附近 LAN 路径另见架构，不能把该历史部署步骤作为普通用户引导。Watch HTTPS 与独立网络另验。
 
-F1 的[本机 mTLS 短请求研究](../../references/authenticated-network-research.md)已从临时合成策略推进到原生 URLSession→实际 TLS 连接身份→真实 ledger/coordinator→固定 native Codex 的隔离闭环；执行结果唯一见[项目状态](../project-status.md)。它没有选择公网服务/生产 PKI。本地私钥/CSR/回签 identity 保留为独立研究，不是当前产品前置条件；本次 Mac 确认、设备 bearer、撤销和项目授权采用[产品信任决策](device-trust-and-host-service.md)。真实模型使用需要明确账户与受限操作授权，实际运行和设备证据记录于状态。
+F1 的[本机 mTLS 短请求研究](../../references/authenticated-network-research.md)已从临时合成策略推进到原生 URLSession→实际 TLS 连接身份→真实 ledger/coordinator→固定 native Codex 的隔离闭环；执行结果唯一见[项目状态](../project-status.md)。它没有选择公网服务/生产 PKI。本地私钥/CSR/回签 identity 保留为独立研究，不是当前产品前置条件；早期 Swift 检查点的 Mac 确认、设备 bearer、撤销和项目授权保留在[信任决策](device-trust-and-host-service.md)的检查点部分。真实模型使用需要明确账户与受限操作授权，实际运行和设备证据记录于状态。
 
 私有网络/SSH 需要端点信任、最小设备/端口授权及 NAT 可达性证据，不能因隧道建立就显示任务可执行。普通 Watch app 的 WebSocket/低层连接受平台限制，因此网关应评估 HTTPS 短请求与有界状态读取；不能要求 Watch 套用 iPhone VPN 或长流。iPhone 在场与 Watch 独立 Wi-Fi/蜂窝分别验收。网络选择须同时满足设备能力、撤销、延迟/功耗和部署成本，选择与每条已执行路径的证据分别记录。
 
@@ -62,7 +62,7 @@ F1 的[本机 mTLS 短请求研究](../../references/authenticated-network-resea
 
 项目范围不是完整执行沙箱；保留 Codex 权限策略，显式审批额外后果。任务输入、文档、网页和模型总结都是数据，不能扩展授权。日志只保留必要 ID、状态、时间和脱敏错误，明确保留期限；内容、媒体、token 默认不记录。新账本/共享容器在实现前决定单写者、版本迁移、备份恢复和导出/删除；不能让 extension 并发写当前 JSON 文件。
 
-已有 F1 模块实现项目/设备授权、不可变请求、持久发送资格、可信映射/终态和重启 reconciling。产品现通过私有 HTTPS 接入移动端，增加 Mac 确认配对、持久设备授权和对话结果；F1 mTLS fixture 仍独立使用预置身份。撤销创建持久 tombstone，已存在或尚未注册的 UUID 都不能重新启用；当前仅原设备能读控任务，跨设备接续须先实现新的授权层与迁移。项目 path/device/inode 在接受及领取时复核，最终交接后替换不是本轮已解决的原子路径问题，仍须保持执行沙箱。Schema 1、单 host、单 owner、资源上限及合成数据限定见[账本研究](../../references/submission-ledger-research.md)。产品将会话正文放入独立有界历史、由同一主机 owner 写入；本地删除正文保留去重 tombstone。未知 schema 拒绝且不重置数据。完整备份/导出/迁移仍是邀请 beta 前门槛，不将删除重建账本当安全恢复。
+保留的 Swift 检查点在 F1 模块之上实现项目/设备授权、不可变请求、持久发送资格、可信映射/终态和重启 reconciling。该检查点通过私有 HTTPS 接入移动端，增加 Mac 确认配对、持久设备授权和对话结果；F1 mTLS fixture 仍独立使用预置身份。其撤销创建持久 tombstone，已存在或尚未注册的 UUID 都不能重新启用；仅原设备能读控任务，跨设备接续须先实现新的授权层与迁移。其项目 path/device/inode 在接受及领取时复核，最终交接后替换不是已解决的原子路径问题，仍须保持执行沙箱。Schema 1、单 host、单 owner、资源上限及合成数据限定见[账本研究](../../references/submission-ledger-research.md)。其会话正文放入独立有界历史、由同一主机 owner 写入；本地删除正文保留去重 tombstone，未知 schema 拒绝且不重置。这些账本保证不自动归属于 Remodex；完整备份/导出/迁移仍是邀请 beta 前门槛，不将删除重建账本当安全恢复。
 
 ## 替代、代价与复查点
 
@@ -70,6 +70,6 @@ F1 的[本机 mTLS 短请求研究](../../references/authenticated-network-resea
 - 解析终端文本难以可靠绑定审批与任务；结构化协议优先。任意 Codex Desktop 已有会话是否可继续必须实测，不承诺默认共享。
 - 持续语音/视频及任何环境主动感知单独 opt-in，先验证单次会话。APNs/Watch 后台执行和语音播报受平台限制，不承诺持续在线或瞬时必达。
 
-开始 F2 前完成真实版本探针、认证/撤销、异常窗口与有界资源测试；对外可用前做蜂窝→Mac、设备体验、数据控制验收。Mac 休眠、重启后未登录、服务停止和凭据过期均需明确提示。当前本机隔离握手、原生生命周期与账本集成故障子集有执行证据；当前真实模型及设备执行结果见状态表；未执行的蜂窝、设备体验与通知送达不能由本机研究推断。
+历史 F1→F2 准入要求包括真实版本探针、认证/撤销、异常窗口与有界资源测试；对外可用前仍须做蜂窝→Mac、设备体验、数据控制验收。Mac 休眠、重启后未登录、服务停止和凭据过期均需明确提示。本机隔离握手、原生生命周期与账本集成故障子集有各自执行证据；真实模型及设备结果见状态表；未执行的蜂窝、设备体验与通知送达不能由本机研究推断。
 
 原生生命周期实验证明单次审批必须绑定原反向 request/thread/turn/item、command/cwd 和本次提供的选项；approval cancel 会拒绝命令并终止 turn，不能当成继续执行的 decline。`turn/interrupt` 回执仍需等待匹配终态。后续账本集成实验已分别验收执行中 shell/child 取消、pending approval 时原生崩溃、已知映射终态恢复、映射落盘前主机死亡，以及启动登记前主机死亡。已知 ID 只在正向历史证据下核对；丢失映射继续 reconciling、不重发。它不恢复旧审批、不证明任意崩溃或真实模型行为。固定版本与实际范围唯一记录在[协议研究](../../references/codex-protocol-research.md#确定性-provider-与原生生命周期)。

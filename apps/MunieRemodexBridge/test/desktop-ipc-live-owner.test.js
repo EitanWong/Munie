@@ -1,3 +1,4 @@
+// Munie modification: wait for IPC initialization before asserting read-state deduplication.
 // FILE: desktop-ipc-live-owner.test.js
 // Purpose: Verifies Remodex-owned Codex streams are exposed to Desktop/VSCode through the local IPC bus.
 // Layer: Unit test
@@ -3855,7 +3856,12 @@ test("live owner dedupes read-state broadcasts for already-clean threads", async
     method: "turn/start",
     params: { threadId: "thread-read-dedupe", input: [{ type: "text", text: "hi" }] },
   }));
-  await waitFor(() => serverSocket);
+  // Socket acceptance precedes initialization; this owner broadcast proves the ACK was consumed.
+  await waitForMessage(frames, (frame) => (
+    frame.type === "broadcast"
+    && frame.method === "thread-stream-following-status-requested"
+    && frame.params?.conversationId === "thread-read-dedupe"
+  ));
 
   const readCount = () => frames.filter((frame) => (
     frame.type === "broadcast" && frame.method === "thread-read-state-changed"

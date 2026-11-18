@@ -47,6 +47,27 @@ final class NearbyConnectionAttemptTests: XCTestCase {
     XCTAssertEqual(attempt.phase, .completed)
   }
 
+  func testCancellingQueuedHandoffSkipsAllConnectionCallbacks() async {
+    let unexpectedCallback = expectation(description: "No callbacks for a cancelled queued handoff")
+    unexpectedCallback.isInverted = true
+    unexpectedCallback.assertForOverFulfill = false
+    let attempt = NearbyConnectionAttempt()
+    attempt.start(
+      expiresAt: Date().addingTimeInterval(60),
+      connect: {
+        unexpectedCallback.fulfill()
+        return true
+      },
+      disconnect: { unexpectedCallback.fulfill() },
+      onConnected: { unexpectedCallback.fulfill() })
+
+    // Both calls are in the same main-actor turn, before the connection task can start.
+    attempt.cancel()
+    XCTAssertEqual(attempt.phase, .idle)
+    await fulfillment(of: [unexpectedCallback], timeout: 0.1)
+    XCTAssertEqual(attempt.phase, .idle)
+  }
+
   func testCancelOrBackgroundRejectsLateSuccessAndBlocksRetryUntilCleanup() async {
     let started = expectation(description: "Connection started")
     let stopped = expectation(description: "Both disconnects finished")

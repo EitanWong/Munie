@@ -10,6 +10,10 @@ final class DesktopCoordinator {
   private(set) var nearbyFailed = false
   @ObservationIgnored private var didLaunch = false
 
+  init() {
+    controller.onNearbyAvailabilityChange = { [weak self] in self?.updateNearbyAvailability() }
+  }
+
   func startOnFirstLaunch() async {
     guard !didLaunch else { return }
     didLaunch = true
@@ -18,7 +22,6 @@ final class DesktopCoordinator {
 
   func start() async {
     await controller.start()
-    updateNearbyAvailability()
   }
 
   @discardableResult
@@ -28,8 +31,9 @@ final class DesktopCoordinator {
   }
 
   func updateNearbyAvailability() {
-    guard controller.ready else {
+    guard controller.nearbyReady else {
       nearby.stop()
+      nearbyFailed = false
       return
     }
     guard nearby.state == .idle || nearby.state == .failed || nearbyFailed else { return }
@@ -48,7 +52,7 @@ final class DesktopCoordinator {
     do {
       // Obtain the bootstrap only inside this explicit confirmation action.
       let payload = try await controller.pairingPayload()
-      guard nearby.pendingRequest?.id == id, controller.ready else { return }
+      guard nearby.pendingRequest?.id == id, controller.nearbyReady else { return }
       try nearby.approve(requestID: id, payload: payload)
     } catch {
       controller.pairingFailed()

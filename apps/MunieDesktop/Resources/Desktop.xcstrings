@@ -49,6 +49,22 @@
         }
       }
     },
+    "Waiting for a local network": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for a local network"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在等待本地网络"
+          }
+        }
+      }
+    },
     "Stopping Munie…": {
       "localizations": {
         "en": {

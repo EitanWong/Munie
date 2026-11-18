@@ -5,6 +5,23 @@ import Testing
 
 @MainActor
 struct DesktopDeviceControllerTests {
+  @Test func projectReplyCannotRestoreAnOlderLANBinding() async {
+    let runtime = DesktopDeviceRuntimeFixture()
+    let controller = makeController(runtime)
+    await controller.start()
+    #expect(controller.nearbyReady)
+    await runtime.blockNextProject()
+    let change = Task { await controller.setProject(URL(filePath: "/fixture/Next")) }
+    await runtime.waitForRequest("project/set")
+    await runtime.emitStatus(deviceStatus(["phone-A"], lanRevision: 2, lanAvailable: false))
+    await waitUntil { !controller.nearbyReady }
+    await runtime.completeProject(deviceStatus(["phone-A"]))
+    await change.value
+    #expect(controller.ready)
+    #expect(!controller.nearbyReady)
+    #expect(await controller.stop())
+  }
+
   @Test func revokeRequiresCurrentExactIDAndAppliesActualReturnedList() async {
     let runtime = DesktopDeviceRuntimeFixture()
     let controller = makeController(runtime)
@@ -178,9 +195,13 @@ struct DesktopDeviceControllerTests {
   }
 }
 
-private func deviceStatus(_ ids: [String], state: String = "running") -> DesktopJSON {
+private func deviceStatus(
+  _ ids: [String], state: String = "running", lanRevision: Double = 1, lanAvailable: Bool? = nil
+) -> DesktopJSON {
   .object([
     "state": .string(state),
+    "lanAvailable": .bool(lanAvailable ?? (state == "running")),
+    "lanRevision": .number(lanRevision),
     "project": .object(["path": .string("/fixture/Project"), "name": .string("Project")]),
     "devices": .array(ids.map { .object(["id": .string($0), "fingerprint": .string("fixture")]) }),
   ])
@@ -195,7 +216,9 @@ private actor DesktopDeviceRuntimeFixture: DesktopHostRuntime {
   private var revoke: CheckedContinuation<DesktopJSON, any Error>?
   private var status: CheckedContinuation<DesktopJSON, Never>?
   private var pairing: CheckedContinuation<DesktopJSON, Never>?
+  private var project: CheckedContinuation<DesktopJSON, Never>?
   private var shouldBlockStatus = false
+  private var shouldBlockProject = false
   private var stopFailures: Int
 
   init(stopFailures: Int = 0) { self.stopFailures = stopFailures }
@@ -228,6 +251,13 @@ private actor DesktopDeviceRuntimeFixture: DesktopHostRuntime {
         notifyWaiters()
       }
     }
+    if method == "project/set", shouldBlockProject {
+      shouldBlockProject = false
+      return await withCheckedContinuation { continuation in
+        project = continuation
+        notifyWaiters()
+      }
+    }
     notifyWaiters()
     if method == "account/read" { return .object(["status": .string("not_authenticated")]) }
     return deviceStatus(devices)
@@ -244,6 +274,7 @@ private actor DesktopDeviceRuntimeFixture: DesktopHostRuntime {
 
   func setDevices(_ ids: [String]) { devices = ids }
   func blockNextStatus() { shouldBlockStatus = true }
+  func blockNextProject() { shouldBlockProject = true }
   func emitStatus(_ status: DesktopJSON) {
     if let records = status["devices"]?.array {
       let ids = records.compactMap { $0["id"]?.string }
@@ -265,6 +296,11 @@ private actor DesktopDeviceRuntimeFixture: DesktopHostRuntime {
   func completePairing() {
     pairing?.resume(returning: .object(["payload": .object(["v": .number(2)])]))
     pairing = nil
+  }
+
+  func completeProject(_ result: DesktopJSON) {
+    project?.resume(returning: result)
+    project = nil
   }
 
   func waitForRequest(_ method: String, count: Int = 1) async {

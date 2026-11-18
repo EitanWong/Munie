@@ -34,9 +34,14 @@ final class NearbyConnectionAttempt: ObservableObject {
     }
     generation = UUID()
     let token = generation
-    self.disconnect = disconnect
     phase = .connecting
     operation = Task { [weak self] in
+      do {
+        guard let self, self.generation == token, self.phase == .connecting, !Task.isCancelled
+        else { return }
+        // The callback can change connection state before its first suspension.
+        self.disconnect = disconnect
+      }
       let connected = await connect()
       guard let self, self.generation == token, self.phase == .connecting else { return }
       if connected, !Task.isCancelled, expiresAt > self.now() {
@@ -72,14 +77,19 @@ final class NearbyConnectionAttempt: ObservableObject {
   }
 
   private func cancel(finishingAt finalPhase: Phase) {
-    guard phase == .connecting, let disconnect else { return }
+    guard phase == .connecting else { return }
     generation = UUID()
     let token = generation
-    phase = .cancelling
     deadline?.cancel()
     deadline = nil
     let interrupted = operation
     interrupted?.cancel()
+    guard let disconnect else {
+      operation = nil
+      phase = finalPhase
+      return
+    }
+    phase = .cancelling
     operation = Task { [weak self] in
       // Disconnect immediately to release pending socket work, then repeat after
       // it returns so a late successful handshake cannot survive cancellation.

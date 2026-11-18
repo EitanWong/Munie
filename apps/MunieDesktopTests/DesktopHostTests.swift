@@ -1,11 +1,84 @@
 import Darwin
 import Foundation
+import Observation
 import Testing
 
 @testable import MunieDesktop
 
 @MainActor
 struct DesktopHostLifecycleTests {
+  @Test func controlsObserveBusyClearingAfterStartup() async {
+    let runtime = DesktopRuntimeFixture(blockStart: true)
+    let controller = makeController(runtime)
+    let start = Task { await controller.start() }
+    await runtime.waitUntilStartRequested()
+    await confirmation("The observed busy state invalidates when startup finishes") { changed in
+      withObservationTracking {
+        #expect(controller.busy)
+      } onChange: {
+        changed()
+      }
+      await runtime.releaseStart()
+      await start.value
+      #expect(!controller.busy)
+      #expect(controller.canStop)
+    }
+    #expect(await controller.stop())
+  }
+
+  @Test func controlsObserveAvailabilityAfterStop() async {
+    let runtime = DesktopRuntimeFixture()
+    let controller = makeController(runtime)
+    await controller.start()
+    await confirmation("The observed start control invalidates when ownership clears") { changed in
+      withObservationTracking {
+        #expect(!controller.canStart)
+      } onChange: {
+        changed()
+      }
+      #expect(await controller.stop())
+      #expect(controller.canStart)
+    }
+  }
+
+  @Test func localNetworkAvailabilityChangesWithoutRestartingTheRuntime() async {
+    let runtime = DesktopRuntimeFixture()
+    let controller = makeController(runtime)
+    var advertised: [Bool] = []
+    let (changes, output) = AsyncStream<Bool>.makeStream(bufferingPolicy: .bufferingNewest(4))
+    defer { output.finish() }
+    controller.onNearbyAvailabilityChange = { [weak controller] in
+      if let controller {
+        output.yield(controller.nearbyReady)
+        advertised.append(controller.nearbyReady)
+      }
+    }
+    var events = changes.makeAsyncIterator()
+
+    await controller.start()
+    #expect(await events.next() == true)
+    await runtime.emit(
+      .message(
+        name: "status",
+        data: .object([
+          "lanAvailable": .bool(false), "lanRevision": .number(2),
+        ])))
+    #expect(await events.next() == false)
+    #expect(controller.ready)
+    await #expect(throws: DesktopHostFailure.notRunning) { try await controller.pairingPayload() }
+    await runtime.emit(
+      .message(
+        name: "status",
+        data: .object([
+          "lanAvailable": .bool(true), "lanRevision": .number(3),
+        ])))
+    #expect(await events.next() == true)
+    #expect(await runtime.launchCount == 1)
+    #expect(await runtime.stopCount == 0)
+    #expect(await controller.stop())
+    #expect(advertised == [true, false, true, false])
+  }
+
   @Test func stopFailureRetainsOwnershipUntilRetryConfirmsCleanup() async {
     let runtime = DesktopRuntimeFixture(stopFailures: 1)
     let controller = makeController(runtime)
@@ -272,6 +345,8 @@ private actor DesktopRuntimeFixture: DesktopHostRuntime {
     if method == "account/read" { return .object(["status": .string("not_logged_in")]) }
     return .object([
       "state": .string(isRunning ? "running" : "stopped"),
+      "lanAvailable": .bool(isRunning),
+      "lanRevision": .number(isRunning ? 1 : 0),
       "project": hasProject
         ? .object(["path": .string("/fixture/My Project"), "name": .string("My Project")]) : .null,
       "account": .object(["status": .string("not_logged_in")]),

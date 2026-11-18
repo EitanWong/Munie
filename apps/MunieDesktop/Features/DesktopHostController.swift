@@ -36,7 +36,16 @@ struct DesktopPairedDevice: Equatable, Sendable, Identifiable {
 final class DesktopHostController {
   typealias RuntimeFactory = @Sendable () async throws -> any DesktopHostRuntime
 
-  private(set) var serviceState: DesktopServiceState = .stopped
+  private(set) var serviceState: DesktopServiceState = .stopped {
+    didSet {
+      if lanAvailable && (oldValue == .running) != ready { onNearbyAvailabilityChange?() }
+    }
+  }
+  private(set) var lanAvailable = false {
+    didSet {
+      if ready && oldValue != lanAvailable { onNearbyAvailabilityChange?() }
+    }
+  }
   private(set) var accountState: DesktopAccountState = .unknown
   private(set) var projectName = ""
   private(set) var pairedDevices: [DesktopPairedDevice] = []
@@ -51,6 +60,10 @@ final class DesktopHostController {
   var canStart: Bool { runtime == nil && !busy }
   var canStop: Bool { runtime != nil && stopping == nil }
   var ready: Bool { serviceState == .running }
+  var nearbyReady: Bool { ready && lanAvailable }
+  var statusTitle: String.LocalizationValue {
+    ready && !lanAvailable ? "Waiting for a local network" : serviceState.title
+  }
   var deviceCount: Int { pairedDevices.count }
   var deviceBusy: Bool { revokingDeviceID != nil }
   var canRemovePairing: Bool {
@@ -59,12 +72,15 @@ final class DesktopHostController {
 
   @ObservationIgnored private let makeRuntime: RuntimeFactory
   @ObservationIgnored private let defaultProject: @Sendable () async throws -> URL
-  @ObservationIgnored private var runtime: (any DesktopHostRuntime)?
-  @ObservationIgnored private var starting: Task<Void, Never>?
-  @ObservationIgnored private var stopping: Task<Bool, Never>?
+  @ObservationIgnored var onNearbyAvailabilityChange: (() -> Void)?
+  // These handles also drive the observable start, stop and busy controls.
+  private var runtime: (any DesktopHostRuntime)?
+  private var starting: Task<Void, Never>?
+  private var stopping: Task<Bool, Never>?
   @ObservationIgnored private var eventTask: Task<Void, Never>?
   @ObservationIgnored private var generation = UUID()
   @ObservationIgnored private var statusRevision = UUID()
+  @ObservationIgnored private var latestLANRevision: UInt64?
   @ObservationIgnored private var deviceOperation: UUID?
 
   init(
@@ -95,6 +111,7 @@ final class DesktopHostController {
       runtime = owned
       let activeGeneration = UUID()
       generation = activeGeneration
+      latestLANRevision = nil
       let stream = try await owned.launch()
       eventTask = Task { [weak self] in
         for await event in stream {
@@ -158,6 +175,7 @@ final class DesktopHostController {
     invalidateDeviceOperation()
     runtime = nil
     serviceState = .stopped
+    lanAvailable = false
     accountBusy = false
     projectBusy = false
     loginURL = nil
@@ -285,14 +303,14 @@ final class DesktopHostController {
 
   /// Called only from the explicit Mac confirmation action, never while advertising.
   func pairingPayload() async throws -> Data {
-    guard ready, !deviceBusy, !projectBusy, let runtime else {
+    guard nearbyReady, !deviceBusy, !projectBusy, let runtime else {
       throw DesktopHostFailure.notRunning
     }
     let operationGeneration = generation
     let revision = statusRevision
     let result = try await runtime.request("pairing/get", params: .object([:]))
     guard operationGeneration == generation, revision == statusRevision,
-      ready, !busy, !deviceBusy, !projectBusy
+      nearbyReady, !busy, !deviceBusy, !projectBusy
     else { throw DesktopHostFailure.notRunning }
     guard let payload = result["payload"] else {
       throw DesktopHostFailure.invalidProtocol
@@ -351,6 +369,17 @@ final class DesktopHostController {
 
   @discardableResult
   private func apply(_ value: DesktopJSON) -> Bool {
+    // Replies and events arrive on separate paths even though the helper writes them in order.
+    if let available = value["lanAvailable"]?.boolean,
+      case .number(let rawRevision)? = value["lanRevision"], rawRevision <= 9_007_199_254_740_991,
+      let revision = UInt64(exactly: rawRevision)
+    {
+      if let latestLANRevision, revision < latestLANRevision { return false }
+      if revision != latestLANRevision {
+        latestLANRevision = revision
+        lanAvailable = available
+      }
+    }
     if let records = value["devices"] {
       guard let records = records.array else {
         error = "The paired iPhone status is unavailable. Try refreshing."

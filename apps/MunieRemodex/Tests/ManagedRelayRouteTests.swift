@@ -30,7 +30,8 @@
       XCTAssertFalse(service.shouldAutoReconnectOnForeground)
     }
 
-    func testSamePinColdRetryAfterLANSessionChangeKeepsIntentWithoutAssumingReadiness() async throws {
+    func testSamePinColdRetryAfterLANSessionChangeKeepsIntentWithoutAssumingReadiness() async throws
+    {
       let service = CodexService()
       let lanURL = "ws://lan.example:80/relay"
       let mac = CodexTrustedMacRecord(
@@ -49,14 +50,14 @@
       let endpoint = try XCTUnwrap(URL(string: "\(lanURL)/next-session"))
       var fallbackCount = 0
       try await ContentViewModel.connectWithManagedFallback(
-        shouldContinue: { service.shouldAutoReconnectOnForeground }
-      ) { reportUnreachable in
-        service.bindLANEndpointForConnection(endpoint)
-        reportUnreachable()
-        throw NWError.posix(.ECONNREFUSED)
-      } managed: {
-        fallbackCount += 1
-      }
+        shouldContinue: { service.shouldAutoReconnectOnForeground },
+        lan: { reportUnreachable in
+          service.bindLANEndpointForConnection(endpoint)
+          reportUnreachable()
+          throw NWError.posix(.ECONNREFUSED)
+        },
+        managed: { fallbackCount += 1 }
+      )
 
       XCTAssertEqual(fallbackCount, 1)
       XCTAssertTrue(service.shouldAutoReconnectOnForeground)
@@ -173,15 +174,16 @@
       var reconnectIntent = true
       var managedAttempts = 0
       do {
-        try await ContentViewModel.connectWithManagedFallback(shouldContinue: { reconnectIntent }) {
-          reportUnreachable in
-          await Task.yield()
-          reconnectIntent = false
-          reportUnreachable()
-          throw NWError.posix(.ECONNREFUSED)
-        } managed: {
-          managedAttempts += 1
-        }
+        try await ContentViewModel.connectWithManagedFallback(
+          shouldContinue: { reconnectIntent },
+          lan: { reportUnreachable in
+            await Task.yield()
+            reconnectIntent = false
+            reportUnreachable()
+            throw NWError.posix(.ECONNREFUSED)
+          },
+          managed: { managedAttempts += 1 }
+        )
         XCTFail("The cancelled reconnect must not publish a route")
       } catch is CancellationError {
         XCTAssertEqual(managedAttempts, 0)

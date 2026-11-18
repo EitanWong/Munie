@@ -181,6 +181,55 @@ final class CodexApprovalStateTests: XCTestCase {
         XCTAssertEqual(service.pendingApproval(for: "thread-a")?.id, service.idKey(from: requestID))
     }
 
+    func testNativeCommandApprovalRequiresExplicitDecisionInFullAccess() throws {
+        let service = makeService()
+        service.setSelectedAccessMode(.fullAccess)
+        let requestID: JSONValue = .integer(42)
+        let cwd = "/tmp/Project Folder "
+
+        service.handleIncomingRPCMessage(
+            RPCMessage(
+                id: requestID,
+                method: "item/commandExecution/requestApproval",
+                params: .object([
+                    "threadId": .string("thread-a"),
+                    "turnId": .string("turn-a"),
+                    "command": .string("git status"),
+                    "reason": .string("Inspect the checkout"),
+                    "cwd": .string(cwd),
+                ]),
+                includeJSONRPC: false
+            )
+        )
+
+        XCTAssertEqual(service.pendingApprovals.count, 1)
+        let request = try XCTUnwrap(service.pendingApproval(for: "thread-a"))
+        XCTAssertEqual(request.requestID, requestID)
+        XCTAssertEqual(request.turnId, "turn-a")
+        XCTAssertEqual(request.command, "git status")
+        XCTAssertEqual(request.reason, "Inspect the checkout")
+        XCTAssertEqual(request.workingDirectory, cwd)
+    }
+
+    func testApprovalWorkingDirectoryOmitsMissingBlankAndNonStringValues() {
+        let service = makeService()
+        let invalidValues: [JSONValue?] = [nil, .string(" \n"), .integer(42)]
+
+        for (index, value) in invalidValues.enumerated() {
+            let threadID = "thread-\(index)"
+            var params: [String: JSONValue] = ["threadId": .string(threadID)]
+            params["cwd"] = value
+            service.handleServerRequest(
+                method: "item/commandExecution/requestApproval",
+                requestID: .string("approval-\(index)"),
+                params: .object(params)
+            )
+
+            XCTAssertNotNil(service.pendingApproval(for: threadID))
+            XCTAssertNil(service.pendingApproval(for: threadID)?.workingDirectory)
+        }
+    }
+
     func testFailedApproveKeepsApprovalQueued() async throws {
         let service = makeService()
         let requestID: JSONValue = .string("approval-1")

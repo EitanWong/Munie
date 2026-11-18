@@ -9,8 +9,6 @@ import Foundation
 
 typealias IncomingParamsObject = [String: JSONValue]
 
-private let desktopIpcActionSource = "desktop-ipc-action-follower"
-
 private struct CommandExecutionMessageContext {
     let threadId: String
     let turnId: String?
@@ -140,24 +138,7 @@ extension CodexService {
                 params: params
             )
 
-            let isDesktopMirroredApproval = paramsObject?["remodexActionSource"]?.stringValue == desktopIpcActionSource
-            if selectedAccessMode == .fullAccess && !isDesktopMirroredApproval {
-                Task { @MainActor [weak self] in
-                    guard let self else { return }
-                    do {
-                        debugRuntimeLog("auto-approve triggered method=\(method)")
-                        try await sendResponse(
-                            id: requestID,
-                            result: approvalResponseResult(for: request, decision: "accept")
-                        )
-                    } catch {
-                        debugRuntimeLog("auto-approve failed method=\(method): \(error.localizedDescription)")
-                        enqueuePendingApproval(request)
-                    }
-                }
-                return
-            }
-
+            // A phone access preference never answers a server request for explicit approval.
             enqueuePendingApproval(request)
             return
         }

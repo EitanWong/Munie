@@ -1,3 +1,4 @@
+// Munie modification: display unconfirmed delivery and suppress retry for that message.
 // FILE: UserMessageBubble.swift
 // Purpose: Renders user prompt bubbles, attachment previews, mention chips, and retry/copy actions.
 // Layer: View Component
@@ -80,7 +81,7 @@ struct UserMessageBubble: View {
             })
         }
 
-        if isRetryAvailable, !actionText.isEmpty {
+        if isRetryAvailable, message.deliveryState != .unconfirmed, !actionText.isEmpty {
             actions.append(UIAction(
                 title: "Retry",
                 image: RemodexIcon.menuUIImage(systemName: "arrow.clockwise")
@@ -131,6 +132,8 @@ struct UserMessageBubble: View {
         switch message.deliveryState {
         case .pending:
             return "sending..."
+        case .unconfirmed:
+            return String(localized: "Send not confirmed. Check this chat on your Mac before sending again.")
         case .failed:
             return "Failed"
         case .confirmed:

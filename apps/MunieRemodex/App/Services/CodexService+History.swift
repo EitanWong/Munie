@@ -748,7 +748,7 @@ extension CodexService {
         }
 
         var canonicalTurnByLocalProvisionalTurn: [String: String] = [:]
-        for local in existing where local.role == .user {
+        for local in existing where local.role == .user && local.deliveryState != .unconfirmed {
             guard let localTurnID = normalizedHistoryIdentifier(local.turnId),
                   isProvisionalHistoryTurnIdentifier(localTurnID) else {
                 continue
@@ -895,7 +895,10 @@ extension CodexService {
             by: { normalizedHistoryIdentifier($0.turnId) ?? "" }
         )
         for (localTurnID, localUsers) in localUsersByTurn {
-            guard !localTurnID.isEmpty, localUsers.count == 1, let localUser = localUsers.first else {
+            guard !localTurnID.isEmpty,
+                  localUsers.count == 1,
+                  let localUser = localUsers.first,
+                  localUser.deliveryState != .unconfirmed else {
                 continue
             }
             let matchingLocalUsers = messages.filter { candidate in
@@ -930,7 +933,8 @@ extension CodexService {
                 continue
             }
             for index in messages.indices
-                where normalizedHistoryIdentifier(messages[index].turnId) == localTurnID {
+                where messages[index].deliveryState != .unconfirmed
+                    && normalizedHistoryIdentifier(messages[index].turnId) == localTurnID {
                 messages[index].turnId = canonicalTurnID
             }
         }
@@ -1024,6 +1028,20 @@ extension CodexService {
                 throw CancellationError()
             }
 
+            func allowsDeliveryReconcile(_ candidate: CodexMessage) -> Bool {
+                guard candidate.deliveryState == .unconfirmed else { return true }
+                guard matchesCanonicalUnconfirmedUserMessage(candidate, with: message) else { return false }
+                if normalizedHistoryIdentifier(candidate.itemId) != nil { return true }
+
+                // If the local row lacks an item id, history must not offer two
+                // different items with the same payload on the same turn.
+                let itemID = normalizedHistoryIdentifier(message.itemId)
+                return !history.contains { other in
+                    normalizedHistoryIdentifier(other.itemId) != itemID
+                        && matchesCanonicalUnconfirmedUserMessage(candidate, with: other)
+                }
+            }
+
             if let incomingSourceItemKey = normalizedHistoryIdentifier(message.sourceItemKey),
                let incomingTurnID = normalizedHistoryIdentifier(message.turnId) {
                 let eligibleAliasIndices = merged.indices.filter { index in
@@ -1033,6 +1051,7 @@ extension CodexService {
                         && normalizedHistoryIdentifier(candidate.sourceItemKey) == incomingSourceItemKey
                         && sourceItemIdentityAllowsReconcile(candidate.itemId, message.itemId)
                         && (candidate.kind == message.kind || candidate.kind == .chat || message.kind == .chat)
+                        && allowsDeliveryReconcile(candidate)
                 }
                 if eligibleAliasIndices.count == 1, let index = eligibleAliasIndices.first {
                     reconcileMessage(at: index, with: message)
@@ -1054,6 +1073,7 @@ extension CodexService {
                            with: message,
                            itemId: incomingItemId
                        )
+                       && allowsDeliveryReconcile(candidate)
                }) {
                 reconcileMessage(at: index, with: message)
                 continue
@@ -1151,7 +1171,8 @@ extension CodexService {
                    in: merged,
                    message: message,
                    turnId: turnId
-               ) {
+               ),
+               allowsDeliveryReconcile(merged[index]) {
                 reconcileMessage(at: index, with: message)
                 continue
             }
@@ -1160,7 +1181,8 @@ extension CodexService {
             // same-turn fallback so identity-less rows still reconcile safely.
             let exactKey = historyMessageKey(for: message)
             if let index = merged.firstIndex(where: { candidate in
-                guard historyMessageKey(for: candidate) == exactKey else {
+                guard historyMessageKey(for: candidate) == exactKey,
+                      allowsDeliveryReconcile(candidate) else {
                     return false
                 }
                 guard let itemId = normalizedHistoryIdentifier(message.itemId),
@@ -2071,6 +2093,12 @@ extension CodexService {
         runningThreadIDs: Set<String>
     ) -> CodexMessage {
         var value = localMessage
+        if value.deliveryState == .unconfirmed {
+            guard matchesCanonicalUnconfirmedUserMessage(value, with: serverMessage) else {
+                return value
+            }
+            value.deliveryState = .confirmed
+        }
         let threadIsActive = activeThreadIDs.contains(localMessage.threadId) || runningThreadIDs.contains(localMessage.threadId)
         let normalizedLocalTurnID = normalizedHistoryIdentifier(localMessage.turnId)
         let normalizedServerTurnID = normalizedHistoryIdentifier(serverMessage.turnId)
@@ -3031,11 +3059,37 @@ extension CodexService {
         return true
     }
 
+    // An unknown send cannot acquire its turn identity from matching prompt text.
+    // Require a turn already bound to the local row and a real history item on it.
+    private nonisolated static func matchesCanonicalUnconfirmedUserMessage(
+        _ local: CodexMessage,
+        with history: CodexMessage
+    ) -> Bool {
+        guard local.role == .user,
+              history.role == .user,
+              history.deliveryState == .confirmed,
+              local.threadId == history.threadId,
+              let turnID = normalizedHistoryIdentifier(local.turnId),
+              turnID == normalizedHistoryIdentifier(history.turnId),
+              !isProvisionalHistoryTurnIdentifier(turnID),
+              let itemID = normalizedHistoryIdentifier(history.itemId),
+              !isProvisionalUserItemIdentifier(itemID),
+              normalizedMessageText(local.text) == normalizedMessageText(history.text),
+              local.attachments.map(\.stableIdentityKey) == history.attachments.map(\.stableIdentityKey),
+              userMessageMetadataLooksCompatible(localMessage: local, serverMessage: history) else {
+            return false
+        }
+        return normalizedHistoryIdentifier(local.itemId).map { $0 == itemID } ?? true
+    }
+
     nonisolated static func shouldReconcileUserHistoryMessage(
         _ candidate: CodexMessage,
         with message: CodexMessage,
         turnId: String
     ) -> Bool {
+        if candidate.deliveryState == .unconfirmed {
+            return matchesCanonicalUnconfirmedUserMessage(candidate, with: message)
+        }
         guard candidate.role == .user,
               candidate.deliveryState != .failed,
               userMessagesMatchForHistory(candidate, message) else {
@@ -3142,6 +3196,7 @@ extension CodexService {
             guard candidate.threadId == message.threadId,
                   candidate.role == .user,
                   candidate.deliveryState != .failed,
+                  candidate.deliveryState != .unconfirmed,
                   userMessagesMatchForHistory(candidate, message),
                   userMessageMetadataLooksCompatible(
                     localMessage: candidate,

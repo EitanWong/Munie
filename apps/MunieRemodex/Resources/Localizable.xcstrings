@@ -1,6 +1,18 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Working directory: %@": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Working directory: %@" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "工作目录：%@" } }
+      }
+    },
+    "Send not confirmed. Check this chat on your Mac before sending again.": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Send not confirmed. Check this chat on your Mac before sending again." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "发送未确认。请在 Mac 上查看此对话，再决定是否重发。" } }
+      }
+    },
     "Self-hosted Munie": {
       "localizations": {
         "en": {

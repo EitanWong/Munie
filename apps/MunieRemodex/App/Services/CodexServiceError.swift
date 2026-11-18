@@ -1,3 +1,4 @@
+// Munie modification: preserve a possibly accepted turn without offering a blind retry.
 // FILE: CodexServiceError.swift
 // Purpose: Error taxonomy used by CodexService operations.
 // Layer: Service
@@ -5,6 +6,12 @@
 // Depends on: RPCError
 
 import Foundation
+
+struct CodexTurnDeliveryUnconfirmed: LocalizedError {
+    var errorDescription: String? {
+        String(localized: "Send not confirmed. Check this chat on your Mac before sending again.")
+    }
+}
 
 enum CodexServiceError: LocalizedError {
     case invalidServerURL(String)

@@ -128,6 +128,10 @@ private struct TurnViewAlertModifier: ViewModifier {
             lines.append(String(localized: "Command: \(command)"))
         }
 
+        if let workingDirectory = request.workingDirectory {
+            lines.append(String(localized: "Working directory: \(workingDirectory)"))
+        }
+
         if lines.isEmpty {
             return String(localized: "Codex is requesting permission to continue.")
         }

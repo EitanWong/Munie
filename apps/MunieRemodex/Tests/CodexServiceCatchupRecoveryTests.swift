@@ -403,11 +403,25 @@ final class CodexServiceCatchupRecoveryTests: XCTestCase {
         service.activeTurnIdByThread[threadID] = "turn-running-guard"
         service.upsertThread(CodexThread(id: threadID, title: "Large chat", preview: "Existing history"))
 
+        let canonicalRequested = expectation(description: "Canonical history requested")
+        let (canonicalResponseGate, releaseCanonicalResponse) = AsyncStream<Void>.makeStream()
+        defer {
+            releaseCanonicalResponse.finish()
+            service.isConnected = false
+            service.canonicalHistoryReconcileTaskByThreadID[threadID]?.cancel()
+            service.canonicalHistoryReconcileRetryTaskByThreadID[threadID]?.cancel()
+        }
         var requireCanonicalValues: [Bool] = []
         service.requestTransportOverride = { method, params in
             XCTAssertEqual(method, "thread/turns/list")
             let requiresCanonical = params?.objectValue?["remodexRequireCanonical"]?.boolValue == true
             requireCanonicalValues.append(requiresCanonical)
+            if requiresCanonical {
+                canonicalRequested.fulfill()
+                var gate = canonicalResponseGate.makeAsyncIterator()
+                _ = await gate.next()
+                try Task.checkCancellation()
+            }
             return RPCMessage(
                 id: .string(UUID().uuidString),
                 result: .object([
@@ -449,27 +463,21 @@ final class CodexServiceCatchupRecoveryTests: XCTestCase {
         )
 
         XCTAssertEqual(provisionalOutcome, .loadedProvisionalPaginatedWindow)
-        XCTAssertEqual(requireCanonicalValues, [false])
+        await fulfillment(of: [canonicalRequested], timeout: 2)
+        XCTAssertEqual(requireCanonicalValues, [false, true])
         XCTAssertTrue(service.provisionalPaginatedHistoryThreadIDs.contains(threadID))
         XCTAssertTrue(service.threadsNeedingCanonicalHistoryReconcile.contains(threadID))
         XCTAssertFalse(service.hasRemoteOlderThreadHistoryCursor(threadId: threadID))
         XCTAssertEqual(service.messages(for: threadID).last?.text, "Fast local history")
 
-        service.activeTurnIdByThread.removeValue(forKey: threadID)
-        let canonicalOutcome = try await service.loadThreadHistoryIfNeeded(
-            threadId: threadID,
-            forceRefresh: true
-        )
-
-        XCTAssertEqual(canonicalOutcome, .loadedPaginatedWindow)
+        let reconcile = try XCTUnwrap(service.canonicalHistoryReconcileTaskByThreadID[threadID])
+        releaseCanonicalResponse.finish()
+        await reconcile.value
         XCTAssertEqual(requireCanonicalValues, [false, true])
         XCTAssertFalse(service.provisionalPaginatedHistoryThreadIDs.contains(threadID))
         XCTAssertFalse(service.threadsNeedingCanonicalHistoryReconcile.contains(threadID))
         XCTAssertTrue(service.hasRemoteOlderThreadHistoryCursor(threadId: threadID))
         XCTAssertEqual(service.messages(for: threadID).last?.text, "Canonical history")
-        service.isConnected = false
-        service.canonicalHistoryReconcileTaskByThreadID[threadID]?.cancel()
-        service.canonicalHistoryReconcileRetryTaskByThreadID[threadID]?.cancel()
     }
 
     func testPaginatedFirstPaintKeepsTheRenderWindowBounded() {

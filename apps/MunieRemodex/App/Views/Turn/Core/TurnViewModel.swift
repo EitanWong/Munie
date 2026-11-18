@@ -1762,6 +1762,10 @@ final class TurnViewModel {
                     clearLocalDraft(codex: codex, threadID: thread.id, persistToDisk: true)
                 } catch {
                     // The real thread is already visible; startTurn owns the failed row/footer state.
+                    if error is CodexTurnDeliveryUnconfirmed {
+                        clearLocalDraft(codex: codex, threadID: draftThreadID, persistToDisk: true)
+                        clearLocalDraft(codex: codex, threadID: thread.id, persistToDisk: true)
+                    }
                     codex.lastErrorMessage = codex.userFacingTurnErrorMessageForFooter(from: error)
                 }
             } catch {
@@ -1995,7 +1999,9 @@ final class TurnViewModel {
                 codex.lastErrorMessage = nil
             } catch {
                 isAwaitingAssistantResponse = false
-                prependQueuedDraft(nextDraft, codex: codex, threadID: threadID)
+                if !(error is CodexTurnDeliveryUnconfirmed) {
+                    prependQueuedDraft(nextDraft, codex: codex, threadID: threadID)
+                }
                 let queueErrorMessage = codex.userFacingTurnErrorMessage(from: error)
                 setQueuePauseState(.paused(errorMessage: queueErrorMessage), codex: codex, threadID: threadID)
                 if let footerMessage = codex.userFacingTurnErrorMessageForFooter(from: error) {
@@ -2087,6 +2093,13 @@ final class TurnViewModel {
                 removeQueuedDraft(id: id, codex: codex, threadID: threadID)
             } catch {
                 isAwaitingAssistantResponse = false
+                if error is CodexTurnDeliveryUnconfirmed {
+                    removeQueuedDraft(id: id, codex: codex, threadID: threadID)
+                    let message = error.localizedDescription
+                    setQueuePauseState(.paused(errorMessage: message), codex: codex, threadID: threadID)
+                    codex.lastErrorMessage = message
+                    return
+                }
                 let serviceError = error as? CodexServiceError
                 if didDispatch {
                     let rpcError: RPCError?
@@ -2924,6 +2937,11 @@ final class TurnViewModel {
             )
             clearLocalDraft(codex: codex, threadID: threadID, persistToDisk: true)
         } catch {
+            if error is CodexTurnDeliveryUnconfirmed {
+                isAwaitingAssistantResponse = false
+                clearLocalDraft(codex: codex, threadID: threadID, persistToDisk: true)
+                return
+            }
             restorePendingSendOnFailure(
                 pendingSend,
                 error: error,

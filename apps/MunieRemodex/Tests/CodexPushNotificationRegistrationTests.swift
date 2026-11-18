@@ -11,6 +11,9 @@ import UserNotifications
 
 @MainActor
 final class CodexPushNotificationRegistrationTests: XCTestCase {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     private static var retainedServices: [CodexService] = []
 
     override func tearDown() async throws {
@@ -820,6 +823,9 @@ private func makeThreadJSON(id: String, title: String) -> JSONValue {
 }
 
 private final class MockRemoteNotificationRegistrar: CodexRemoteNotificationRegistering {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     private(set) var registerCallCount = 0
 
     @MainActor
@@ -829,6 +835,9 @@ private final class MockRemoteNotificationRegistrar: CodexRemoteNotificationRegi
 }
 
 private final class MockUserNotificationCenter: CodexUserNotificationCentering {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     var delegate: UNUserNotificationCenterDelegate?
     var status: UNAuthorizationStatus
     private(set) var addRequests: [UNNotificationRequest] = []

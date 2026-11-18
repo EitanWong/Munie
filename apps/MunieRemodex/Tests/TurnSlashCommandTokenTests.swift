@@ -10,6 +10,9 @@ import XCTest
 
 @MainActor
 final class TurnSlashCommandTokenTests: XCTestCase {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     func testTrailingTokenParsesBareSlash() {
         let token = TurnViewModel.trailingSlashCommandToken(in: "/")
         XCTAssertEqual(token?.query, "")

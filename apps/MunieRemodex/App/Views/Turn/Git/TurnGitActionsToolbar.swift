@@ -241,6 +241,9 @@ private struct UIKitGitActionsMenuButton: UIViewRepresentable {
     }
 
     final class Coordinator {
+        // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+        nonisolated deinit {}
+
         private var snapshot = GitMenuSnapshot()
 
         // Stored deferred-element completion for the Changes row; fired from

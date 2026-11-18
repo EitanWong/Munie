@@ -6,6 +6,9 @@ enum SubscriptionBootstrapState: Equatable { case idle, loading, ready, failed }
 
 @MainActor @Observable
 final class SubscriptionService {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     private(set) var bootstrapState: SubscriptionBootstrapState = .ready
     let hasProAccess = true
     let freeSendCount = 0

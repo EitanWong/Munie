@@ -9,6 +9,9 @@ import XCTest
 @testable import MunieRemodex
 
 final class TurnFileChangeSummaryParserTests: XCTestCase {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     func testParseConsolidatesRepeatedEntriesForSamePath() {
         let source = """
         Edited orchestrator-config-v1.example.json +2 -0

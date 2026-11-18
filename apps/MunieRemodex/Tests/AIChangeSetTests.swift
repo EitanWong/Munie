@@ -11,6 +11,9 @@ import XCTest
 
 @MainActor
 final class AIChangeSetTests: XCTestCase {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     func testUnifiedPatchParserExtractsSingleFileUpdate() {
         let patch = """
         diff --git a/Sources/App.swift b/Sources/App.swift

@@ -39,6 +39,13 @@ final class RemodexDisplayIslandCoordinator {
     private var runningStartedAtByThread: [String: Date] = [:]
     private var runningLastSeenAtByThread: [String: Date] = [:]
 
+    // Task handles are Sendable; cancel them without the Swift 6.2 isolated-deinit
+    // runtime path, including when the last owner releases us outside MainActor.
+    nonisolated deinit {
+        scheduledSyncTask?.cancel()
+        timedSyncTask?.cancel()
+    }
+
     func clearOutcome(for threadId: String, codex: CodexService) {
         codex.recentRunCompletionEventsByThread.removeValue(forKey: threadId)
     }

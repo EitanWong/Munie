@@ -9,6 +9,9 @@ import XCTest
 @testable import MunieRemodex
 
 final class StreamingMarkdownBlockSplitterTests: XCTestCase {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     // MARK: - Basic splitting
 
     func testEmptyTextSplitsToEmptyParts() {

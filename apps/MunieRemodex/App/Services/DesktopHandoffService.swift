@@ -30,6 +30,9 @@ enum DesktopHandoffError: LocalizedError {
 
 @MainActor
 final class DesktopHandoffService {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     private let codex: CodexService
     private let savedPairConnector: ((String) async throws -> Void)?
 

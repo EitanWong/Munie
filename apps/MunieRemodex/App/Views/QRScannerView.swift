@@ -328,6 +328,9 @@ private struct QRCameraPreview: UIViewRepresentable {
 
 // Serializes camera session handoff so a fast reopen cannot start before the previous stop completes.
 private final class QRCameraLifecycleCoordinator {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     static let shared = QRCameraLifecycleCoordinator()
     private typealias DeferredStart = () -> Void
 

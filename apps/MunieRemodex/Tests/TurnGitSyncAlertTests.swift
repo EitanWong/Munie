@@ -4,6 +4,9 @@ import XCTest
 
 @MainActor
 final class TurnGitSyncAlertTests: XCTestCase {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     func testBehindOnlyOffersSafeRemoteUpdate() {
         let viewModel = makeViewModel(state: "behind_only", dirty: false, ahead: 0, behind: 2)
         XCTAssertTrue(viewModel.canUpdateRepositoryFromRemote)

@@ -9,6 +9,9 @@ import XCTest
 @testable import MunieRemodex
 
 final class CodexAccessModeTests: XCTestCase {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     func testSandboxLegacyValuesMatchRuntimeEnums() {
         XCTAssertEqual(CodexAccessMode.onRequest.sandboxLegacyValue, "workspace-write")
         XCTAssertEqual(CodexAccessMode.autoReview.sandboxLegacyValue, "workspace-write")

@@ -3,6 +3,9 @@ import XCTest
 @testable import MunieRemodex
 
 @MainActor final class SubscriptionServiceAccessTests: XCTestCase {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     func testSelfHostedAccessDoesNotRequirePurchaseOrQuota() async {
         let suiteName = "MunieSelfHostedAccess.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

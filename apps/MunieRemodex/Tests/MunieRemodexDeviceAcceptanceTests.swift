@@ -7,6 +7,9 @@ import XCTest
 /// Opt-in actual transport/account acceptance. Ordinary test entries exclude this class.
 @MainActor
 final class MunieRemodexDeviceAcceptanceTests: XCTestCase {
+  // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+  nonisolated deinit {}
+
   func testExplicitDisposableTaskAndSeparateProcessRecovery() async throws {
     let environment = ProcessInfo.processInfo.environment
     guard let runID = environment["REMODEX_ACCEPTANCE_RUN_ID"], UUID(uuidString: runID) != nil,
@@ -358,6 +361,9 @@ enum MunieAcceptanceCommandPolicy {
 
 @MainActor
 final class MunieRemodexControlPolicyTests: XCTestCase {
+  // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+  nonisolated deinit {}
+
   func testFixedBodyAllowsOnlyReviewedShellWrappers() {
     let command = "printf 'MUNIE_REMODEX_APPROVED\\n' > munie-approved.txt"
     XCTAssertTrue(MunieAcceptanceCommandPolicy.matches(command, expected: command))

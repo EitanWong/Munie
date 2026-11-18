@@ -1,3 +1,4 @@
+// Munie modification: explicit nonisolated teardown for Swift 6.2 runtime compatibility.
 // FILE: TurnTimelineScrollSupport.swift
 // Purpose: Provides scroll geometry batching and UIKit axis clamping for the timeline.
 // Layer: View Support
@@ -43,6 +44,9 @@ struct TurnTimelineRenderItemsCacheSignature: Equatable {
 // Shares projection results between the body read and lifecycle handlers so
 // streaming updates do not rebuild timeline render items twice per signature.
 final class TurnTimelineRenderItemsCache {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     private var cachedSignature: TurnTimelineRenderItemsCacheSignature?
     private var cachedItems: [TurnTimelineRenderItem] = []
 
@@ -98,6 +102,9 @@ enum TurnTimelinePendingAssistantState {
 // does not reliably interrupt an in-flight UIScrollView deceleration by itself.
 @MainActor
 final class TurnTimelineNativeScrollController {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     private weak var scrollView: UIScrollView?
 
     func attach(_ scrollView: UIScrollView) {
@@ -136,6 +143,9 @@ struct VerticalScrollAxisGuard: UIViewRepresentable {
 
 // Internal because UIViewRepresentable witnesses expose this concrete UIView type.
 final class VerticalScrollAxisGuardView: UIView {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     var nativeScrollController: TurnTimelineNativeScrollController
     private weak var guardedScrollView: UIScrollView?
     private var contentOffsetObservation: NSKeyValueObservation?
@@ -201,6 +211,9 @@ final class VerticalScrollAxisGuardView: UIView {
 /// "tried to update multiple times per frame" cycling.
 @MainActor
 final class ScrollGeometryCoalescer {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     var pending: (old: ScrollBottomState, new: ScrollBottomState)?
     private(set) var latestObservedIsAtBottom: Bool?
     private var applyTask: Task<Void, Never>?

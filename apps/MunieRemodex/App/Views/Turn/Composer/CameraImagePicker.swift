@@ -1,3 +1,4 @@
+// Munie modification: explicit nonisolated teardown for Swift 6.2 runtime compatibility.
 // FILE: CameraImagePicker.swift
 // Purpose: UIViewControllerRepresentable wrapping UIImagePickerController for camera capture.
 // Layer: View Component
@@ -24,6 +25,9 @@ struct CameraImagePicker: UIViewControllerRepresentable {
     }
 
     final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+        nonisolated deinit {}
+
         let onImageCaptured: (Data) -> Void
         let dismiss: DismissAction
 

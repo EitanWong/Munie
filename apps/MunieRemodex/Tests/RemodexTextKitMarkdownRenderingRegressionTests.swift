@@ -13,6 +13,9 @@ import XCTest
 
 @MainActor
 final class RemodexTextKitMarkdownRenderingRegressionTests: XCTestCase {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     func testLargeFragmentedMarkdownRendersWithoutStackOverflowingTextBuilder() async {
         let markdown = Self.largeFragmentedMarkdown(fragmentCount: 2_500)
         let host = UIHostingController(

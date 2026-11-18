@@ -1,3 +1,4 @@
+// Munie modification: explicit nonisolated teardown for Swift 6.2 runtime compatibility.
 // FILE: SidebarActivityDiffStore.swift
 // Purpose: Shares on-demand Git totals between visible Activity rows in the same checkout.
 // Layer: Service
@@ -8,6 +9,9 @@ import Observation
 @MainActor
 @Observable
 final class SidebarActivityDiffStore {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     private(set) var totalsByPath: [String: GitDiffTotals] = [:]
     @ObservationIgnored private var refreshedAtByPath: [String: Date] = [:]
     @ObservationIgnored private var refreshedRevisionByPath: [String: Int] = [:]

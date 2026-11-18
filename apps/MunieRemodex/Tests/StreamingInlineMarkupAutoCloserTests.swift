@@ -9,6 +9,9 @@ import XCTest
 @testable import MunieRemodex
 
 final class StreamingInlineMarkupAutoCloserTests: XCTestCase {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     // MARK: - Balanced input passes through
 
     func testEmptyTextUnchanged() {

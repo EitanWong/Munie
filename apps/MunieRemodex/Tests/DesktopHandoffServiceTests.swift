@@ -10,6 +10,9 @@ import XCTest
 
 @MainActor
 final class DesktopHandoffServiceTests: XCTestCase {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     func testContinueOnDesktopUsesPlatformNeutralBridgeMethod() async throws {
         let service = makeService()
         var capturedMethod: String?

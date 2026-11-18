@@ -1,3 +1,4 @@
+// Munie modification: explicit nonisolated teardown for Swift 6.2 runtime compatibility.
 // FILE: PetCompanionOverlay.swift
 // Purpose: Draws and animates a draggable Codex companion pet above the app shell.
 // Layer: View
@@ -356,6 +357,9 @@ private enum PetSpriteDecoder {
 }
 
 private final class PetSpriteAtlas {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     private let cgImage: CGImage
     private let scale: CGFloat
     private let orientation: UIImage.Orientation

@@ -1,4 +1,4 @@
-// Munie modification: own sync tasks, isolate test preferences and hop to MainActor for deinitialization.
+// Munie modification: own sync tasks, isolate test preferences and clean up synchronously on final release.
 // FILE: CodexService.swift
 // Purpose: Central state container for Codex app-server communication.
 // Layer: Service
@@ -371,6 +371,9 @@ struct PendingSystemStreamingDeltas {
 @MainActor
 @Observable
 final class ThreadTimelineState {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     let threadID: String
     var messages: [CodexMessage]
     var messageRevision: Int
@@ -418,6 +421,16 @@ struct AssistantRevertStateCacheEntry {
     let revertStateRevision: Int
     let workingDirectory: String?
     let statesByMessageID: [String: AssistantRevertPresentation]
+}
+
+// Access remains on CodexService's MainActor while it is alive. Final release has
+// exclusive ownership, and NotificationCenter supports removal from any thread.
+nonisolated private final class CodexServiceNotificationObserverLifetime {
+    var tokens: [NSObjectProtocol] = []
+
+    nonisolated deinit {
+        tokens.forEach { NotificationCenter.default.removeObserver($0) }
+    }
 }
 
 @MainActor
@@ -679,7 +692,7 @@ final class CodexService {
         case liveMirror
     }
     // Coalesces multiple invalidateAssistantRevertStates() calls within the same run loop tick into one refresh.
-    var coalescedRevertRefreshTask: Task<Void, Never>?
+    @ObservationIgnored var coalescedRevertRefreshTask: Task<Void, Never>?
     // Dedupes completion payloads when servers omit turn/item identifiers.
     var assistantCompletionFingerprintByThread: [String: (text: String, timestamp: Date)] = [:]
     // Dedupes concise activity feed lines per thread/turn to avoid visual spam.
@@ -745,15 +758,15 @@ final class CodexService {
     // bandwidth usage on constrained connections (Low Data Mode, hotspot tethering).
     var isConstrainedNetwork = false
     @ObservationIgnored var networkPathMonitor: NWPathMonitor?
-    var pendingImmediateSyncTask: Task<Void, Never>?
+    @ObservationIgnored var pendingImmediateSyncTask: Task<Void, Never>?
     var pendingImmediateSyncThreadID: String?
     var pendingImmediateSyncGeneration = UUID()
-    var threadListSyncTask: Task<Void, Never>?
-    var activeThreadSyncTask: Task<Void, Never>?
-    var runningThreadWatchSyncTask: Task<Void, Never>?
-    var postConnectSyncTask: Task<Void, Never>?
+    @ObservationIgnored var threadListSyncTask: Task<Void, Never>?
+    @ObservationIgnored var activeThreadSyncTask: Task<Void, Never>?
+    @ObservationIgnored var runningThreadWatchSyncTask: Task<Void, Never>?
+    @ObservationIgnored var postConnectSyncTask: Task<Void, Never>?
     // Keeps the phone-side account UI in sync while ChatGPT login is being completed on the Mac.
-    var gptAccountLoginSyncTask: Task<Void, Never>?
+    @ObservationIgnored var gptAccountLoginSyncTask: Task<Void, Never>?
     var postConnectSyncToken: UUID?
     var connectedServerIdentity: String?
     // Tracks whether the bridge is proxying a real Codex endpoint or a spawned local app-server.
@@ -808,7 +821,11 @@ final class CodexService {
     var hasConfiguredNotifications = false
     var structuredUserInputNotificationDedupedAt: [String: Date] = [:]
     var notificationCenterDelegateProxy: CodexNotificationCenterDelegateProxy?
-    var notificationObserverTokens: [NSObjectProtocol] = []
+    @ObservationIgnored private let notificationObserverLifetime = CodexServiceNotificationObserverLifetime()
+    var notificationObserverTokens: [NSObjectProtocol] {
+        get { notificationObserverLifetime.tokens }
+        set { notificationObserverLifetime.tokens = newValue }
+    }
     var remoteNotificationDeviceToken: String?
     var lastPushRegistrationSignature: String?
     var completionPushSessionID: String?
@@ -1256,7 +1273,7 @@ final class CodexService {
         setCurrentTrustedMacDeviceId(bootstrapDeviceId)
     }
 
-    isolated deinit {
+    nonisolated deinit {
         networkPathMonitor?.cancel()
         trustedSessionResolveTask?.cancel()
         messagePersistenceDebounceTask?.cancel()
@@ -1268,10 +1285,6 @@ final class CodexService {
         runningThreadWatchSyncTask?.cancel()
         postConnectSyncTask?.cancel()
         gptAccountLoginSyncTask?.cancel()
-
-        notificationObserverTokens.forEach { NotificationCenter.default.removeObserver($0) }
-        notificationObserverTokens.removeAll()
-        notificationCenterDelegateProxy = nil
     }
 }
 

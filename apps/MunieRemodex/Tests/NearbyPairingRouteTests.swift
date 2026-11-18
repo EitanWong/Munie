@@ -5,6 +5,9 @@ import XCTest
 
 @MainActor
 final class NearbyPairingRouteTests: XCTestCase {
+  // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+  nonisolated deinit {}
+
   private func visible(
     _ route: NearbyPairingRoute, connected: Bool = false,
     paired: Bool = false, recovering: Bool = false, dismissed: Bool = false

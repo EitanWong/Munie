@@ -206,6 +206,9 @@ private struct MunieProductionRootView: View {
 
 @MainActor
 private final class MunieProductionDependencies: ObservableObject {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     let codexService: CodexService
     let petCompanionStore: PetCompanionStore
     let petCompanionStatusStore: PetCompanionStatusStore

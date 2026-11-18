@@ -10,6 +10,9 @@ import SwiftUI
 @testable import MunieRemodex
 
 final class TurnTimelineReducerTests: XCTestCase {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     func testCollapseConsecutiveThinkingKeepsNewestState() {
         let threadID = "thread"
         let now = Date()
@@ -7014,6 +7017,9 @@ final class TurnTimelineReducerTests: XCTestCase {
 
 @MainActor
 final class TurnScrollStateTrackerTests: XCTestCase {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     func testOnlyALocalSendOpensAtLiveTail() {
         XCTAssertTrue(
             TurnScrollStateTracker.shouldOpenAtLiveTail(
@@ -7306,6 +7312,9 @@ final class TurnScrollStateTrackerTests: XCTestCase {
 }
 
 final class ScrollGeometryCoalescerTests: XCTestCase {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     @MainActor
     func testFollowBottomDropsDelayedCorrectionRepairedByNativeAnchor() async {
         let coalescer = ScrollGeometryCoalescer()
@@ -7399,6 +7408,9 @@ final class ScrollGeometryCoalescerTests: XCTestCase {
 }
 
 final class PlanAccessorySnapshotTests: XCTestCase {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     func testCurrentStepUsesActualInProgressIndex() {
         let snapshot = makeSnapshot([
             CodexPlanStep(step: "First", status: .completed),
@@ -7520,6 +7532,9 @@ private func mermaidSegmentKinds(in content: MermaidMarkdownContent?) -> [Mermai
 }
 
 final class CodexAsyncUserInputProjectionTests: XCTestCase {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     private func question(id: String = "call-1", date: Date = Date(timeIntervalSince1970: 1_000)) -> CodexMessage {
         CodexMessage(
             id: "question",

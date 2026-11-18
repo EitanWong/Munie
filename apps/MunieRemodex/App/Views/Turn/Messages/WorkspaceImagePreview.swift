@@ -1,3 +1,4 @@
+// Munie modification: explicit nonisolated teardown for Swift 6.2 runtime compatibility.
 // FILE: WorkspaceImagePreview.swift
 // Purpose: Loads, caches, and presents workspace image/text previews from assistant links.
 // Layer: Turn UI preview service
@@ -706,6 +707,9 @@ struct WorkspaceSVGWebView: UIViewRepresentable {
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate {
+        // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+        nonisolated deinit {}
+
         var loadedHTML: String?
         private var didAllowInitialNavigation = false
 
@@ -1049,6 +1053,9 @@ private struct WorkspaceRunestoneCodeFileView: UIViewRepresentable {
     }
 
     final class Coordinator {
+        // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+        nonisolated deinit {}
+
         var signature: Signature?
 
         struct Signature: Equatable {
@@ -1124,6 +1131,9 @@ private enum WorkspaceRunestoneLanguageResolver {
 }
 
 private final class WorkspaceRunestoneTheme: Runestone.Theme {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     private let isDark: Bool
 
     init(colorScheme: ColorScheme) {

@@ -9,6 +9,9 @@ import XCTest
 @testable import MunieRemodex
 
 final class TurnComposerAttachmentIntakePlanTests: XCTestCase {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     func testIntakePlanAcceptsAllWhenWithinRemainingSlots() {
         let plan = TurnComposerAttachmentIntakePlan.make(requestedCount: 2, remainingSlots: 4)
 

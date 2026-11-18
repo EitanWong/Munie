@@ -18,6 +18,9 @@ enum LocalNetworkAuthorizationStatus: Equatable {
 
 @MainActor
 final class LocalNetworkAuthorizationRequester: NSObject, NetServiceDelegate {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     private let serviceType = "_remodex-permission._tcp"
     private let serviceName = "MunieLocalNetwork"
 

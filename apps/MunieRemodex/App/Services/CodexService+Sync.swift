@@ -9,6 +9,9 @@ import Foundation
 import UIKit
 
 private final class BackgroundTaskIdentifierBox: @unchecked Sendable {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     var taskID: UIBackgroundTaskIdentifier = .invalid
 }
 

@@ -3,6 +3,9 @@ import XCTest
 @testable import MunieRemodex
 
 final class AssistantMemoryCitationParserTests: XCTestCase {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     private let citation = """
     <oai-mem-citation>
     <citation_entries>

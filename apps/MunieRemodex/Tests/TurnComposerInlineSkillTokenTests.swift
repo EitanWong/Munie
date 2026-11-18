@@ -10,6 +10,9 @@ import XCTest
 @testable import MunieRemodex
 
 final class TurnComposerInlineSkillTokenTests: XCTestCase {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     private let font = UIFont.systemFont(ofSize: 15)
 
     func testSelectedSkillRoundTripsThroughAttributedDisplay() {

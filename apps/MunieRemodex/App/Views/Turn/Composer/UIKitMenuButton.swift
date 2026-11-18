@@ -1,3 +1,4 @@
+// Munie modification: explicit nonisolated teardown for Swift 6.2 runtime compatibility.
 // FILE: UIKitMenuButton.swift
 // Purpose: SwiftUI bridge to a UIKit UIButton + UIMenu so we can use hierarchical
 //          UIKit menus (subtitle rows, nested submenus) without hitting SwiftUI's
@@ -114,6 +115,9 @@ private struct UIKitMenuButtonBacker: UIViewControllerRepresentable {
     }
 
     final class Coordinator {
+        // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+        nonisolated deinit {}
+
         var menu: () -> UIMenu
         var onWillPresent: (() -> Void)?
 
@@ -129,6 +133,9 @@ private struct UIKitMenuButtonBacker: UIViewControllerRepresentable {
 // Dedicated container so UIKit's menu presentation reparents `_UIReparentingView`
 // into THIS controller's view rather than the outer `UIHostingController.view`.
 final class MenuButtonHostController: UIViewController {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     let button = UIButton(type: .custom)
 
     override func loadView() {

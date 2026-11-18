@@ -4,6 +4,9 @@ import XCTest
 @testable import MunieRemodex
 
 final class BridgeUpdatePresentationTests: XCTestCase {
+  // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+  nonisolated deinit {}
+
   func testCommandPresenceSelectsMacAppUpdateWithoutDisplayingDeveloperInstructions() {
     for command in [
       "./scripts/setup-remodex.sh", "npm install -g upstream", "", "TOKEN=secret; run-tool",

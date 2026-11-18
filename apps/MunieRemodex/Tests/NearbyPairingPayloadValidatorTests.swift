@@ -4,6 +4,9 @@ import XCTest
 @testable import MunieRemodex
 
 final class NearbyPairingPayloadValidatorTests: XCTestCase {
+  // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+  nonisolated deinit {}
+
   private let now = Date(timeIntervalSince1970: 1_800_000_000)
 
   private func payload() -> [String: Any] {

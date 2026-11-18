@@ -1,3 +1,4 @@
+// Munie modification: self-hosted source fork; see ../NOTICE.md and LICENSE.
 // FILE: AppReviewPromptCoordinator.swift
 // Purpose: Applies a simple App Store rating prompt policy around successful Remodex usage.
 // Layer: Service
@@ -42,6 +43,10 @@ final class AppReviewPromptCoordinator {
         self.defaults = defaults
         self.state = Self.loadState(from: defaults)
     }
+
+    // Avoid the Swift 6.2 isolated-deinit runtime crash when XCTest releases this leaf
+    // outside a Swift task. Policy and StoreKit operations remain on MainActor.
+    nonisolated deinit {}
 
     // Records only clear, visible successful runs so review prompting stays away from turn recovery paths.
     func noteSuccessfulRun(threadId: String, turnId: String?, isCurrentThreadVisible: Bool, now: Date = Date()) {

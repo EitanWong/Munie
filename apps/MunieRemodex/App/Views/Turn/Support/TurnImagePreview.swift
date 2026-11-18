@@ -1,3 +1,4 @@
+// Munie modification: explicit nonisolated teardown for Swift 6.2 runtime compatibility.
 // FILE: TurnImagePreview.swift
 // Purpose: Reusable fullscreen image preview with zoom, share, and save actions for timeline media.
 // Layer: View Support
@@ -178,6 +179,9 @@ private struct ZoomableImageScrollView: UIViewRepresentable {
     }
 
     final class Coordinator: NSObject, UIScrollViewDelegate {
+        // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+        nonisolated deinit {}
+
         let imageView = UIImageView()
 
         func viewForZooming(in scrollView: UIScrollView) -> UIView? {
@@ -197,6 +201,9 @@ private struct ActivityViewController: UIViewControllerRepresentable {
 }
 
 final class ImageSaveCoordinator: NSObject {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     private var completion: ((Result<Void, Error>) -> Void)?
 
     func save(_ image: UIImage, completion: @escaping (Result<Void, Error>) -> Void) {

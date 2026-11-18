@@ -129,6 +129,9 @@ enum RemodexNativeSSHTerminalError: LocalizedError {
 
 @MainActor
 final class RemodexNativeSSHTerminal {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     private var client: SSHClient?
     private var writer: TTYStdinWriter?
     private var sessionTask: Task<Void, Never>?

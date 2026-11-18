@@ -1,3 +1,4 @@
+// Munie modification: explicit nonisolated teardown for Swift 6.2 runtime compatibility.
 import Combine
 import Foundation
 
@@ -6,6 +7,9 @@ import Foundation
 /// before another connection can begin.
 @MainActor
 final class NearbyConnectionAttempt: ObservableObject {
+  // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+  nonisolated deinit {}
+
   enum Phase { case idle, connecting, cancelling, failed, completed }
 
   @Published private(set) var phase: Phase = .idle

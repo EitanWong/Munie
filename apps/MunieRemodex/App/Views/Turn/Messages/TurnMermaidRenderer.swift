@@ -1,3 +1,4 @@
+// Munie modification: explicit nonisolated teardown for Swift 6.2 runtime compatibility.
 // FILE: TurnMermaidRenderer.swift
 // Purpose: Detects fenced Mermaid blocks and converts them into cached static snapshots for smooth timeline scrolling.
 // Layer: View Support
@@ -326,6 +327,9 @@ private struct MermaidSnapshotRenderer: UIViewRepresentable {
 }
 
 private final class MermaidSnapshotRendererCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     static let heightMessageName = "mermaidHeight"
 
     private let renderHeight: Binding<CGFloat>
@@ -496,6 +500,9 @@ private struct MermaidRenderedSnapshot {
 }
 
 private final class MermaidRenderedSnapshotBox: NSObject {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     let snapshot: MermaidRenderedSnapshot
 
     init(snapshot: MermaidRenderedSnapshot) {

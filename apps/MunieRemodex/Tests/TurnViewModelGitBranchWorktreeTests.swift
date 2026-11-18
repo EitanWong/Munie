@@ -10,6 +10,9 @@ import XCTest
 
 @MainActor
 final class TurnViewModelGitBranchWorktreeTests: XCTestCase {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     func testWorktreePathResolvesOnlyForBranchesCheckedOutElsewhere() {
         let viewModel = TurnViewModel()
         viewModel.gitBranchesCheckedOutElsewhere = ["remodex/feature-a"]

@@ -101,6 +101,9 @@ struct GitManagedWorktree: Identifiable, Sendable {
 
 @MainActor
 final class GitActionsService {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     private let codex: CodexService
     private let workingDirectory: String?
 

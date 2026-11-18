@@ -1,3 +1,4 @@
+// Munie modification: explicit nonisolated teardown for Swift 6.2 runtime compatibility.
 // FILE: PetCompanionStore.swift
 // Purpose: Persists and loads the optional Codex companion pet state.
 // Layer: Service
@@ -10,6 +11,9 @@ import Observation
 @MainActor
 @Observable
 final class PetCompanionStore {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     private enum DefaultsKey {
         static let isEnabled = "codex.pet.isEnabled"
         static let selectedID = "codex.pet.selectedID"
@@ -179,6 +183,9 @@ final class PetCompanionStore {
 @MainActor
 @Observable
 final class PetCompanionStatusStore {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     var snapshot = PetCompanionStatusSnapshot.idle
 
     func update(_ snapshot: PetCompanionStatusSnapshot) {

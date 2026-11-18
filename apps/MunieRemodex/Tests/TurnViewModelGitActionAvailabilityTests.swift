@@ -10,6 +10,9 @@ import XCTest
 
 @MainActor
 final class TurnViewModelGitActionAvailabilityTests: XCTestCase {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     func testCanRunGitActionRequiresBoundWorkingDirectory() {
         let viewModel = TurnViewModel()
 

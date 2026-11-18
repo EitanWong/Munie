@@ -1,3 +1,4 @@
+// Munie modification: explicit nonisolated teardown for Swift 6.2 runtime compatibility.
 // FILE: FullScreenOverlay.swift
 // Purpose: `.fullScreenOverlay(isPresented:)` — covers the whole screen from a
 //          small view without presenting a view controller, so the current first
@@ -80,6 +81,9 @@ private struct FullScreenOverlayAnchor<OverlayContent: View>: UIViewControllerRe
 // MARK: - Anchor controller
 
 final class FullScreenOverlayAnchorController<OverlayContent: View>: UIViewController {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     private var overlayWindow: UIWindow?
     private var host: FullScreenOverlayHostController<OverlayContent>?
     private var latestContent: OverlayContent?
@@ -155,6 +159,9 @@ final class FullScreenOverlayAnchorController<OverlayContent: View>: UIViewContr
 // Transparent host so the content's own material blurs the app underneath
 // instead of compositing against an opaque background.
 final class FullScreenOverlayHostController<OverlayContent: View>: UIHostingController<OverlayContent> {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .clear

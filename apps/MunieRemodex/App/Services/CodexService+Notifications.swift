@@ -22,6 +22,9 @@ protocol CodexRemoteNotificationRegistering: AnyObject {
 }
 
 final class CodexApplicationRemoteNotificationRegistrar: CodexRemoteNotificationRegistering {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     // Requests the APNs device token once alert permission is no longer denied.
     @MainActor
     func registerForRemoteNotifications() {
@@ -53,6 +56,9 @@ extension UNUserNotificationCenter: CodexUserNotificationCentering {
 }
 
 final class CodexNotificationCenterDelegateProxy: NSObject, UNUserNotificationCenterDelegate {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     weak var service: CodexService?
 
     init(service: CodexService) {

@@ -1,3 +1,4 @@
+// Munie modification: explicit nonisolated teardown for Swift 6.2 runtime compatibility.
 // FILE: UIKitContextMenu.swift
 // Purpose: Bridges SwiftUI's `.contextMenu` to `UIContextMenuInteraction`
 //          so menu rows can use UIKit's `UIMenu`/`UIAction(image:)` API.
@@ -87,6 +88,9 @@ private struct UIKitContextMenuHost<Content: View>: UIViewControllerRepresentabl
     }
 
     final class Coordinator: NSObject, UIContextMenuInteractionDelegate {
+        // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+        nonisolated deinit {}
+
         var menu: () -> UIMenu
 
         init(menu: @escaping () -> UIMenu) {
@@ -117,6 +121,9 @@ private struct UIKitContextMenuHost<Content: View>: UIViewControllerRepresentabl
 // UIHostingController without forcing a navigation bar / safe area inset
 // on the caller.
 final class ContextMenuHostController<Content: View>: UIHostingController<Content> {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     override init(rootView: Content) {
         super.init(rootView: rootView)
         // Streaming descendants update their own state after updateUIViewController.

@@ -1,3 +1,4 @@
+// Munie modification: explicit nonisolated teardown for Swift 6.2 runtime compatibility.
 // FILE: CodexMobileAppDelegate.swift
 // Purpose: Bridges APNs registration callbacks into the service layer without coupling SwiftUI views to UIApplicationDelegate.
 // Layer: App
@@ -13,6 +14,9 @@ extension Notification.Name {
 }
 
 final class CodexMobileAppDelegate: NSObject, UIApplicationDelegate {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     func application(
         _ application: UIApplication,
         configurationForConnecting connectingSceneSession: UISceneSession,
@@ -79,6 +83,9 @@ final class CodexMobileAppDelegate: NSObject, UIApplicationDelegate {
 }
 
 final class CodexMobileSceneDelegate: NSObject, UIWindowSceneDelegate {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     func scene(
         _ scene: UIScene,
         willConnectTo session: UISceneSession,

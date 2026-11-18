@@ -11,6 +11,9 @@ import XCTest
 
 @MainActor
 final class TurnViewModelGitBranchAlertTests: XCTestCase {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     func testCreateBranchWarnsWhenDefaultBranchHasLocalCommits() {
         let viewModel = TurnViewModel()
         viewModel.currentGitBranch = "main"

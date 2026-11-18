@@ -10,6 +10,9 @@ import XCTest
 
 @MainActor
 final class UserMessageParserTests: XCTestCase {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     func testParseKeepsLeadingFileMentionWithSpaces() {
         let parsed = UserMessageParser.parse(
             "@Codex Mobile App Plan/Codex iOS Recap TLDR.md add other 2 lines"

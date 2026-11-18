@@ -191,6 +191,9 @@ private struct ScrollingWaveformLane: View {
 // `displayedHead` is the fractional absolute sample index currently anchored
 // at the lane's right edge; it advances one slot per meter window.
 private final class WaveformScrollClock {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     private(set) var totalAppended = 0
     private var displayedHead: Double = 0
     private var lastFrameTime: Date?

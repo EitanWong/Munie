@@ -422,6 +422,9 @@ private struct UIKitThreadActionsToolbarButton: UIViewRepresentable {
     }
 
     final class Coordinator {
+        // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+        nonisolated deinit {}
+
         var actions: [TurnThreadActionMenuItem]
 
         init(actions: [TurnThreadActionMenuItem]) {

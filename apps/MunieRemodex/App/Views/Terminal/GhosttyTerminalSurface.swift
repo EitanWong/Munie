@@ -74,6 +74,9 @@ struct RemodexTerminalTheme: Equatable {
 /// demand (e.g. for the "Select text" sheet) without owning the view itself.
 @MainActor
 final class GhosttyTerminalTextReader {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     fileprivate weak var view: GhosttyTerminalView?
 
     func visibleText() -> String? {
@@ -119,6 +122,9 @@ struct GhosttyTerminalSurface: UIViewRepresentable {
 
 #else
 @MainActor final class GhosttyTerminalTextReader {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     func visibleText() -> String? { nil }
 }
 struct GhosttyTerminalSurface: View {

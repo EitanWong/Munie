@@ -9,6 +9,9 @@ import XCTest
 @testable import MunieRemodex
 
 final class SidebarThreadGroupingTests: XCTestCase {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     func testMakeGroupsPartitionsLiveThreadsByProjectPath() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let threads = [

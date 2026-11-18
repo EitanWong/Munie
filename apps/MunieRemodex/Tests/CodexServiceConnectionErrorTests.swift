@@ -12,6 +12,9 @@ import UIKit
 
 @MainActor
 final class CodexServiceConnectionErrorTests: XCTestCase {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     func testKeepMacAwakePreferenceDefaultsToDisabled() {
         let suiteName = "CodexServiceConnectionErrorTests.keepMacAwake.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

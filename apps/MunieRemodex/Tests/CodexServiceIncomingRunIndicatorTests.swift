@@ -11,6 +11,9 @@ import Network
 
 @MainActor
 final class CodexServiceIncomingRunIndicatorTests: XCTestCase {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     private static var retainedServices: [CodexService] = []
 
     override func tearDown() async throws {

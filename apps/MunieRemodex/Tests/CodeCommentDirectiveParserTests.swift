@@ -9,6 +9,9 @@ import XCTest
 @testable import MunieRemodex
 
 final class CodeCommentDirectiveParserTests: XCTestCase {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     func testParseExtractsSingleFindingAndCleansFallbackText() {
         let source = """
         Review complete.

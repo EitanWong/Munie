@@ -4,6 +4,9 @@ import XCTest
 
 @MainActor
 final class MunieClientIdentityTests: XCTestCase {
+  // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+  nonisolated deinit {}
+
   private static var retainedServices: [CodexService] = []
 
   func testHandshakeUsesMunieIdentityAndActualMarketingVersion() async {

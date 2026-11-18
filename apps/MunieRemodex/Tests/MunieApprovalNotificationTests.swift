@@ -6,6 +6,9 @@ import XCTest
 
 @MainActor
 final class MunieApprovalNotificationTests: XCTestCase {
+  // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+  nonisolated deinit {}
+
   private var services: [CodexService] = []
 
   override func tearDown() async throws {
@@ -217,6 +220,9 @@ final class MunieApprovalNotificationTests: XCTestCase {
 
 @MainActor
 private final class ApprovalNotificationCenter: CodexUserNotificationCentering {
+  // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+  nonisolated deinit {}
+
   var delegate: UNUserNotificationCenterDelegate?
   var status: UNAuthorizationStatus = .authorized
   var requests: [UNNotificationRequest] = []

@@ -1,3 +1,4 @@
+// Munie modification: explicit nonisolated teardown for Swift 6.2 runtime compatibility.
 // FILE: TurnTimelineView.swift
 // Purpose: Coordinates timeline scrolling, bottom-anchor behavior and render caches.
 // Layer: View Component
@@ -22,6 +23,9 @@ private struct TurnTimelineRenderCacheState: Equatable {
 // same rows a second time. Keyed on the fine signature: the coarse shape
 // signature alone could hand a stale projection to a text-only delta.
 private final class TurnTimelineTransientProjectionMemo {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     var signature: TurnTimelineRenderItemsCacheSignature?
     var result: TurnTimelineRenderProjection.Result?
 }
@@ -1321,6 +1325,9 @@ private struct TurnTimelineScrollObserverModifier: ViewModifier {
 
 // Coalesces high-frequency observer callbacks without mutating SwiftUI state from onChange.
 private final class MainQueueUpdateCoalescer {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     private var isScheduled = false
     private var pendingAction: (() -> Void)?
 

@@ -10,6 +10,9 @@ import XCTest
 
 @MainActor
 final class TurnSkillAutocompleteTokenTests: XCTestCase {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     func testTrailingTokenParsesOnlyWhenItIsFinalToken() {
         let token = TurnViewModel.trailingSkillAutocompleteToken(in: "run $rev")
         XCTAssertEqual(token?.query, "rev")

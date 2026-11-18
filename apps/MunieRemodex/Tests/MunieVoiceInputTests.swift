@@ -6,6 +6,9 @@ import XCTest
 
 @MainActor
 final class MunieVoiceInputTests: XCTestCase {
+  // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+  nonisolated deinit {}
+
   private static var retainedServices: [CodexService] = []
 
   override func tearDown() async throws {
@@ -398,6 +401,9 @@ final class MunieVoiceInputTests: XCTestCase {
 
 @MainActor
 private final class CaptureFixture {
+  // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+  nonisolated deinit {}
+
   var startCount = 0
   var stopCount = 0
   var cancelCount = 0

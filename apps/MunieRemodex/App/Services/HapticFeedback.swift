@@ -1,3 +1,4 @@
+// Munie modification: explicit nonisolated teardown for Swift 6.2 runtime compatibility.
 // FILE: HapticFeedback.swift
 // Purpose: Centralized haptic feedback utility for premium button interactions.
 // Layer: Service
@@ -7,6 +8,9 @@
 import UIKit
 
 class HapticFeedback {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     static let shared = HapticFeedback()
 
     private init() {}

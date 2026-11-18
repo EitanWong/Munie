@@ -12,6 +12,9 @@ import Observation
 @MainActor
 @Observable
 final class ContentViewModel {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     private var hasAttemptedInitialAutoConnect = false
     private var lastSidebarOpenSyncAt: Date = .distantPast
     private let autoReconnectBackoffNanoseconds: [UInt64] = [1_000_000_000, 3_000_000_000]

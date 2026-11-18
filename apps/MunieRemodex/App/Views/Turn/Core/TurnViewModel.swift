@@ -165,6 +165,9 @@ enum QueuePauseState: Equatable {
 @MainActor
 @Observable
 final class TurnViewModel {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     enum GitBranchUserOperation: Equatable {
         case create(String)
         case switchTo(String)

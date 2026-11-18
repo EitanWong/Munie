@@ -657,6 +657,9 @@ final class GPTVoiceTranscriptionManager: ObservableObject {
 // the tap buffers. Each emitted level is the RMS power of exactly one window,
 // so a bar's height is the decibel reading of that moment and never changes.
 private final class MeterWindowAccumulator: @unchecked Sendable {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     private let lock = NSLock()
     private var windowSampleCount = 1
     private var sumOfSquares: Float = 0
@@ -701,6 +704,9 @@ private final class MeterWindowAccumulator: @unchecked Sendable {
 }
 
 final class AudioSampleCollector: @unchecked Sendable {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     private let lock = NSLock()
     private var activeSessionID: Int?
     private var sampleChunks: [[Float]] = []

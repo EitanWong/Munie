@@ -9,6 +9,9 @@ import XCTest
 @testable import MunieRemodex
 
 final class SidebarThreadsLoadingPresentationTests: XCTestCase {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     func testShowsOverlayWhenInitialThreadLoadIsInFlight() {
         let shouldShow = SidebarThreadsLoadingPresentation.shouldShowOverlay(
             isLoadingThreads: true,

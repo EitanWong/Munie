@@ -1,3 +1,4 @@
+// Munie modification: explicit nonisolated teardown for Swift 6.2 runtime compatibility.
 // FILE: StreamingAssistantMarkdownTextView.swift
 // Purpose: Streams assistant markdown as a settled prefix plus a frontier-faded active block.
 // Layer: Turn UI rendering
@@ -379,6 +380,9 @@ private struct SettledAssistantMarkdownText: View, Equatable {
 // be updated from within `body` without invalidating SwiftUI state; the reveal is monotonic
 // during streaming, so one slot is enough to absorb the incidental redraws between advances.
 private final class FrontierFadeCache {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     private var cachedRevision = -1
     private var cachedBucket = Int.min
     private var cachedWindow = -1

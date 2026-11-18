@@ -1,3 +1,4 @@
+// Munie modification: explicit nonisolated teardown for Swift 6.2 runtime compatibility.
 // FILE: TurnComposerInputTextView.swift
 // Purpose: UIViewRepresentable wrapper for the composer text input and paste-image interception.
 // Layer: View Component
@@ -160,6 +161,9 @@ struct TurnComposerInputTextView: UIViewRepresentable {
     }
 
     final class Coordinator: NSObject, UITextViewDelegate {
+        // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+        nonisolated deinit {}
+
         private var text: Binding<String>
         private var isFocused: Binding<Bool>
         private var dynamicHeight: Binding<CGFloat>
@@ -563,6 +567,9 @@ struct TurnComposerInputTextView: UIViewRepresentable {
 // Internal (not fileprivate) because UIViewRepresentable protocol methods expose the type.
 // Only used by TurnComposerInputTextView in this file.
 final class TurnComposerPasteInterceptingTextView: UITextView {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     var onPasteImageData: (([Data]) -> Void)?
     var runtimeState: TurnComposerRuntimeState?
     var runtimeActions: TurnComposerRuntimeActions?

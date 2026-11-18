@@ -10,6 +10,9 @@ import XCTest
 @testable import MunieRemodex
 
 final class CodexThreadProvenanceTests: XCTestCase {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     func testDecodesThreadSourceFromCamelCaseSnakeCaseAndMetadata() throws {
         let camelCase = try decodeThread(#"{"id":"t1","threadSource":"pull_request_fix_automation"}"#)
         XCTAssertEqual(camelCase.threadSource, "pull_request_fix_automation")

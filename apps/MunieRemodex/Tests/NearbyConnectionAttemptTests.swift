@@ -5,6 +5,9 @@ import XCTest
 
 @MainActor
 final class NearbyConnectionAttemptTests: XCTestCase {
+  // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+  nonisolated deinit {}
+
   func testSuccessCommitsBeforeRemovingOnboardingAndDoesNotDisconnect() async {
     let connected = expectation(description: "Connected")
     let attempt = NearbyConnectionAttempt()

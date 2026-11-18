@@ -10,6 +10,9 @@ import XCTest
 @testable import MunieRemodex
 
 final class QRScannerPairingValidatorTests: XCTestCase {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     func testVersionMismatchRequiresBridgeUpdateBeforeScanning() {
         let result = validatePairingQRCode(
             pairingQRCode(

@@ -9,6 +9,9 @@ import XCTest
 @testable import MunieRemodex
 
 final class TurnGitBranchSelectorTests: XCTestCase {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     func testNormalizesCreatedBranchNamesTowardRemodexPrefix() {
         XCTAssertEqual(remodexNormalizedCreatedBranchName("foo"), "remodex/foo")
         XCTAssertEqual(remodexNormalizedCreatedBranchName("remodex/foo"), "remodex/foo")

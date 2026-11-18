@@ -43,6 +43,9 @@ struct VoiceCaptureOperations {
 
 @MainActor
 final class VoiceInputCoordinator: ObservableObject {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     @Published private(set) var isRecording = false
     @Published private(set) var isPreflighting = false
     @Published private(set) var isTranscribing = false

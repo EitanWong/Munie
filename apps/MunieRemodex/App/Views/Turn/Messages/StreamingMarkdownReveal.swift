@@ -1,3 +1,4 @@
+// Munie modification: explicit nonisolated teardown for Swift 6.2 runtime compatibility.
 // FILE: StreamingMarkdownReveal.swift
 // Purpose: Vsync-locked reveal engine for streaming assistant markdown (rate smoothing + frontier).
 // Layer: Turn UI rendering support
@@ -53,6 +54,9 @@ enum StreamingMarkdownRevealPolicy {
 @MainActor
 @Observable
 final class StreamingRevealController {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     // Quantized frontier (quarter-character steps); the view's sole observable dependency.
     private(set) var bucket = 0
 
@@ -176,6 +180,9 @@ final class StreamingRevealController {
 // ObjC target for CADisplayLink. Forwards each vsync tick to the (main-actor) controller; the
 // link is scheduled on the main run loop, so the tick already lands on the main thread.
 private final class DisplayLinkProxy: NSObject {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     var onFrame: (@MainActor (CADisplayLink) -> Void)?
 
     @objc func step(_ link: CADisplayLink) {

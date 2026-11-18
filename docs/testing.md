@@ -17,6 +17,8 @@ The safe profile runs the full adopted offline unit target plus `MunieRemodexSmo
 
 `MunieOnboardingUITests` uses a separate DEBUG route selected before production services/stores are constructed. It renders the real three-page `OnboardingView` with isolated preferences, inactive external callbacks and nearby discovery explicitly disabled. English/Simplified Chinese cases traverse welcome/features/nearby and verify the connection page has no terminal commands or manual setup controls, retaining screenshots. They do not open the camera, record, follow links or run a radio exchange. Route tests require only the selected factory to run; this is offline UI coverage, separate from actual pairing/device acceptance.
 
+The deinitialization regression releases the final service reference from a separate actor, requires all ten task cancellations before fixture cleanup, checks monitor/coordinator release and verifies observer removal while retaining the Foundation token independently. The Swift 6.2 compatibility correction keeps the ordinary MainActor method boundary. Local current-Swift probes compare baseline/candidate/rollback code generation and lifetime behavior; only the unchanged hosted Xcode 26.2 suite can accept the previously failing runtime. Test selection, assertions and timeout budgets remain intact.
+
 ## Native Mac and nearby pairing
 
 Developer-only execution entries:

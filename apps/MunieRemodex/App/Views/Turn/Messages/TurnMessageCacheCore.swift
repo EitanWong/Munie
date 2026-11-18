@@ -1,3 +1,4 @@
+// Munie modification: explicit nonisolated teardown for Swift 6.2 runtime compatibility.
 // FILE: TurnMessageCacheCore.swift
 // Purpose: Shared bounded-cache and text-key primitives for timeline render caches.
 // Layer: View Support
@@ -8,6 +9,9 @@ import Foundation
 
 // Thread-safe bounded cache that evicts roughly half its entries when full instead of discarding everything.
 final class BoundedCache<Key: Hashable, Value> {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     private let maxEntries: Int
     private let lock = NSLock()
     private var storage: [Key: Value] = [:]

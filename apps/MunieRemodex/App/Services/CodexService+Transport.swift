@@ -1,3 +1,4 @@
+// Munie modification: explicit nonisolated teardown for Swift 6.2 runtime compatibility.
 // FILE: CodexService+Transport.swift
 // Purpose: Outbound JSON-RPC transport and pending-response coordination.
 // Layer: Service
@@ -23,6 +24,9 @@ private enum CodexWebSocketKeepAlivePolicy {
 }
 
 private final class CodexForegroundProbeWaiter: @unchecked Sendable {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     private let lock = NSLock()
     private let continuation: CheckedContinuation<Result<Void, Error>, Never>
     private var didFinish = false
@@ -84,6 +88,9 @@ private struct CodexConnectionReadyWaitConfiguration: Sendable {
 }
 
 private final class CodexConnectionReadyWaitState: @unchecked Sendable {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     private let lock = NSLock()
     private let continuation: CheckedContinuation<Void, Error>
     private let connection: NWConnection

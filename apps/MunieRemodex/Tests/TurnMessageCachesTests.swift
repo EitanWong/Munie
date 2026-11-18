@@ -10,6 +10,9 @@ import XCTest
 
 @MainActor
 final class TurnMessageCachesTests: XCTestCase {
+    // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
+    nonisolated deinit {}
+
     override func tearDown() {
         TurnCacheManager.resetAll()
         super.tearDown()

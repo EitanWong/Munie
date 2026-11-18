@@ -646,6 +646,11 @@ final class CodexService {
     var webSocketSession: URLSession?
     var webSocketSessionDelegate: CodexURLSessionWebSocketDelegate?
     var webSocketTask: URLSessionWebSocketTask?
+    #if DEBUG
+    @ObservationIgnored var managedRelayAttemptID: UUID?
+    @ObservationIgnored var managedRelayBootstrapTask: Task<ManagedRelayPhoneConnector.Bootstrap, Error>?
+    @ObservationIgnored var managedRelayHandshakeControls: Set<String> = []
+    #endif
     var webSocketKeepAliveTask: Task<Void, Never>?
     // Raw frame buffer used when the relay runs over manual TCP websocket framing.
     var manualWebSocketReadBuffer = Data()

@@ -98,6 +98,12 @@ Use the production Mac and iPhone Munie entry points with an owner-authorized di
 
 No hardware, user-study, remote-task or distribution result is implied by the repository scaffold.
 
+### Managed relay loopback interoperability
+
+`scripts/test-managed-relay-loopback.sh IOS_SIMULATOR_UDID` runs the opt-in Debug simulator probe against the actual Node managed relay, Mac adapter and bridge v2 secure transport. Prepare the adopted Node dependencies first. `MUNIE_MANAGED_NODE` can point at the prepared Node executable; `MUNIE_MANAGED_BACKEND_ROOT` can point at the matching backend worktree when testing the phone branch before integration. The fixture uses generated device keys and responds to encrypted initialization without a Codex account, project or model. It sends a plaintext response with the same RPC ID before the authenticated response to verify that plaintext cannot establish readiness. It also checks that the saved LAN hint remains unchanged. The wrapper requires an explicit simulator UUID, retains the test result and peer log under `build/`, and removes the fixture's temporary key file. An ordinary test run without the fixture explicitly skips this probe.
+
+The app's separate `MUNIE_DEV_MANAGED_RELAY_ORIGIN` opt-in exists only in a Debug simulator build. It accepts a numeric loopback origin and only attempts the managed path for the currently pinned Mac after a known LAN dial reachability failure. The probe does not replace acceptance of both production apps, real task recovery, relay operation over TLS, or a physical cellular test.
+
 ## Performance evidence
 
 Run `./scripts/benchmark-core.sh` independently for the optimized synthetic store workload. Raw samples, provenance and budgets are defined only in the [performance standard](standards/performance.md). CI retains `build/core-performance*.json` and build logs; host measurements do not establish app search, real-device, voice or remote latency. Ordinary builds include `build/ios-release-build.log`; signing and distribution are still separate.

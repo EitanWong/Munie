@@ -12,18 +12,18 @@ import Security
 
 extension CodexService {
     // Completes the secure handshake before any JSON-RPC traffic is sent over the relay.
-    func performSecureHandshake() async throws {
-        guard let sessionId = normalizedRelaySessionId,
-              let macDeviceId = normalizedRelayMacDeviceId else {
+    func performSecureHandshake(managedSessionID: String? = nil, pinnedMac: CodexTrustedMacRecord? = nil) async throws {
+        guard let sessionId = managedSessionID ?? normalizedRelaySessionId,
+              let macDeviceId = pinnedMac?.macDeviceId ?? normalizedRelayMacDeviceId else {
             throw CodexSecureTransportError.invalidHandshake(
                 "The saved relay pairing is incomplete. Scan a fresh QR code to reconnect."
             )
         }
 
-        let trustedMac = trustedMacRegistry.records[macDeviceId]
+        let trustedMac = pinnedMac ?? trustedMacRegistry.records[macDeviceId]
         // Fresh QR scans must go through bootstrap once so we verify the scanned session,
         // instead of silently reusing an older trusted-reconnect path.
-        let handshakeMode: CodexSecureHandshakeMode = (!shouldForceQRBootstrapOnNextHandshake && trustedMac != nil)
+        let handshakeMode: CodexSecureHandshakeMode = (pinnedMac != nil || (!shouldForceQRBootstrapOnNextHandshake && trustedMac != nil))
             ? .trustedReconnect
             : .qrBootstrap
         let expectedMacIdentityPublicKey: String
@@ -44,7 +44,7 @@ extension CodexService {
         let phoneEphemeralPrivateKey = Curve25519.KeyAgreement.PrivateKey()
         let clientNonce = randomSecureNonce()
         let clientHello = SecureClientHello(
-            protocolVersion: relayProtocolVersion,
+            protocolVersion: pinnedMac == nil ? relayProtocolVersion : codexSecureProtocolVersion,
             sessionId: sessionId,
             handshakeMode: handshakeMode,
             phoneDeviceId: phoneIdentityState.phoneDeviceId,
@@ -70,6 +70,10 @@ extension CodexService {
             phoneIdentityPublicKey: phoneIdentityState.phoneIdentityPublicKey,
             phoneEphemeralPublicKey: clientHello.phoneEphemeralPublicKey
         )
+        guard pinnedMac == nil || (serverHello.protocolVersion == codexSecureProtocolVersion
+            && serverHello.handshakeMode == .trustedReconnect) else {
+            throw CodexSecureTransportError.invalidHandshake("The managed connection returned an invalid v2 handshake.")
+        }
         guard serverHello.protocolVersion == codexSecureProtocolVersion else {
             presentBridgeUpdatePrompt(
                 message: "This bridge is using a different secure transport version. Update the Munie package on your device and try again."
@@ -128,7 +132,8 @@ extension CodexService {
 
         let serverReplayEpoch = serverHello.bridgeReplayEpoch?
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        if let serverReplayEpoch, !serverReplayEpoch.isEmpty,
+        // The relay can alter this unsigned hint. Accept the encrypted replay reset instead.
+        if pinnedMac == nil, let serverReplayEpoch, !serverReplayEpoch.isEmpty,
            serverReplayEpoch != lastAppliedBridgeReplayEpoch {
             let hadPriorReplayState = lastAppliedBridgeReplayEpoch != nil
                 || lastAppliedBridgeOutboundSeq > 0
@@ -195,10 +200,12 @@ extension CodexService {
             nextOutboundCounter: 0
         )
         pendingHandshake = nil
-        shouldForceQRBootstrapOnNextHandshake = false
-        secureConnectionState = .encrypted
-        secureMacFingerprint = codexSecureFingerprint(for: serverHello.macIdentityPublicKey)
-        bridgeUpdatePrompt = nil
+        if pinnedMac == nil {
+            shouldForceQRBootstrapOnNextHandshake = false
+            secureConnectionState = .encrypted
+            secureMacFingerprint = codexSecureFingerprint(for: serverHello.macIdentityPublicKey)
+            bridgeUpdatePrompt = nil
+        }
 
         if handshakeMode == .qrBootstrap {
             trustMac(
@@ -237,6 +244,21 @@ extension CodexService {
 
         processIncomingText(text)
     }
+
+    #if DEBUG
+    func processManagedRelayWireText(_ text: String) {
+        guard let kind = wireMessageKind(from: text) else { return }
+        if secureSession != nil {
+            if kind == "encryptedEnvelope" {
+                handleEncryptedEnvelopeText(text, allowsUnauthenticatedRecoveryState: false)
+            }
+        } else if (kind == "serverHello" || kind == "secureReady"),
+                  managedRelayHandshakeControls.insert(kind).inserted {
+            // Relay-supplied errors cannot change trusted state. Plaintext RPC never enters dispatch.
+            bufferSecureControlMessage(kind: kind, rawText: text)
+        }
+    }
+    #endif
 
     // Encrypts JSON-RPC requests/responses before they leave the iPhone.
     func secureWireText(for plaintext: String) throws -> String {
@@ -1011,7 +1033,7 @@ private extension CodexService {
         waiter.continuation.resume(with: result)
     }
 
-    func handleEncryptedEnvelopeText(_ text: String) {
+    func handleEncryptedEnvelopeText(_ text: String, allowsUnauthenticatedRecoveryState: Bool = true) {
         // No active session yet (handshake in progress) — silently drop stale envelopes.
         guard var secureSession else { return }
 
@@ -1020,6 +1042,7 @@ private extension CodexService {
               envelope.keyEpoch == secureSession.keyEpoch,
               envelope.sender == "mac",
               envelope.counter > secureSession.lastInboundCounter else {
+            guard allowsUnauthenticatedRecoveryState else { return }
             lastErrorMessage = "The secure Munie payload could not be verified."
             secureConnectionState = .rePairRequired
             return
@@ -1049,6 +1072,7 @@ private extension CodexService {
             lastRawMessage = payload.payloadText
             processIncomingText(payload.payloadText)
         } catch {
+            guard allowsUnauthenticatedRecoveryState else { return }
             lastErrorMessage = CodexSecureTransportError.decryptFailed.localizedDescription
             secureConnectionState = .rePairRequired
         }

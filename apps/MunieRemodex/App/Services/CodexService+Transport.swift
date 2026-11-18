@@ -87,7 +87,12 @@ private struct CodexConnectionReadyWaitConfiguration: Sendable {
     let timeoutMessage: String
 }
 
-private final class CodexConnectionReadyWaitState: @unchecked Sendable {
+struct CodexConnectionWaitDeadline: Error {
+    let message: String
+    let waitingError: NWError?
+}
+
+final class CodexConnectionReadyWaitState: @unchecked Sendable {
     // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
     nonisolated deinit {}
 
@@ -96,8 +101,7 @@ private final class CodexConnectionReadyWaitState: @unchecked Sendable {
     private let connection: NWConnection
     private var didFinish = false
     private var timeoutTask: Task<Void, Never>?
-    private var lastObservedStateDescription = "setup"
-    private var lastWaitingErrorDescription: String?
+    private var lastObservedState: NWConnection.State = .setup
 
     init(continuation: CheckedContinuation<Void, Error>, connection: NWConnection) {
         self.continuation = continuation
@@ -119,36 +123,35 @@ private final class CodexConnectionReadyWaitState: @unchecked Sendable {
 
     func recordObservedState(_ state: NWConnection.State) {
         lock.lock()
-        lastObservedStateDescription = String(describing: state)
+        if !didFinish { lastObservedState = state }
         lock.unlock()
     }
 
-    func recordWaitingError(_ error: NWError) {
-        lock.lock()
-        lastWaitingErrorDescription = String(describing: error)
-        lock.unlock()
-    }
-
-    func timeoutLogMessage(label: String) -> String {
-        lock.lock()
-        let stateDescription = lastObservedStateDescription
-        let waitingErrorDescription = lastWaitingErrorDescription
-        lock.unlock()
-
-        var message = "\(label) timed out while state=\(stateDescription)"
-        if let waitingErrorDescription {
-            message += " waitingError=\(waitingErrorDescription)"
+    func finishAtDeadline(label: String, message: String) -> Bool {
+        var log: String?
+        let finished = finish {
+            let state = lastObservedState
+            log = "\(label) timed out while state=\(state)"
+            let cause: NWError? = if case .waiting(let error) = state { error } else { nil }
+            return .failure(CodexConnectionWaitDeadline(message: message, waitingError: cause))
         }
-        return message
+        if let log { codexLogPairingTransport(log, isFailure: true) }
+        return finished
     }
 
-    func finish(_ result: Result<Void, Error>) {
+    @discardableResult
+    func finish(_ result: Result<Void, Error>) -> Bool {
+        finish { result }
+    }
+
+    private func finish(_ makeResult: () -> Result<Void, Error>) -> Bool {
         lock.lock()
         guard !didFinish else {
             lock.unlock()
-            return
+            return false
         }
 
+        let result = makeResult()
         didFinish = true
         let taskToCancel = timeoutTask
         timeoutTask = nil
@@ -158,6 +161,7 @@ private final class CodexConnectionReadyWaitState: @unchecked Sendable {
         continuation.resume(with: result)
         // Ignore future state transitions after first completion.
         connection.stateUpdateHandler = { _ in }
+        return true
     }
 }
 
@@ -199,7 +203,12 @@ extension CodexService {
             return try await requestTransportOverride(method, params)
         }
 
-        guard isConnected, webSocketConnection != nil || webSocketTask != nil else {
+        #if DEBUG
+        let isManagedInitialize = managedRelayAttemptID != nil && secureSession != nil && method == "initialize"
+        #else
+        let isManagedInitialize = false
+        #endif
+        guard isConnected || isManagedInitialize, webSocketConnection != nil || webSocketTask != nil else {
             throw CodexServiceError.disconnected
         }
 
@@ -657,6 +666,13 @@ extension CodexService {
                     if let decodedPayload {
                         let text = decodedPayload.text
                         let decoded = decodedPayload.classification
+                        #if DEBUG
+                        if self.managedRelayAttemptID != nil {
+                            self.processManagedRelayWireText(text)
+                            self.receiveNextMessage(on: task)
+                            return
+                        }
+                        #endif
                         if decoded.isSecure {
                             self.processIncomingWireText(text)
                         } else if let rpcResult = decoded.rpcResult {
@@ -935,8 +951,8 @@ extension CodexService {
                 switch state {
                 case .ready:
                     waitState.finish(.success(()))
-                case .waiting(let error):
-                    waitState.recordWaitingError(error)
+                case .waiting:
+                    break
                 case .failed(let error):
                     codexLogPairingTransport(
                         "\(configuration.logLabel) failed: \(error)",
@@ -954,13 +970,9 @@ extension CodexService {
             let timeoutTask = Task { [weak connection, waitState] in
                 try? await Task.sleep(nanoseconds: configuration.timeoutNanoseconds)
                 guard !Task.isCancelled else { return }
-                let timeoutError = CodexServiceError.invalidInput(configuration.timeoutMessage)
-                codexLogPairingTransport(
-                    waitState.timeoutLogMessage(label: configuration.logLabel),
-                    isFailure: true
-                )
-                waitState.finish(.failure(timeoutError))
-                connection?.cancel()
+                if waitState.finishAtDeadline(label: configuration.logLabel, message: configuration.timeoutMessage) {
+                    connection?.cancel()
+                }
             }
             waitState.setTimeoutTask(timeoutTask)
         }

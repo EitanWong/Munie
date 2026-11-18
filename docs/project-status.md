@@ -55,7 +55,7 @@ Exact-head [PR #23 CI 44370856774](https://github.com/EitanWong/Munie/actions/ru
 
 ## Adopted foundation checkpoint
 
-The [managed-away loopback pilot](decisions/managed-away-connection.md) passed 58 relay tests on bundled Node 24.22.1, including eight admission and four real loopback WebSocket cases. Rejected or failed upgrades preserved the existing route; replacement closed only the displaced generation, and an absent phone did not take down the Mac registration. No external route, account or mobile setting is enabled. The next implementation boundary is the outbound Mac adapter and same-Mac iPhone route selection without interrupting local Codex work.
+The [managed-away loopback pilot](decisions/managed-away-connection.md) now reaches the guarded Mac worker using generated identities and a synthetic native app-server. A ready LAN or managed route retains its slot until departure; an unready route expires. The fixture completes signed v2 handshakes on both paths without a second native process, verifies that a late RPC reply cannot satisfy a reused request ID after handoff, and observes that revoking the phone prevents another admission. The relay bounds both wrapped paths; oversized replies yield typed errors and replay can request canonical history after an oversized event. No external route, account, app setting or physical test is enabled by this change. The next implementation boundary is iPhone same-Mac route selection, followed by app-managed typed status and TLS service configuration before public ingress.
 
 The following evidence describes the adopted base and its earlier five-page onboarding. The current product flow above supersedes its terminal-based setup; original logs and diagnostic failures remain retained.
 

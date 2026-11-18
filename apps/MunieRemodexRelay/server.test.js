@@ -1,3 +1,4 @@
+// Munie modification: verify provisional route lifetimes and encoded frame limits.
 // FILE: server.test.js
 // Purpose: Verifies relay HTTP protections, health output, and websocket session routing.
 // Layer: Unit test
@@ -14,6 +15,7 @@ const {
   clientAddressKey,
   redactRelayPathname,
 } = require("./server");
+const { MOBILE_ROUTE_FRAME } = require("./relay");
 
 test("health is minimal by default and detailed only when enabled", async () => {
   const minimal = await withServer(async ({ port }) => {
@@ -952,14 +954,226 @@ test("relay closes with a dedicated code when the iphone sends during mac absenc
   });
 });
 
+test("pilot local relay expires a provisional LAN slot and ignores stale readiness", { timeout: 5000 }, async () => {
+  const { timers, relayOptions } = pilotClock();
+  const session = "pilot-lan-ready";
+  await withServer(async ({ port, attachManagedPhone }) => {
+    const mac = await openPilotMac(port, session);
+    const first = await openPilotLan(port, session, mac);
+    assert.equal(timers.length, 1);
+    const expired = onceCloseDetails(first.socket);
+    const cleared = readPilotFrame(mac);
+    timers[0].fire();
+    assert.deepEqual(await expired, { code: 4004, reason: "Mobile route handshake timed out" });
+    assert.equal((await cleared).routeId, null);
+    assert.equal(timers[0].cleared, true);
+
+    const second = await openPilotLan(port, session, mac);
+    assert.notEqual(second.routeId, first.routeId);
+    assert.equal(timers.length, 2);
+    const received = onceMessage(second.socket);
+    mac.send(JSON.stringify({ kind: MOBILE_ROUTE_FRAME, routeId: first.routeId, ready: true }));
+    mac.send(JSON.stringify({ kind: MOBILE_ROUTE_FRAME, routeId: second.routeId, ready: true, message: "invalid" }));
+    timers[0].fire();
+    sendPilotFrame(mac, second.routeId, { message: "still provisional" });
+    assert.equal(await received, "still provisional");
+    assert.equal(timers[1].cleared, false);
+
+    const confirmed = onceMessage(second.socket);
+    sendPilotFrame(mac, second.routeId, { ready: true });
+    sendPilotFrame(mac, second.routeId, { message: "ready" });
+    assert.equal(await confirmed, "ready");
+    assert.equal(timers[1].cleared, true);
+    timers[1].fire();
+    assert.equal(attachManagedPhone(session, { send() {}, close() {} }), null);
+    const incumbent = onceMessage(second.socket);
+    sendPilotFrame(mac, second.routeId, { message: "still the incumbent" });
+    assert.equal(await incumbent, "still the incumbent");
+  }, { relayOptions });
+});
+
+test("pilot local relay clears managed timers on expiry, detach and readiness", { timeout: 5000 }, async () => {
+  const { timers, relayOptions } = pilotClock();
+  const session = "pilot-managed-ready";
+  await withServer(async ({ port, attachManagedPhone }) => {
+    const mac = await openPilotMac(port, session);
+    const closed = [];
+    const sent = [];
+    let onSend;
+    const peer = {
+      send(text) {
+        sent.push(text);
+        onSend?.();
+      },
+      close: (...args) => closed.push(args),
+    };
+    const firstBoundary = readPilotFrame(mac);
+    const first = attachManagedPhone(session, peer);
+    const firstId = (await firstBoundary).routeId;
+    assert.equal(timers.length, 1);
+    const forwarded = readPilotFrame(mac);
+    assert.equal(first.receive("v2 handshake frame"), true);
+    assert.deepEqual(await forwarded, { kind: MOBILE_ROUTE_FRAME, routeId: firstId, message: "v2 handshake frame" });
+    const expiredBoundary = readPilotFrame(mac);
+    timers[0].fire();
+    assert.deepEqual(closed, [[4004, "Mobile route handshake timed out"]]);
+    assert.equal((await expiredBoundary).routeId, null);
+    assert.equal(first.receive("displaced"), false);
+
+    const secondBoundary = readPilotFrame(mac);
+    const second = attachManagedPhone(session, peer);
+    await secondBoundary;
+    const detachedBoundary = readPilotFrame(mac);
+    second.detach();
+    assert.equal((await detachedBoundary).routeId, null);
+    assert.equal(timers[1].cleared, true);
+
+    const thirdBoundary = readPilotFrame(mac);
+    const third = attachManagedPhone(session, peer);
+    const thirdId = (await thirdBoundary).routeId;
+    // Observe a later Mac frame to establish that the same socket's ready frame ran first.
+    const barrier = new Promise((resolve) => { onSend = resolve; });
+    assert.ok(third);
+    sendPilotFrame(mac, thirdId, { ready: true });
+    sendPilotFrame(mac, thirdId, { message: "confirmed" });
+    await barrier;
+    assert.deepEqual(sent, ["confirmed"]);
+    assert.equal(timers[2].cleared, true);
+    timers[0].fire();
+    timers[1].fire();
+    timers[2].fire();
+    first.detach();
+    second.detach();
+    assert.deepEqual(closed, [[4004, "Mobile route handshake timed out"]]);
+    assert.equal(attachManagedPhone(session, peer), null);
+  }, { relayOptions });
+});
+
+test("pilot local relay clears provisional timers on Mac replacement and closure", { timeout: 5000 }, async () => {
+  const { timers, relayOptions } = pilotClock();
+  const session = "pilot-mac-replacement";
+  await withServer(async ({ port, attachManagedPhone }) => {
+    const originalMac = await openPilotMac(port, session);
+    const lan = await openPilotLan(port, session, originalMac);
+    assert.equal(timers.length, 1);
+    const lanClosed = onceCloseDetails(lan.socket);
+    const macClosed = onceCloseDetails(originalMac);
+    const mac = await openPilotMac(port, session);
+    assert.equal((await macClosed).code, 4001);
+    assert.deepEqual(await lanClosed, { code: 4004, reason: "Mac relay changed" });
+    assert.equal(timers[0].cleared, true);
+
+    let onClose;
+    const managedClosed = new Promise((resolve) => { onClose = resolve; });
+    const boundary = readPilotFrame(mac);
+    const managed = attachManagedPhone(session, { send() {}, close: onClose });
+    const { routeId } = await boundary;
+    assert.equal(timers.length, 2);
+    timers[0].fire();
+    const incoming = readPilotFrame(mac);
+    assert.equal(managed.receive("current"), true);
+    assert.deepEqual(await incoming, { kind: MOBILE_ROUTE_FRAME, routeId, message: "current" });
+    mac.close();
+    await managedClosed;
+    assert.equal(timers[1].cleared, true);
+    assert.equal(managed.receive("after close"), false);
+  }, { relayOptions });
+});
+
+test("pilot local relay closes only the mobile route when the encoded wrapper exceeds 1 MiB", { timeout: 5000 }, async () => {
+  const { timers, relayOptions } = pilotClock();
+  const session = "pilot-inbound-size";
+  const limit = 1024 * 1024;
+  // Raw input fits; JSON escaping plus the wrapper would exceed the local limit.
+  const oversized = "\\".repeat(limit / 2);
+  await withServer(async ({ port, attachManagedPhone }) => {
+    const mac = await openPilotMac(port, session);
+    const lan = await openPilotLan(port, session, mac);
+    const lanClosed = onceCloseDetails(lan.socket);
+    const lanCleared = readPilotFrame(mac);
+    lan.socket.send(oversized);
+    assert.equal((await lanCleared).routeId, null);
+    assert.deepEqual(await lanClosed, { code: 1009, reason: "Mobile route frame too large" });
+    assert.equal(timers[0].cleared, true);
+
+    const managedClosed = [];
+    const attached = readPilotFrame(mac);
+    const managed = attachManagedPhone(session, { send() {}, close: (...args) => managedClosed.push(args) });
+    const { routeId } = await attached;
+    const empty = JSON.stringify({ kind: MOBILE_ROUTE_FRAME, routeId, message: "" });
+    const maxMessage = "x".repeat(limit - Buffer.byteLength(empty));
+    const incoming = readPilotFrame(mac);
+    assert.equal(managed.receive(maxMessage), true);
+    assert.equal((await incoming).message, maxMessage);
+    const managedCleared = readPilotFrame(mac);
+    assert.equal(managed.receive(oversized), false);
+    assert.deepEqual(managedClosed, [[1009, "Mobile route frame too large"]]);
+    assert.equal((await managedCleared).routeId, null);
+    assert.equal(timers[1].cleared, true);
+    assert.equal(mac.readyState, WebSocket.OPEN);
+
+    const successor = await openPilotLan(port, session, mac);
+    const after = readPilotFrame(mac);
+    successor.socket.send("same Mac socket");
+    assert.equal((await after).message, "same Mac socket");
+  }, { maxPayload: limit, relayOptions });
+});
+
+function pilotClock() {
+  const timers = [];
+  const managedRouteReadyTimeoutMs = 17_000;
+  return { timers, relayOptions: {
+    enableManagedRoutes: true,
+    managedRouteReadyTimeoutMs,
+    setTimeoutFn(fire, timeout) {
+      if (timeout !== managedRouteReadyTimeoutMs) return setTimeout(fire, timeout);
+      const handle = { fire, cleared: false };
+      timers.push(handle);
+      return handle;
+    },
+    clearTimeoutFn(handle) {
+      if (timers.includes(handle)) handle.cleared = true;
+      else clearTimeout(handle);
+    },
+  } };
+}
+
+async function openPilotMac(port, session) {
+  assert.equal(typeof MOBILE_ROUTE_FRAME, "string", "The pilot route protocol is not present");
+  const mac = new WebSocket(`ws://127.0.0.1:${port}/relay/${session}`, { headers: { "x-role": "mac" } });
+  const boundary = readPilotFrame(mac);
+  await onceOpen(mac);
+  assert.deepEqual(await boundary, { kind: MOBILE_ROUTE_FRAME, routeId: null });
+  return mac;
+}
+
+async function openPilotLan(port, session, mac) {
+  const boundary = readPilotFrame(mac);
+  const socket = new WebSocket(`ws://127.0.0.1:${port}/relay/${session}`, { headers: { "x-role": "iphone" } });
+  await onceOpen(socket);
+  const { kind, routeId } = await boundary;
+  assert.equal(kind, MOBILE_ROUTE_FRAME);
+  assert.match(routeId, /^[a-f0-9-]{36}$/);
+  return { socket, routeId };
+}
+
+async function readPilotFrame(mac) {
+  return JSON.parse(await onceMessage(mac));
+}
+
+function sendPilotFrame(mac, routeId, fields) {
+  mac.send(JSON.stringify({ kind: MOBILE_ROUTE_FRAME, routeId, ...fields }));
+}
+
 async function withServer(run, serverOptions = {}) {
-  const { server, wss } = createRelayServer(serverOptions);
+  const { server, wss, attachManagedPhone } = createRelayServer(serverOptions);
   const address = await listen(server);
   try {
     return await run({
       port: address.port,
       server,
       wss,
+      attachManagedPhone,
     });
   } finally {
     await close(server, wss);

@@ -1,4 +1,5 @@
 const { createServer } = require("node:http");
+const { randomUUID } = require("node:crypto");
 const { WebSocket, WebSocketServer } = require("ws");
 const { createManagedRelayAdmission } = require("./managed-admission");
 
@@ -6,7 +7,12 @@ const CHALLENGE_PATH = "/v1/managed/challenge";
 const UPGRADE_PATH = "/v1/managed/connect";
 const MAX_BODY = 1024;
 const MAX_FRAME = 1024 * 1024;
+const PHONE_ATTACHED = "munie:phone-attached";
+const PHONE_DETACHED = "munie:phone-detached";
+const PHONE_CLOSE = "munie:phone-close";
 const PHONE_UNAVAILABLE = "munie:phone-unavailable";
+const PHONE_TOO_BIG_REASON = "Mobile route frame too large";
+const PHONE_UNAVAILABLE_REASON = "Mobile route unavailable";
 
 // No CLI or configurable bind address: this is an isolated developer listener.
 async function startManagedRelayPilot({ audience, allowedMacKeys }) {
@@ -69,7 +75,7 @@ async function startManagedRelayPilot({ audience, allowedMacKeys }) {
       const previous = routes.get(registration.macKey);
       let route;
       if (role === "mac") {
-        route = { registration, mac: ws, phone: null };
+        route = { registration, mac: ws, phone: null, phoneRouteId: null };
         routes.set(registration.macKey, route);
         previous?.phone?.terminate();
         previous?.mac.terminate();
@@ -78,23 +84,43 @@ async function startManagedRelayPilot({ audience, allowedMacKeys }) {
           return ws.terminate();
         }
         route = previous;
-        const oldPhone = route.phone;
+        if (route.phone) return ws.terminate();
         route.phone = ws;
-        oldPhone?.terminate();
+        route.phoneRouteId = randomUUID();
+        sendPhoneControl(route.mac, `${PHONE_ATTACHED}:${route.phoneRouteId}`);
       }
 
+      if (role === "mac") {
+        ws.on("ping", (data) => {
+          if (!admission.isCurrent(registration) || route.mac !== ws || ws.readyState !== WebSocket.OPEN) return;
+          const phone = route.phone;
+          if (phone?.readyState !== WebSocket.OPEN) return;
+          const signal = data.toString();
+          const prefix = `${PHONE_CLOSE}:${route.phoneRouteId}:`;
+          if (signal === `${prefix}1009`) phone.close(1009, PHONE_TOO_BIG_REASON);
+          if (signal === `${prefix}4004`) phone.close(4004, PHONE_UNAVAILABLE_REASON);
+        });
+      }
       ws.on("message", (data, isBinary) => {
-        if (!admission.isCurrent(registration) || route[role] !== ws) return;
+        if (!admission.isCurrent(registration) || route[role] !== ws || ws.readyState !== WebSocket.OPEN) return;
         const peer = role === "phone" ? route.mac : route.phone;
-        if (role === "mac" && (!peer || peer.readyState !== WebSocket.OPEN) && ws.bufferedAmount < MAX_FRAME) {
-          ws.ping(PHONE_UNAVAILABLE, false, (error) => { if (error) ws.terminate(); });
+        if (role === "mac" && (!peer || peer.readyState !== WebSocket.OPEN)) {
+          return sendPhoneControl(ws, PHONE_UNAVAILABLE);
+        }
+        if (isBinary) return ws.terminate();
+        let payload = data;
+        if (role === "mac") {
+          let frame;
+          try { frame = JSON.parse(data.toString()); } catch { return; }
+          if (frame?.routeId !== route.phoneRouteId || typeof frame.message !== "string") return;
+          payload = Buffer.from(frame.message);
+        }
+        if (!peer || peer.readyState !== WebSocket.OPEN || peer.bufferedAmount + payload.length > MAX_FRAME) {
+          const phone = role === "mac" ? peer : ws;
+          phone?.close(4004, PHONE_UNAVAILABLE_REASON);
           return;
         }
-        if (!peer || peer.readyState !== WebSocket.OPEN || peer.bufferedAmount + data.length > MAX_FRAME) {
-          ws.terminate();
-          return;
-        }
-        peer.send(data, { binary: isBinary }, (error) => {
+        peer.send(payload, { binary: false }, (error) => {
           if (error) peer.terminate();
         });
       });
@@ -102,6 +128,8 @@ async function startManagedRelayPilot({ audience, allowedMacKeys }) {
         if (routes.get(registration.macKey) !== route || route[role] !== ws) return;
         if (role === "phone") {
           route.phone = null;
+          route.phoneRouteId = null;
+          sendPhoneControl(route.mac, PHONE_DETACHED);
         } else {
           admission.deactivate(registration);
           routes.delete(registration.macKey);
@@ -126,6 +154,12 @@ async function startManagedRelayPilot({ audience, allowedMacKeys }) {
       server.close((error) => error ? reject(error) : resolve());
     }),
   };
+}
+
+function sendPhoneControl(mac, payload) {
+  if (mac.readyState !== WebSocket.OPEN) return;
+  if (mac.bufferedAmount >= MAX_FRAME) return mac.terminate();
+  mac.ping(payload, false, (error) => { if (error) mac.terminate(); });
 }
 
 function respond(res, status, body) {

@@ -1,3 +1,4 @@
+// Munie modification: cover route invalidation and authenticated replay together.
 // FILE: secure-transport.test.js
 // Purpose: Verifies the bridge-side E2EE handshake rejects plaintext and round-trips encrypted payloads.
 // Layer: Unit test
@@ -594,13 +595,17 @@ test("same-session relay replays keep live notifications untagged", () => {
   );
 });
 
-test("previous-session replayed notifications are tagged as catch-up history", () => {
+test("mobile route change rejects the old resume state but preserves catch-up history", () => {
   const macIdentity = createOkpKeyPair("ed25519");
   const phoneIdentity = createOkpKeyPair("ed25519");
   const phoneEphemeral = createOkpKeyPair("x25519");
+  let resumedRoutes = 0;
   const secureTransport = createTestBridgeSecureTransport({
     sessionId: "session-previous-replay-tag",
     relayUrl: "wss://relay.example/relay",
+    maxEncodedPayloadBytes: 512,
+    requireTrustResetForReplacement: true,
+    onSecureSessionResumed() { resumedRoutes += 1; },
     deviceState: {
       macDeviceId: "mac-previous-replay-tag",
       macIdentityPrivateKey: macIdentity.privateKey,
@@ -609,7 +614,7 @@ test("previous-session replayed notifications are tagged as catch-up history", (
     },
   });
 
-  finishHandshake({
+  const { serverHello: previousHello } = finishHandshake({
     secureTransport,
     sessionId: "session-previous-replay-tag",
     macDeviceId: "mac-previous-replay-tag",
@@ -630,10 +635,32 @@ test("previous-session replayed notifications are tagged as catch-up history", (
     return true;
   });
 
+  assert.equal(secureTransport.sendUnbufferedApplicationMessage(JSON.stringify({ id: "live", result: {} })), true);
+  const oversized = "x".repeat(2048);
+  assert.equal(secureTransport.sendUnbufferedApplicationMessage(JSON.stringify({ id: "large", result: oversized })), false);
   secureTransport.queueOutboundApplicationMessage(
     JSON.stringify({ method: "turn/started", params: { threadId: "thread-previous-session" } }),
     () => false
   );
+
+  assert.equal(secureTransport.isSecureChannelReady(), true);
+  secureTransport.invalidateMobileRoute();
+  secureTransport.handleIncomingWireMessage(JSON.stringify({
+    kind: "resumeState", sessionId: "session-previous-replay-tag", keyEpoch: previousHello.keyEpoch,
+    lastAppliedBridgeOutboundSeq: 1, bridgeReplayEpoch: previousHello.bridgeReplayEpoch,
+  }), {});
+  assert.equal(secureTransport.isSecureChannelReady(), false);
+  assert.equal(resumedRoutes, 1);
+
+  const otherPhone = createOkpKeyPair("ed25519");
+  const controls = [];
+  secureTransport.handleIncomingWireMessage(JSON.stringify({
+    kind: "clientHello", sessionId: "session-previous-replay-tag", protocolVersion: SECURE_PROTOCOL_VERSION,
+    handshakeMode: HANDSHAKE_MODE_QR_BOOTSTRAP, phoneDeviceId: "other-phone",
+    phoneIdentityPublicKey: otherPhone.publicKey, phoneEphemeralPublicKey: phoneEphemeral.publicKey,
+    clientNonce: Buffer.alloc(32).toString("base64"),
+  }), { sendControlMessage: (message) => controls.push(message) });
+  assert.equal(controls[0]?.code, "phone_already_trusted");
 
   const reconnectEphemeral = createOkpKeyPair("x25519");
   captureReplay = true;
@@ -648,6 +675,8 @@ test("previous-session replayed notifications are tagged as catch-up history", (
     handshakeMode: HANDSHAKE_MODE_TRUSTED_RECONNECT,
     lastAppliedBridgeOutboundSeq: 0,
   });
+  assert.ok(serverHello.keyEpoch > previousHello.keyEpoch);
+  assert.equal(resumedRoutes, 2);
 
   const macToPhoneKey = deriveMacToPhoneKey({
     sessionId: "session-previous-replay-tag",
@@ -673,6 +702,38 @@ test("previous-session replayed notifications are tagged as catch-up history", (
   const completionMarkerPayload = JSON.parse(completionMarker.payloadText);
   assert.equal(completionMarkerPayload.method, "remodex/bufferedReplay/completed");
   assert.equal(completionMarkerPayload.params.remodexBufferedReplayComplete, true);
+
+  secureTransport.invalidateMobileRoute();
+  secureTransport.queueOutboundApplicationMessage(JSON.stringify({ method: "item/started", params: { itemId: "same-item", oversized } }));
+  secureTransport.queueOutboundApplicationMessage(JSON.stringify({ method: "item/agentMessage/delta", params: { itemId: "same-item", delta: "dependent" } }));
+  replayWireMessages.length = 0;
+  const freshEphemeral = createOkpKeyPair("x25519");
+  const fresh = finishHandshake({
+    secureTransport,
+    sessionId: "session-previous-replay-tag",
+    macDeviceId: "mac-previous-replay-tag",
+    phoneDeviceId: "phone-previous-replay-tag",
+    macIdentity,
+    phoneIdentity,
+    phoneEphemeral: freshEphemeral,
+    handshakeMode: HANDSHAKE_MODE_TRUSTED_RECONNECT,
+    lastAppliedBridgeOutboundSeq: 1,
+  });
+  const freshKey = deriveMacToPhoneKey({
+    sessionId: "session-previous-replay-tag",
+    macDeviceId: "mac-previous-replay-tag",
+    phoneDeviceId: "phone-previous-replay-tag",
+    phoneEphemeral: freshEphemeral,
+    ...fresh,
+  });
+  const replayFrames = replayWireMessages.map((wire) => decryptEnvelope(JSON.parse(wire), freshKey));
+  assert.equal(replayFrames.length, 2);
+  assert.equal(replayFrames[0].bridgeOutboundSeq, undefined);
+  assert.deepEqual(JSON.parse(replayFrames[0].payloadText), {
+    method: "remodex/bufferedReplay/gap",
+    params: { remodexBufferedReplayGap: true, expectedBridgeOutboundSeq: 2, firstAvailableBridgeOutboundSeq: 2, lastDiscardedBridgeOutboundSeq: 3 },
+  });
+  assert.equal(JSON.parse(replayFrames[1].payloadText).method, "remodex/bufferedReplay/completed");
 });
 
 test("truncated resume replay discards the partial tail and declares a canonical-history gap", () => {

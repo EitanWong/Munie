@@ -26,7 +26,6 @@ struct DesktopHostView: View {
       }
       .padding(28)
     }
-    .onChange(of: controller.ready) { _, _ in coordinator.updateNearbyAvailability() }
     .alert(
       String(localized: "Remove iPhone Pairing?", table: "Desktop"),
       isPresented: $showingRemovePairing
@@ -54,10 +53,10 @@ struct DesktopHostView: View {
       VStack(alignment: .leading, spacing: 4) {
         Text("Munie").font(.largeTitle.bold())
         Label(
-          String(localized: controller.serviceState.title, table: "Desktop"),
-          systemImage: controller.ready ? "checkmark.circle.fill" : "circle"
+          String(localized: controller.statusTitle, table: "Desktop"),
+          systemImage: controller.nearbyReady ? "checkmark.circle.fill" : "circle"
         )
-        .foregroundStyle(controller.ready ? .green : .secondary)
+        .foregroundStyle(controller.nearbyReady ? .green : .secondary)
         .accessibilityIdentifier("desktop.status")
       }
       Spacer()
@@ -187,7 +186,7 @@ struct DesktopHostView: View {
             Button(String(localized: "Allow iPhone", table: "Desktop")) {
               Task { await coordinator.approvePairing(request.id) }
             }
-            .disabled(coordinator.pairingBusy || !controller.ready || controller.deviceBusy)
+            .disabled(coordinator.pairingBusy || !controller.nearbyReady || controller.deviceBusy)
             .buttonStyle(.borderedProminent)
             .accessibilityIdentifier("desktop.approvePairing")
             Button(String(localized: "Decline", table: "Desktop")) {
@@ -195,7 +194,7 @@ struct DesktopHostView: View {
             }
             .disabled(coordinator.pairingBusy)
           }
-        } else {
+        } else if !controller.ready || controller.nearbyReady {
           Text("Open Munie on your iPhone near this Mac and choose this Mac.", tableName: "Desktop")
           Text(
             "This version connects nearby. Connecting away from home is not ready yet.",
@@ -212,7 +211,7 @@ struct DesktopHostView: View {
           Button(String(localized: "Retry Discovery", table: "Desktop")) {
             coordinator.updateNearbyAvailability()
           }
-          .disabled(!controller.ready)
+          .disabled(!controller.nearbyReady)
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
@@ -256,7 +255,7 @@ struct DesktopMenu: View {
   @Environment(\.openWindow) private var openWindow
 
   var body: some View {
-    Text(String(localized: coordinator.controller.serviceState.title, table: "Desktop"))
+    Text(String(localized: coordinator.controller.statusTitle, table: "Desktop"))
     if nearby.pendingRequest != nil {
       Text("Your iPhone is waiting for confirmation", tableName: "Desktop")
     }

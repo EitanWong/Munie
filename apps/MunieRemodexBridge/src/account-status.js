@@ -1,3 +1,4 @@
+// Munie modification: distinguish app-managed and standalone package-update capabilities.
 // FILE: account-status.js
 // Purpose: Converts raw codex account/auth responses into a sanitized status payload for the phone UI.
 // Layer: CLI helper
@@ -13,6 +14,7 @@ function composeAccountStatus({
   authStatus = null,
   loginInFlight = false,
   bridgeVersionInfo = null,
+  allowPackageUpdates = true,
   transportMode = null,
   hostPlatform = process.platform,
 } = {}) {
@@ -47,10 +49,10 @@ function composeAccountStatus({
       normalizeString(bridgeVersionInfo?.bridgeVersion),
       normalizeString(bridgePackageVersion),
     ]) || null,
-    bridgeLatestVersion: normalizeString(bridgeVersionInfo?.bridgeLatestVersion) || null,
+    bridgeLatestVersion: allowPackageUpdates ? normalizeString(bridgeVersionInfo?.bridgeLatestVersion) || null : null,
     codexTransportMode: normalizeString(transportMode) || null,
     hostPlatform: normalizeHostPlatform(hostPlatform),
-    hostCapabilities: deriveHostCapabilities(hostPlatform),
+    hostCapabilities: deriveHostCapabilities(hostPlatform, allowPackageUpdates),
   };
 }
 
@@ -66,6 +68,7 @@ function redactAuthStatus(authStatus = null, extras = {}) {
     authStatus,
     loginInFlight: Boolean(extras.loginInFlight),
     bridgeVersionInfo: extras.bridgeVersionInfo || null,
+    allowPackageUpdates: extras.allowPackageUpdates,
     transportMode: extras.transportMode || null,
     hostPlatform: extras.hostPlatform || process.platform,
   });
@@ -97,6 +100,7 @@ function composeSanitizedAuthStatusFromSettledResults({
   authStatusResult = null,
   loginInFlight = false,
   bridgeVersionInfo = null,
+  allowPackageUpdates = true,
   transportMode = null,
   hostPlatform = process.platform,
 } = {}) {
@@ -113,6 +117,7 @@ function composeSanitizedAuthStatusFromSettledResults({
     accountRead,
     loginInFlight: Boolean(loginInFlight),
     bridgeVersionInfo,
+    allowPackageUpdates,
     transportMode,
     hostPlatform,
   });
@@ -164,14 +169,14 @@ function normalizeHostPlatform(platform) {
   }
 }
 
-function deriveHostCapabilities(platform) {
+function deriveHostCapabilities(platform, allowPackageUpdates) {
   const isMacOS = platform === "darwin";
   return {
     desktopHandoff: isMacOS,
     displayWake: isMacOS,
     keepAwake: isMacOS,
     hostBrowserLogin: isMacOS,
-    bridgeUpdate: isMacOS,
+    bridgeUpdate: isMacOS && allowPackageUpdates,
   };
 }
 

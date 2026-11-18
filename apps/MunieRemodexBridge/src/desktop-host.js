@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const http = require("node:http");
+const { isIPv4 } = require("node:net");
 const { spawn, spawnSync } = require("node:child_process");
 const { createHash } = require("node:crypto");
 const { setTimeout: delay } = require("node:timers/promises");
@@ -115,16 +116,16 @@ function projectFolder(folder) {
 }
 
 function selectLanAddress(interfaces = os.networkInterfaces()) {
-  const entries = Object.entries(interfaces).sort(([a], [b]) => {
-    const rank = (name) => /^en\d+$/.test(name) ? Number(name.slice(2)) : 100;
-    return rank(a) - rank(b) || a.localeCompare(b);
-  });
+  // Do not fall back to VPN tunnels or bridges when Wi-Fi/Ethernet disappears.
+  const entries = Object.entries(interfaces)
+    .filter(([name]) => /^en\d+$/.test(name))
+    .sort(([a], [b]) => Number(a.slice(2)) - Number(b.slice(2)) || a.localeCompare(b));
   for (const [, addresses] of entries) {
     for (const entry of addresses || []) {
       if (entry.internal || entry.family !== "IPv4") continue;
       const address = entry.address;
-      if (/^10\./.test(address) || /^192\.168\./.test(address)
-        || /^172\.(1[6-9]|2\d|3[01])\./.test(address)) return address;
+      if (isIPv4(address) && (/^10\./.test(address) || /^192\.168\./.test(address)
+        || /^172\.(1[6-9]|2\d|3[01])\./.test(address))) return address;
     }
   }
   throw hostError("network_unavailable");
@@ -208,7 +209,7 @@ function bridgeSnapshot(value) {
   return { connectionStatus, codexLaunchState, activeDevice: summary(value?.activeDevice), activePhone: summary(value?.activePhone) };
 }
 
-function createDesktopHost({ env = process.env, emit = () => {}, interfaces = os.networkInterfaces, spawnImpl = spawn } = {}) {
+function createDesktopHost({ env = process.env, emit = () => {}, spawnImpl = spawn } = {}) {
   let root;
   try {
     if (!env.MUNIE_HOST_STATE_DIR || !path.isAbsolute(env.MUNIE_HOST_STATE_DIR)) throw new Error();
@@ -239,7 +240,9 @@ function createDesktopHost({ env = process.env, emit = () => {}, interfaces = os
   process.env.REMODEX_DISABLE_KEYCHAIN = "1";
   const trust = require("./secure-device-state");
   let state = "stopped", worker = null, ownedGroup = null, stopping = false, cleanupTask = null;
-  let bridge = null, account = null, pairing = null, lastError = initialProjectError;
+  let bridge = null, account = null, lastError = initialProjectError;
+  // The host owns the revision, not any of its replaceable workers.
+  let lanAvailable = false, lanRevision = 0;
   let requestCounter = 0, readyResolve = null, readyReject = null;
   const pending = new Map();
 
@@ -250,11 +253,18 @@ function createDesktopHost({ env = process.env, emit = () => {}, interfaces = os
     }));
   }
   function status() {
-    return { state, project, bridge, account, devices: devices(), pairingAvailable: state === "running" && !!pairing,
+    return { state, project, bridge, account, devices: devices(), lanAvailable, lanRevision,
+      pairingAvailable: state === "running" && lanAvailable,
       lastError, cleanupConfirmed: ownedGroup === null,
       ownership: ownedGroup === null ? null : { ownerPid: process.pid, groupId: ownedGroup } };
   }
   function publish() { emit("status", status()); }
+  function updateLanAvailability(available) {
+    if (lanAvailable === available) return false;
+    lanAvailable = available;
+    lanRevision = Math.min(lanRevision + 1, Number.MAX_SAFE_INTEGER);
+    return true;
+  }
   function rejectPending() {
     for (const entry of pending.values()) { clearTimeout(entry.timer); entry.reject(hostError("runtime_failed")); }
     pending.clear();
@@ -271,8 +281,9 @@ function createDesktopHost({ env = process.env, emit = () => {}, interfaces = os
       bridge = bridgeSnapshot(frame.data);
       if (bridge.codexLaunchState === "connected" && bridge.connectionStatus === "connected") readyResolve?.();
       publish();
-    } else if (frame?.event === "pairing") {
-      pairing = frame.data;
+    } else if (frame?.event === "lan") {
+      if (typeof frame.data !== "boolean") throw hostError("runtime_failed");
+      if (!stopping && updateLanAvailability(frame.data)) publish();
     } else if (frame?.event === "account") {
       account = frame.data;
       emit("account", account);
@@ -298,7 +309,7 @@ function createDesktopHost({ env = process.env, emit = () => {}, interfaces = os
   async function performStop() {
     stopping = true;
     state = "stopping";
-    pairing = null;
+    updateLanAvailability(false);
     publish();
     rejectPending();
     try {
@@ -341,12 +352,13 @@ function createDesktopHost({ env = process.env, emit = () => {}, interfaces = os
     project = projectFolder(project.path);
     const codex = executable(env.MUNIE_CODEX_BINARY || path.resolve(__dirname, "../../../Runtime/bin/codex"));
     const guardian = executable(env.MUNIE_GUARDIAN_BINARY || path.resolve(__dirname, "../../../Runtime/bin/MunieCodexGuardian"));
-    const address = selectLanAddress(interfaces());
-    state = "starting"; lastError = null; pairing = null; bridge = null; account = null; publish();
+    state = "starting"; lastError = null; bridge = null; account = null;
+    updateLanAvailability(false);
+    publish();
     const childEnv = {
       HOME: os.homedir(), PATH: "/usr/bin:/bin:/usr/sbin:/sbin", TMPDIR: os.tmpdir(), LANG: "en_US.UTF-8",
-      MUNIE_HOST_STATE_DIR: root, MUNIE_HOST_PROJECT_ROOT: project.path, MUNIE_HOST_LAN_ADDRESS: address,
-      MUNIE_HOST_RELAY_PORT: String(relayPort || 0), MUNIE_HOST_ADVERTISE_HOST: advertisedHost(address),
+      MUNIE_HOST_STATE_DIR: root, MUNIE_HOST_PROJECT_ROOT: project.path,
+      MUNIE_HOST_RELAY_PORT: String(relayPort || 0),
       REMODEX_CODEX_BINARY: codex, REMODEX_PROJECT_ROOT: project.path,
       REMODEX_DEVICE_STATE_DIR: path.join(root, "bridge"), REMODEX_DEVICE_STATE_FILE: path.join(root, "bridge", "device-state.json"),
       REMODEX_DISABLE_KEYCHAIN: "1", CODEX_HOME: path.join(root, "codex"),
@@ -366,7 +378,8 @@ function createDesktopHost({ env = process.env, emit = () => {}, interfaces = os
       rejectPending();
       readyReject?.(hostError(code));
       if (!stopping) {
-        state = "error"; pairing = null; account = null;
+        state = "error"; account = null;
+        updateLanAvailability(false);
         lastError = publicError(hostError("runtime_failed")); publish();
         // Guardian has already cleaned on exit; confirm absence before releasing ownership.
         stop().then(() => { state = "error"; lastError = publicError(hostError("runtime_failed")); publish(); }).catch(() => {});
@@ -374,7 +387,7 @@ function createDesktopHost({ env = process.env, emit = () => {}, interfaces = os
     }
     child.on("error", () => { failChild("runtime_unavailable"); });
     child.on("close", () => { failChild(); });
-    readFrames(child.stdout, MAX_FRAME_BYTES, receive, () => failChild());
+    readFrames(child.stdout, MAX_FRAME_BYTES, (frame) => { if (worker === child) receive(frame); }, () => failChild());
     publish();
     try {
       await ready;
@@ -404,12 +417,13 @@ function createDesktopHost({ env = process.env, emit = () => {}, interfaces = os
       }
       case "account/login/start": return safeLogin(await request(method));
       case "account/login/cancel": return request(method);
-      case "pairing/get":
+      case "pairing/get": {
         // An explicit Mac approval requests a fresh invitation without restarting active work.
-        if (state !== "running") throw hostError("pairing_unavailable");
-        pairing = await request(method);
-        if (!pairing || pairing.pairingPayload.expiresAt <= Date.now()) throw hostError("pairing_unavailable");
+        if (state !== "running" || !lanAvailable) throw hostError("pairing_unavailable");
+        const pairing = await request(method);
+        if (!lanAvailable || !pairing || pairing.pairingPayload.expiresAt <= Date.now()) throw hostError("pairing_unavailable");
         return { payload: pairing.pairingPayload, code: pairing.pairingCode };
+      }
       case "devices/revoke":
         if (typeof params.deviceId !== "string" || !devices().some((device) => device.id === params.deviceId)) throw hostError("device_not_found");
         // The existing protocol permits exactly one trusted phone; resetting revokes its live session too.
@@ -425,6 +439,71 @@ function createDesktopHost({ env = process.env, emit = () => {}, interfaces = os
   return { run, status, stop };
 }
 
+function monitorLanRelay(loopbackServer, port, onAvailability) {
+  let binding = null, boundAddress = null, stopped = false;
+
+  function retire(current, rebind = false) {
+    if (current.closing) return;
+    current.closing = true;
+    const wasAvailable = boundAddress !== null;
+    boundAddress = null;
+    current.server.close(() => {
+      binding = null;
+      if (rebind && !stopped) reconcile();
+    });
+    // Raw TCP tracking includes incomplete HTTP requests and upgraded WebSockets.
+    // The loopback server's sockets are never in this set.
+    for (const socket of current.sockets) socket.destroy();
+    if (wasAvailable && !stopped) onAvailability(false);
+  }
+
+  function reconcile() {
+    let address = null;
+    try { address = selectLanAddress(); }
+    catch { /* No usable interface. Keep loopback available and try the next poll. */ }
+    if (binding) {
+      if (binding.address !== address) retire(binding, address !== null);
+      return;
+    }
+    if (address === null) return;
+
+    const server = http.createServer();
+    const current = binding = { server, address, sockets: new Set(), closing: false };
+    // Reuse the exact relay HTTP and upgrade handlers, including their session state.
+    for (const event of ["request", "upgrade"]) {
+      for (const listener of loopbackServer.listeners(event)) server.on(event, listener);
+    }
+    server.on("connection", (socket) => {
+      if (current.closing) { socket.destroy(); return; }
+      current.sockets.add(socket);
+      socket.once("close", () => current.sockets.delete(socket));
+    });
+    // A fixed-port bind failure retires this attempt; the next poll retries the same port.
+    server.on("error", () => retire(current));
+    try {
+      server.listen(port, address, () => {
+        if (current.closing) return;
+        boundAddress = address;
+        onAvailability(true);
+      });
+    } catch {
+      retire(current);
+    }
+  }
+
+  reconcile();
+  const timer = setInterval(reconcile, 5000);
+  timer.unref();
+  return {
+    get address() { return boundAddress; },
+    stop() {
+      stopped = true;
+      clearInterval(timer);
+      if (binding) retire(binding);
+    },
+  };
+}
+
 async function runWorker() {
   // Imported bridge/relay log text may contain paths or upstream details: discard, never forward it.
   for (const key of ["log", "info", "warn", "error", "debug"]) console[key] = () => {};
@@ -432,40 +511,24 @@ async function runWorker() {
   const { createRelayServer } = require("../../MunieRemodexRelay/server");
   const { startBridge, readBridgeConfig } = require("./index");
   const relay = createRelayServer({ enablePushService: false, maxPayload: MAX_FRAME_BYTES });
-  const address = process.env.MUNIE_HOST_LAN_ADDRESS;
   await new Promise((resolve, reject) => {
     relay.server.once("error", reject);
     relay.server.listen(Number(process.env.MUNIE_HOST_RELAY_PORT), "127.0.0.1", resolve);
   });
-  // Share the exact relay handlers/state on two explicit interfaces. Local Codex control
-  // remains reachable when macOS has not yet granted the GUI local-network access.
-  const lanServer = http.createServer();
-  for (const event of ["request", "upgrade"]) {
-    for (const listener of relay.server.listeners(event)) lanServer.on(event, listener);
-  }
-  await new Promise((resolve, reject) => {
-    lanServer.once("error", reject);
-    lanServer.listen(relay.server.address().port, address, resolve);
-  });
   const port = relay.server.address().port;
   send({ event: "relay", data: { port } });
-  const config = { ...readBridgeConfig(), relayUrl: `ws://127.0.0.1:${port}/relay`, publicRelayUrl: `ws://${process.env.MUNIE_HOST_ADVERTISE_HOST}:${port}/relay`,
+  const lan = monitorLanRelay(relay.server, port, (available) => send({ event: "lan", data: available }));
+  const config = { ...readBridgeConfig(), relayUrl: `ws://127.0.0.1:${port}/relay`, publicRelayUrl: "",
     codexEndpoint: "", pushServiceUrl: "", refreshEnabled: false, desktopAutoFollowEnabled: false,
     keepMacAwakeEnabled: false, desktopIpcLiveSyncEnabled: false, localAccountControlEnabled: true,
   };
   const bridge = startBridge({ config, printPairingQr: false,
-    onPairingSession: (data) => send({ event: "pairing", data }),
     onBridgeStatus: (data) => {
       send({ event: "bridge", data: bridgeSnapshot(data) });
       // Native app-server can also close with exit 0 unexpectedly; it is still a host failure.
       if (data.state === "error") queueMicrotask(() => process.exit(1));
     },
   });
-  const networkMonitor = setInterval(() => {
-    try { if (selectLanAddress() !== address) process.exit(1); }
-    catch { process.exit(1); }
-  }, 5000);
-  networkMonitor.unref();
   let stopping = false, pending = 0, loginPoll = null, loginPollBusy = false;
   function pollLogin() {
     clearInterval(loginPoll);
@@ -487,12 +550,11 @@ async function runWorker() {
     if (stopping) return;
     stopping = true;
     clearInterval(loginPoll);
-    clearInterval(networkMonitor);
+    lan.stop();
     bridge.stop();
     for (const client of relay.wss.clients) client.terminate();
     relay.wss.close();
     relay.server.close();
-    lanServer.close();
     // Guardian confirms native and descendant cleanup after this worker exits.
     process.exit(0);
   }
@@ -501,7 +563,14 @@ async function runWorker() {
     pending++;
     Promise.resolve().then(async () => {
       switch (frame.method) {
-        case "pairing/get": return bridge.localPairing.refresh();
+        case "pairing/get": {
+          if (!lan.address) throw hostError("pairing_unavailable");
+          const session = bridge.localPairing.refresh();
+          // Only the local handoff URL changes. The bridge's session, key and relay
+          // registration stay owned by the original loopback transport.
+          const relay = `ws://${advertisedHost(lan.address)}:${port}/relay`;
+          return { ...session, pairingPayload: { ...session.pairingPayload, relay } };
+        }
         case "account/read": return bridge.localAccount.read();
         case "account/login/start": {
           const result = safeLogin(await bridge.localAccount.startLogin());
@@ -513,7 +582,8 @@ async function runWorker() {
           return bridge.localAccount.cancelLogin();
         default: throw hostError("method_not_found");
       }
-    }).then((result) => send({ id: frame.id, result }), () => send({ id: frame.id, error: publicError(hostError("account_unavailable")) }))
+    }).then((result) => send({ id: frame.id, result }), () => send({ id: frame.id,
+      error: publicError(hostError(frame.method === "pairing/get" ? "pairing_unavailable" : "account_unavailable")) }))
       .finally(() => pending--);
   }, () => { void shutdown(); });
   process.stdin.on("end", shutdown);
@@ -528,7 +598,7 @@ function runProtocol({ input = process.stdin, output = process.stdout, env = pro
   try { host = createDesktopHost({ env, emit: (event, data) => send({ event, data }) }); }
   catch (error) {
     const failure = publicError(error);
-    const failedStatus = { state: "error", project: null, bridge: null, account: null, devices: [],
+    const failedStatus = { state: "error", project: null, bridge: null, account: null, devices: [], lanAvailable: false, lanRevision: 0,
       pairingAvailable: false, lastError: failure, cleanupConfirmed: true, ownership: null };
     send({ event: "ready", data: failedStatus });
     readFrames(input, MAX_REQUEST_BYTES, (frame) => {

@@ -18,7 +18,13 @@ test("network choice uses an actual private IPv4 and prefers physical Apple inte
   const address = (value, extra = {}) => ({ address: value, family: "IPv4", internal: false, ...extra });
   assert.equal(selectLanAddress({ utun1: [address("10.5.0.4")], en1: [address("192.168.1.2")],
     en0: [address("203.0.113.1"), address("172.17.0.2")] }), "172.17.0.2");
+  assert.equal(selectLanAddress({ en10: [address("192.168.1.10")], en2: [address("192.168.1.2")] }), "192.168.1.2");
+  for (const name of ["utun1", "bridge0", "awdl0"]) {
+    assert.throws(() => selectLanAddress({ en0: [address("203.0.113.1")], [name]: [address("10.5.0.4")] }),
+      { code: "network_unavailable" });
+  }
   assert.throws(() => selectLanAddress({ lo0: [address("127.0.0.1", { internal: true })], en0: [address("203.0.113.1")] }), /private local network/);
+  assert.throws(() => selectLanAddress({ en0: [address("192.168.not-an-address")] }), /private local network/);
   assert.equal(advertisedHost("192.168.1.2", "My-Mac.local"), "My-Mac.local");
   assert.equal(advertisedHost("192.168.1.2", "https://invalid.local"), "192.168.1.2");
 });
@@ -89,7 +95,9 @@ test("private state and real project authorization reject symlinks and persist a
 test("protocol rejects malformed, duplicate, arbitrary-RPC and oversized requests without echoing data", async (t) => {
   const temp = temporary(t);
   const client = launchProtocol(t, { MUNIE_HOST_STATE_DIR: path.join(temp, "state") });
-  await client.wait((frame) => frame.event === "ready");
+  const ready = await client.wait((frame) => frame.event === "ready");
+  assert.equal(ready.data.lanAvailable, false);
+  assert.equal(ready.data.lanRevision, 0);
   client.child.stdin.write('not JSON SECRET\n');
   assert.equal((await client.wait((frame) => frame.id === null)).error.code, "invalid_request");
   assert.equal((await client.call("turn/start", { input: "SECRET" })).error.code, "method_not_found");
@@ -111,11 +119,16 @@ test("unavailable private state remains inspectable through the protocol", async
   const ready = await client.wait((frame) => frame.event === "ready");
   assert.equal(ready.data.state, "error");
   assert.equal(ready.data.lastError.code, "state_unavailable");
-  assert.equal((await client.call("status")).result.cleanupConfirmed, true);
+  for (const snapshot of [ready.data, (await client.call("status")).result]) {
+    assert.equal(snapshot.cleanupConfirmed, true);
+    assert.equal(snapshot.lanAvailable, false);
+    assert.equal(snapshot.lanRevision, 0);
+  }
   assert.equal((await client.call("start")).error.code, "state_unavailable");
   const stopped = await client.call("stop");
   assert.equal(stopped.result.state, "stopped");
   assert.equal(stopped.result.cleanupConfirmed, true);
+  assert.equal(stopped.result.lanRevision, 0);
   assert.equal((await client.call("status")).result.lastError.code, "state_unavailable");
   client.child.stdin.end();
   assert.equal((await client.closed).code, 0);
@@ -244,17 +257,24 @@ test("unexpected native failure or exit zero is observable, cleaned and retryabl
   t.after(() => host.stop());
   await host.run("project/set", { path: fixture.project });
   await host.run("start");
+  await until(() => host.status().lanAvailable);
+  assert.equal(host.status().lanRevision, 1);
   await until(() => fixture.pids().length >= 2);
   process.kill(fixture.pids()[0], "SIGKILL");
   await until(() => host.status().state === "error" && host.status().cleanupConfirmed);
   assert.equal(host.status().lastError.code, "runtime_failed");
+  assert.equal(host.status().lanAvailable, false);
+  assert.equal(host.status().lanRevision, 2);
   assert.equal(JSON.stringify(events).includes("SECRET_STDERR"), false);
   assert.equal((await host.run("retry")).state, "running");
+  await until(() => host.status().lanAvailable);
+  assert.equal(host.status().lanRevision, 3);
   await until(() => fixture.pids().length >= 4);
   process.kill(fixture.pids()[2], "SIGUSR1");
   await until(() => host.status().state === "error" && host.status().cleanupConfirmed);
   assert.equal(host.status().lastError.code, "runtime_failed");
-  await host.run("stop");
+  assert.equal(host.status().lanAvailable, false);
+  assert.equal((await host.run("stop")).lanRevision, 4);
   for (const pid of fixture.pids()) assert.equal(alive(pid), false);
 });
 
@@ -312,6 +332,138 @@ test("saved relay port conflict fails explicitly and retry keeps the same port",
   await host.run("retry");
   assert.equal((await host.run("pairing/get")).payload.relay, saved);
   await host.run("stop");
+});
+
+test("LAN loss and fixed-port rebind preserve the guarded runtime and relay session", { timeout: 35000, skip: process.platform !== "darwin" }, async (t) => {
+  const fixture = setupRuntime(t);
+  const folder = path.dirname(fixture.project), address = selectLanAddress();
+  const networkFile = path.join(folder, "network.json"), polls = path.join(folder, "polls.jsonl");
+  const preload = path.join(folder, "network-fixture.cjs");
+  const setLan = (value) => {
+    const next = `${networkFile}.next`;
+    fs.writeFileSync(next, JSON.stringify(value));
+    fs.renameSync(next, networkFile);
+  };
+  setLan(address);
+  // Give only the worker a synthetic interface view. TCP/HTTP/WS bindings and
+  // the native guardian are real; no interfaces or OS settings are changed.
+  fs.writeFileSync(preload, `const fs = require('node:fs');
+    require('node:os').networkInterfaces = () => {
+      const address = JSON.parse(fs.readFileSync(${JSON.stringify(networkFile)}, 'utf8'));
+      fs.appendFileSync(${JSON.stringify(polls)}, JSON.stringify(address) + '\\n');
+      const tunnel = { address: ${JSON.stringify(address)}, family: 'IPv4', internal: false };
+      return { utun0: [tunnel], en0: address ? [{ ...tunnel, address }] : [] };
+    };`);
+  const statuses = [];
+  const host = createDesktopHost({ env: fixture.env, emit: (event, data) => {
+    if (event === "status") statuses.push(data);
+  }, spawnImpl: (executable, args, options) =>
+    spawn(executable, [...args.slice(0, 2), "--require", preload, ...args.slice(2)], options) });
+  t.after(() => host.stop());
+  await host.run("project/set", { path: fixture.project });
+  const started = await host.run("start");
+  const first = (await host.run("pairing/get")).payload;
+  assert.equal(host.status().lanRevision, 1);
+  const port = Number(new URL(first.relay).port);
+  const originalPids = fixture.pids();
+  assert.equal(originalPids.length, 2);
+  const sockets = [];
+  t.after(() => { for (const socket of sockets) socket.destroy(); });
+  async function connectTCP(hostname) {
+    const socket = net.createConnection({ host: hostname, port });
+    sockets.push(socket);
+    const closed = new Promise((resolve) => socket.once("close", resolve));
+    await new Promise((resolve, reject) => { socket.once("connect", resolve); socket.on("error", reject); });
+    return { socket, closed };
+  }
+  async function connectWS(hostname, sessionId, role) {
+    const socket = new WebSocket(`ws://${hostname}:${port}/relay/${sessionId}`, { headers: { "x-role": role } });
+    t.after(() => socket.terminate());
+    const closed = new Promise((resolve) => socket.once("close", resolve));
+    await new Promise((resolve, reject) => { socket.once("open", resolve); socket.on("error", reject); });
+    await ping(socket);
+    return { socket, closed };
+  }
+  async function ping(socket) {
+    assert.equal(socket.readyState, WebSocket.OPEN);
+    await new Promise((resolve, reject) => {
+      const closedEarly = () => reject(new Error("Relay closed before pong"));
+      socket.once("close", closedEarly);
+      socket.once("pong", () => { socket.off("close", closedEarly); resolve(); });
+      socket.ping();
+    });
+  }
+  // Use a separate room so this loopback WS cannot replace the phone fixture.
+  const local = await connectWS("127.0.0.1", randomUUID(), "mac");
+  const oldHttp = await connectTCP(address);
+  oldHttp.socket.write("GET /health HTTP/1.1\r\n");
+  const oldPhone = await connectWS(address, first.sessionId, "iphone");
+  setLan(null);
+  await Promise.all([oldHttp.closed, oldPhone.closed]);
+  await until(() => host.status().state !== "running" || host.status().lanAvailable === false, 7000);
+  assert.equal(host.status().state, "running", "LAN loss must not exit the worker");
+  assert.equal(host.status().lastError, null);
+  assert.equal(host.status().pairingAvailable, false);
+  assert.equal(host.status().lanRevision, 2);
+  await assert.rejects(host.run("pairing/get"), { code: "pairing_unavailable" });
+  assert.equal((await host.run("account/read")).status, "not_logged_in");
+  await ping(local.socket);
+  await assert.rejects(connectTCP(address), { code: "ECONNREFUSED" });
+
+  // Keep the original port occupied on LAN across two polls, without touching loopback.
+  const blocker = net.createServer((socket) => socket.destroy());
+  t.after(() => blocker.close());
+  await new Promise((resolve, reject) => { blocker.on("error", reject); blocker.listen(port, address, resolve); });
+  const pollLines = () => fs.readFileSync(polls, "utf8").trim().split("\n");
+  const beforeReturn = pollLines().length;
+  setLan(address);
+  await until(() => pollLines().slice(beforeReturn).filter((line) => line === JSON.stringify(address)).length >= 2, 12000);
+  assert.equal(host.status().state, "running");
+  assert.equal(host.status().lanAvailable, false);
+  assert.equal(host.status().lanRevision, 2);
+  assert.deepEqual(fixture.pids(), originalPids);
+  await new Promise((resolve) => blocker.close(resolve));
+  await until(() => host.status().lanAvailable === true, 7000);
+
+  const rebound = (await host.run("pairing/get")).payload;
+  assert.equal(host.status().pairingAvailable, true);
+  assert.equal(host.status().lanRevision, 3);
+  assert.deepEqual(host.status().ownership, started.ownership);
+  assert.equal(rebound.relay, first.relay);
+  assert.equal(rebound.sessionId, first.sessionId);
+  assert.equal(rebound.macDeviceId, first.macDeviceId);
+  assert.equal(rebound.macIdentityPublicKey, first.macIdentityPublicKey);
+  assert.deepEqual(fixture.pids(), originalPids);
+  await ping(local.socket);
+  const phone = await connectWS(address, first.sessionId, "iphone");
+  const stopped = await host.run("stop");
+  await Promise.all([phone.closed, local.closed]);
+  assert.equal(stopped.cleanupConfirmed, true);
+  assert.equal(stopped.lanAvailable, false);
+  assert.equal(stopped.lanRevision, 4);
+  assert.equal(stopped.state, "stopped");
+  await assert.rejects(connectTCP(address), { code: "ECONNREFUSED" });
+  await assert.rejects(connectTCP("127.0.0.1"), { code: "ECONNREFUSED" });
+  for (const pid of originalPids) assert.equal(alive(pid), false);
+
+  // A cold start with no LAN still provides local account control on the saved port.
+  setLan(null);
+  const offlineStart = await host.run("start");
+  assert.equal(offlineStart.state, "running");
+  assert.equal(offlineStart.lanAvailable, false);
+  assert.equal(offlineStart.lanRevision, 4);
+  assert.equal(offlineStart.pairingAvailable, false);
+  assert.equal((await host.run("account/read")).status, "not_logged_in");
+  assert.equal(JSON.parse(fs.readFileSync(path.join(fixture.env.MUNIE_HOST_STATE_DIR, "host.json"))).relayPort, port);
+  assert.equal((await host.run("stop")).cleanupConfirmed, true);
+  let previous = { lanAvailable: false, lanRevision: 0 };
+  for (const snapshot of statuses) {
+    assert.equal(typeof snapshot.lanAvailable, "boolean");
+    assert.ok(Number.isSafeInteger(snapshot.lanRevision));
+    assert.equal(snapshot.lanRevision, previous.lanRevision + Number(snapshot.lanAvailable !== previous.lanAvailable));
+    assert.equal(snapshot.pairingAvailable, snapshot.state === "running" && snapshot.lanAvailable);
+    previous = snapshot;
+  }
 });
 
 function resolveSavedRelay(savedURL, body) {

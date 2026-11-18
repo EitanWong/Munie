@@ -1,3 +1,4 @@
+// Munie modification: cover sanitized app-managed bridge update metadata.
 // FILE: account-status.test.js
 // Purpose: Verifies the bridge-side auth snapshot stays sanitized for the phone UI.
 // Layer: Unit test
@@ -384,6 +385,18 @@ test("composeSanitizedAuthStatusFromSettledResults keeps authenticated UI state 
     bridgeLatestVersion: "9.9.9",
     ...macHostMetadata,
   });
+});
+
+test("a bundled Mac cannot advertise a standalone package update to the phone", () => {
+  const status = composeSanitizedAuthStatusFromSettledResults(withMacHost({
+    accountReadResult: { status: "fulfilled", value: { account: null } },
+    allowPackageUpdates: false,
+    bridgeVersionInfo: { bridgeVersion: bridgePackageVersion, bridgeLatestVersion: "99.0.0" },
+  }));
+
+  assert.equal(status.bridgeVersion, bridgePackageVersion);
+  assert.equal(status.bridgeLatestVersion, null);
+  assert.deepEqual(status.hostCapabilities, { ...macHostMetadata.hostCapabilities, bridgeUpdate: false });
 });
 
 test("composeSanitizedAuthStatusFromSettledResults fails when both auth reads fail", () => {

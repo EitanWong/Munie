@@ -363,6 +363,9 @@ function createDesktopHost({ env = process.env, emit = () => {}, spawnImpl = spa
       REMODEX_DEVICE_STATE_DIR: path.join(root, "bridge"), REMODEX_DEVICE_STATE_FILE: path.join(root, "bridge", "device-state.json"),
       REMODEX_DISABLE_KEYCHAIN: "1", CODEX_HOME: path.join(root, "codex"),
     };
+    const { loopbackManagedRelayOrigin } = require("./managed-relay-client");
+    const pilotOrigin = loopbackManagedRelayOrigin(env.MUNIE_DEVELOPER_MANAGED_RELAY);
+    if (pilotOrigin) childEnv.MUNIE_DEVELOPER_MANAGED_RELAY = pilotOrigin;
     const child = spawnImpl(guardian, [String(process.pid), process.execPath, __filename, "--worker"], {
       env: childEnv, cwd: project.path, detached: true, stdio: ["pipe", "pipe", "ignore"],
     });
@@ -509,8 +512,13 @@ async function runWorker() {
   for (const key of ["log", "info", "warn", "error", "debug"]) console[key] = () => {};
   const send = (frame) => writeFrame(process.stdout, frame);
   const { createRelayServer } = require("../../MunieRemodexRelay/server");
+  const { managedAdmissionTranscript } = require("../../MunieRemodexRelay/managed-admission");
+  const { MOBILE_ROUTE_FRAME } = require("../../MunieRemodexRelay/relay");
+  const { loopbackManagedRelayOrigin } = require("./managed-relay-client");
   const { startBridge, readBridgeConfig } = require("./index");
-  const relay = createRelayServer({ enablePushService: false, maxPayload: MAX_FRAME_BYTES });
+  const pilotOrigin = loopbackManagedRelayOrigin(process.env.MUNIE_DEVELOPER_MANAGED_RELAY);
+  const relay = createRelayServer({ enablePushService: false, maxPayload: MAX_FRAME_BYTES,
+    relayOptions: { enableManagedRoutes: Boolean(pilotOrigin) } });
   await new Promise((resolve, reject) => {
     relay.server.once("error", reject);
     relay.server.listen(Number(process.env.MUNIE_HOST_RELAY_PORT), "127.0.0.1", resolve);
@@ -523,6 +531,10 @@ async function runWorker() {
     keepMacAwakeEnabled: false, desktopIpcLiveSyncEnabled: false, localAccountControlEnabled: true,
   };
   const bridge = startBridge({ config, printPairingQr: false,
+    desktopManagedRelay: pilotOrigin ? {
+      origin: pilotOrigin, audience: "munie-loopback.invalid", encodeChallenge: managedAdmissionTranscript,
+      attachPhone: relay.attachManagedPhone, routeFrame: MOBILE_ROUTE_FRAME,
+    } : null,
     onBridgeStatus: (data) => {
       send({ event: "bridge", data: bridgeSnapshot(data) });
       // Native app-server can also close with exit 0 unexpectedly; it is still a host failure.

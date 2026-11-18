@@ -1,9 +1,10 @@
+// Munie modification: fence pilot traffic to one in-process phone route generation.
 // FILE: relay.js
 // Purpose: Thin self-hostable WebSocket relay for Remodex pairing, trusted-session lookup, and encrypted forwarding.
 // Layer: Standalone server module
 // Exports: setupRelay, getRelayStats, hasActiveMacSession, hasAuthenticatedMacSession, resolveTrustedMacSession, resolvePairingCode
 
-const { createHash, createPublicKey, verify } = require("crypto");
+const { createHash, createPublicKey, randomUUID, verify } = require("crypto");
 const { WebSocket } = require("ws");
 
 const CLEANUP_DELAY_MS = 60_000;
@@ -11,11 +12,15 @@ const HEARTBEAT_INTERVAL_MS = 30_000;
 const CLOSE_CODE_SESSION_UNAVAILABLE = 4002;
 const CLOSE_CODE_IPHONE_REPLACED = 4003;
 const CLOSE_CODE_MAC_ABSENCE_BUFFER_FULL = 4004;
+const CLOSE_CODE_MESSAGE_TOO_BIG = 1009;
 const MAC_ABSENCE_GRACE_MS = 15_000;
+const MANAGED_ROUTE_READY_TIMEOUT_MS = 25_000;
 const TRUSTED_SESSION_RESOLVE_TAG = "remodex-trusted-session-resolve-v1";
 const TRUSTED_SESSION_RESOLVE_SKEW_MS = 90_000;
 const SHORT_PAIRING_CODE_MIN_LENGTH = 8;
 const SHORT_PAIRING_CODE_MAX_LENGTH = 12;
+const MAX_MANAGED_FORWARD_BYTES = 1024 * 1024;
+const MOBILE_ROUTE_FRAME = "munieLocalMobileRouteV1";
 
 // In-memory session registry for one Mac host and one live mobile client per session (iOS or Android).
 const sessions = new Map();
@@ -66,6 +71,8 @@ function setupRelay(
     setTimeoutFn = setTimeout,
     clearTimeoutFn = clearTimeout,
     macAbsenceGraceMs = MAC_ABSENCE_GRACE_MS,
+    enableManagedRoutes = false,
+    managedRouteReadyTimeoutMs = MANAGED_ROUTE_READY_TIMEOUT_MS,
   } = {}
 ) {
   const heartbeat = setInterval(() => {
@@ -86,6 +93,99 @@ function setupRelay(
   heartbeat.unref?.();
 
   wss.on("close", () => clearInterval(heartbeat));
+
+  function clearMobileRouteTimer(route) {
+    const timer = route?.readyTimer;
+    if (timer == null) return;
+    route.readyTimer = null;
+    clearTimeoutFn(timer);
+  }
+
+  function clearMobileRoute(session) {
+    clearMobileRouteTimer(session.mobileRoute);
+    session.mobileRoute = null;
+  }
+
+  function updateMobileRoute(session, expire) {
+    if (!enableManagedRoutes) return;
+    clearMobileRoute(session);
+    const mac = session.mac;
+    if (mac?.readyState !== WebSocket.OPEN) return;
+    if (expire) {
+      const route = { id: randomUUID(), readyTimer: null };
+      session.mobileRoute = route;
+      route.readyTimer = setTimeoutFn(() => {
+        if (session.mac === mac && session.mobileRoute === route && route.readyTimer !== null) expire();
+      }, managedRouteReadyTimeoutMs);
+      route.readyTimer.unref?.();
+    }
+    mac.send(JSON.stringify({ kind: MOBILE_ROUTE_FRAME, routeId: session.mobileRoute?.id ?? null }),
+      (error) => { if (error) mac.terminate(); });
+  }
+
+  function sendMobileMessage(session, message, close, { managed = false } = {}) {
+    const mac = session.mac;
+    const frame = enableManagedRoutes
+      ? JSON.stringify({ kind: MOBILE_ROUTE_FRAME, routeId: session.mobileRoute.id, message }) : message;
+    if (enableManagedRoutes) {
+      const bytes = Buffer.byteLength(frame);
+      if (bytes > MAX_MANAGED_FORWARD_BYTES) {
+        close(CLOSE_CODE_MESSAGE_TOO_BIG, "Mobile route frame too large");
+        return false;
+      }
+      if (managed && mac.bufferedAmount + bytes > MAX_MANAGED_FORWARD_BYTES) {
+        close(CLOSE_CODE_MAC_ABSENCE_BUFFER_FULL, "Mobile route backpressure");
+        return false;
+      }
+    }
+    mac.send(frame, managed ? (error) => { if (error) close(); } : undefined);
+    return true;
+  }
+
+  function closeLanRoute(session, socket, code, reason) {
+    if (!session.clients.delete(socket)) return;
+    updateMobileRoute(session);
+    socket.close(code, reason);
+  }
+
+  function invalidateManagedMobileRoutes(session) {
+    if (!enableManagedRoutes) return;
+    session.managedPhone?.close();
+    clearMobileRoute(session);
+    for (const client of session.clients) client.close(CLOSE_CODE_MAC_ABSENCE_BUFFER_FULL, "Mac relay changed");
+    session.clients.clear();
+  }
+
+  function attachManagedPhone(sessionId, { send, close }) {
+    const session = sessions.get(sessionId);
+    const mac = session?.mac;
+    if (!enableManagedRoutes || !mac || !wss.clients.has(mac) || mac.readyState !== WebSocket.OPEN
+        || session.clients.size || session.managedPhone) return null;
+
+    const route = {
+      send,
+      close(code, reason) {
+        if (session.managedPhone !== route) return;
+        session.managedPhone = null;
+        updateMobileRoute(session);
+        close(code, reason);
+      },
+    };
+    session.managedPhone = route;
+    updateMobileRoute(session, () => route.close(CLOSE_CODE_MAC_ABSENCE_BUFFER_FULL, "Mobile route handshake timed out"));
+    return {
+      receive(message) {
+        if (session.managedPhone !== route || session.mac !== mac || mac.readyState !== WebSocket.OPEN) return false;
+        return sendMobileMessage(session, message, route.close, { managed: true });
+      },
+      detach() {
+        if (session.managedPhone === route) {
+          session.managedPhone = null;
+          updateMobileRoute(session);
+        }
+      },
+    };
+  }
 
   wss.on("connection", (ws, req) => {
     const urlPath = req.url || "";
@@ -116,6 +216,8 @@ function setupRelay(
       sessions.set(sessionId, {
         mac: null,
         macRegistration: null,
+        managedPhone: null,
+        mobileRoute: null,
         clients: new Set(),
         cleanupTimer: null,
         macAbsenceTimer: null,
@@ -129,6 +231,11 @@ function setupRelay(
       ws.close(CLOSE_CODE_SESSION_UNAVAILABLE, "Mac session not available");
       return;
     }
+    if (enableManagedRoutes && isRelayMobileRole(role) && (session.mac?.readyState !== WebSocket.OPEN
+        || session.managedPhone || session.clients.size)) {
+      ws.close(CLOSE_CODE_MAC_ABSENCE_BUFFER_FULL, "Mobile route unavailable");
+      return;
+    }
 
     if (session.cleanupTimer) {
       clearTimeoutFn(session.cleanupTimer);
@@ -137,6 +244,7 @@ function setupRelay(
 
     if (role === "mac") {
       clearMacAbsenceTimer(session, { clearTimeoutFn });
+      invalidateManagedMobileRoutes(session);
       // The relay keeps a per-session push secret so first-time device registration
       // cannot be claimed by someone who only knows the session id.
       session.notificationSecret = readHeaderString(req.headers["x-notification-secret"]);
@@ -145,9 +253,11 @@ function setupRelay(
         session.mac.close(4001, "Replaced by new Mac connection");
       }
       session.mac = ws;
+      updateMobileRoute(session);
       registerLiveMacSession(session.macRegistration);
       console.log(`[relay] Mac connected -> ${relaySessionLogLabel(sessionId)}`);
     } else {
+      session.managedPhone?.close();
       // Keep one live mobile RPC client per session to avoid competing sockets.
       for (const existingClient of session.clients) {
         if (existingClient === ws) {
@@ -166,6 +276,9 @@ function setupRelay(
       }
 
       session.clients.add(ws);
+      updateMobileRoute(session, () => closeLanRoute(
+        session, ws, CLOSE_CODE_MAC_ABSENCE_BUFFER_FULL, "Mobile route handshake timed out"
+      ));
       console.log(
         `[relay] Mobile connected (${role}) -> ${relaySessionLogLabel(sessionId)} `
         + `(${session.clients.size} client(s))`
@@ -174,20 +287,35 @@ function setupRelay(
 
     ws.on("message", (data) => {
       const msg = typeof data === "string" ? data : data.toString("utf-8");
+      if (role === "mac" && session.mac !== ws) return;
+      if (isRelayMobileRole(role) && !session.clients.has(ws)) return;
       if (role === "mac" && applyMacRegistrationMessage(session, sessionId, msg)) {
         return;
       }
 
       if (role === "mac") {
+        const output = enableManagedRoutes ? safeParseJSON(msg) : null;
+        if (enableManagedRoutes) {
+          const route = session.mobileRoute;
+          if (!route || output?.kind !== MOBILE_ROUTE_FRAME || output.routeId !== route.id) return;
+          if (output.ready === true) {
+            if (output.message === undefined) clearMobileRouteTimer(route);
+            return;
+          }
+          if (typeof output.message !== "string") return;
+        }
+        const payload = enableManagedRoutes ? output.message : msg;
+        session.managedPhone?.send(payload);
         for (const client of session.clients) {
           if (client.readyState === WebSocket.OPEN) {
             relayMetrics.macMessagesRelayed += 1;
-            client.send(msg);
+            client.send(payload);
           }
         }
       } else if (session.mac?.readyState === WebSocket.OPEN) {
-        relayMetrics.mobileMessagesRelayed += 1;
-        session.mac.send(msg);
+        if (sendMobileMessage(session, msg, (code, reason) => closeLanRoute(session, ws, code, reason))) {
+          relayMetrics.mobileMessagesRelayed += 1;
+        }
       } else {
         // The relay cannot prove a buffered request really reached the bridge after
         // a reconnect, so fail fast with an explicit retry-required close instead
@@ -202,6 +330,7 @@ function setupRelay(
       if (role === "mac") {
         if (session.mac === ws) {
           session.mac = null;
+          invalidateManagedMobileRoutes(session);
           unregisterLiveMacSession(session.macRegistration, sessionId);
           console.log(`[relay] Mac disconnected -> ${relaySessionLogLabel(sessionId)}`);
           if (session.clients.size > 0) {
@@ -215,7 +344,7 @@ function setupRelay(
           }
         }
       } else {
-        session.clients.delete(ws);
+        if (session.clients.delete(ws)) updateMobileRoute(session);
         console.log(
           `[relay] Mobile disconnected (${role}) -> ${relaySessionLogLabel(sessionId)} `
           + `(${session.clients.size} remaining)`
@@ -231,6 +360,7 @@ function setupRelay(
       );
     });
   });
+  return { attachManagedPhone };
 }
 
 function scheduleCleanup(sessionId, { setTimeoutFn = setTimeout } = {}) {
@@ -728,6 +858,7 @@ function safeParseJSON(value) {
 }
 
 module.exports = {
+  MOBILE_ROUTE_FRAME,
   setupRelay,
   getRelayStats,
   hasActiveMacSession,

@@ -6,10 +6,12 @@ const path = require("node:path");
 const { PassThrough } = require("node:stream");
 const http = require("node:http");
 const net = require("node:net");
-const { generateKeyPairSync, sign, randomUUID } = require("node:crypto");
+const { createCipheriv, createDecipheriv, createHash, createPublicKey, diffieHellman,
+  generateKeyPairSync, hkdfSync, randomUUID, sign, verify } = require("node:crypto");
 const { spawn, spawnSync } = require("node:child_process");
 const { setTimeout: delay } = require("node:timers/promises");
 const WebSocket = require("ws");
+const { nonceForDirection } = require("../src/secure-transport");
 const { createDesktopHost, readFrames, selectLanAddress, advertisedHost, safeLogin, publicError, groupExists, verifyCleanup, MAX_REQUEST_BYTES } = require("../src/desktop-host");
 const entry = path.resolve(__dirname, "../src/desktop-host.js");
 const repository = path.resolve(__dirname, "../../..");
@@ -466,6 +468,177 @@ test("LAN loss and fixed-port rebind preserve the guarded runtime and relay sess
   }
 });
 
+test("managed loopback route preserves the incumbent and uses the existing guarded bridge", { timeout: 30000, skip: process.platform !== "darwin" }, async (t) => {
+  const { startManagedRelayPilot } = require("../../MunieRemodexRelay/managed-relay-pilot");
+  const { managedAdmissionTranscript } = require("../../MunieRemodexRelay/managed-admission");
+  const fixture = setupRuntime(t);
+  const mac = generateKeyPairSync("ed25519"), phone = generateKeyPairSync("ed25519");
+  const macKey = mac.publicKey.export({ format: "jwk" }).x, phoneKey = phone.publicKey.export({ format: "jwk" }).x;
+  const macDeviceId = randomUUID(), phoneDeviceId = randomUUID();
+  const relay = await startManagedRelayPilot({ audience: "munie-loopback.invalid", allowedMacKeys: [macKey] });
+  const host = createDesktopHost({ env: { ...fixture.env, MUNIE_DEVELOPER_MANAGED_RELAY: relay.origin } });
+  t.after(async () => { try { await host.stop(); } finally { await relay.close(); } });
+  const stateFile = path.join(fixture.env.MUNIE_HOST_STATE_DIR, "bridge", "device-state.json");
+  fs.writeFileSync(stateFile, JSON.stringify({
+    version: 1, macDeviceId,
+    macIdentityPublicKey: Buffer.from(macKey, "base64url").toString("base64"),
+    macIdentityPrivateKey: Buffer.from(mac.privateKey.export({ format: "jwk" }).d, "base64url").toString("base64"),
+    trustedPhones: { [phoneDeviceId]: Buffer.from(phoneKey, "base64url").toString("base64") },
+  }), { mode: 0o600 });
+
+  const challenge = () => fetch(`${relay.origin}/v1/managed/challenge`, {
+    method: "POST", body: JSON.stringify({ role: "phone", macKey, phoneKey }),
+    signal: AbortSignal.timeout(1500),
+  });
+  async function connect(url, headers) {
+    const socket = new WebSocket(url, { headers, handshakeTimeout: 3000 });
+    const closed = new Promise((resolve) => socket.once("close", resolve));
+    const messages = [];
+    socket.on("message", (data) => messages.push(JSON.parse(data.toString())));
+    t.after(() => socket.terminate());
+    await new Promise((resolve, reject) => { socket.once("open", resolve); socket.on("error", reject); });
+    return { socket, closed, messages };
+  }
+  async function connectAway() {
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline) {
+      const response = await challenge();
+      const value = await response.json();
+      if (response.ok) {
+        return connect(`${relay.origin.replace(/^http/, "ws")}/v1/managed/connect`, {
+          "x-munie-role": "phone", "x-munie-challenge": value.id,
+          "x-munie-proof": sign(null, managedAdmissionTranscript(value), phone.privateKey).toString("base64url"),
+        });
+      }
+      assert.equal(response.status, 403);
+      await delay(50);
+    }
+    assert.fail("Managed route did not register");
+  }
+  async function requiresV2(peer) {
+    const before = peer.messages.filter((message) => message.kind === "secureError").length;
+    peer.socket.send(JSON.stringify({ id: "fixture-read", method: "account/read", params: {} }));
+    await until(() => peer.messages.filter((message) => message.kind === "secureError").length > before);
+    assert.equal(peer.messages.some((message) => message.id === "fixture-read"), false);
+  }
+
+  await host.run("project/set", { path: fixture.project });
+  const initial = await host.run("start");
+  const nativePids = fixture.pids();
+  const first = await connectAway();
+  await until(() => first.messages.some((message) => message.kind === "managedRouteReady"));
+  const { sessionId } = first.messages.find((message) => message.kind === "managedRouteReady");
+  assert.equal(typeof sessionId, "string");
+  await requiresV2(first);
+  const identity = { sessionId, mac, phone, macDeviceId, phoneDeviceId };
+  const firstChannel = await openFixtureSecureChannel(first, identity);
+  firstChannel.send({ id: "same-id", method: "model/list", params: { limit: 17 } });
+  await until(() => firstChannel.read().some((message) => message.method === "fixture/model-list-pending"));
+
+  const port = JSON.parse(fs.readFileSync(path.join(fixture.env.MUNIE_HOST_STATE_DIR, "host.json"))).relayPort;
+  const lanURL = `ws://127.0.0.1:${port}/relay/${sessionId}`;
+  const deniedLAN = await connect(lanURL, { "x-role": "iphone" });
+  await deniedLAN.closed;
+  assert.deepEqual(deniedLAN.messages, []);
+  await requiresV2(first);
+  first.socket.terminate();
+  await first.closed;
+  let lan;
+  for (let attempt = 0; attempt < 50; attempt++) {
+    lan = await connect(lanURL, { "x-role": "iphone" });
+    const outcome = await Promise.race([lan.closed.then(() => "closed"), delay(30, "open")]);
+    if (outcome === "open") break;
+  }
+  assert.equal(lan.socket.readyState, WebSocket.OPEN);
+  const lanChannel = await openFixtureSecureChannel(lan, identity);
+  const blocked = await connectAway();
+  await blocked.closed;
+  assert.deepEqual(blocked.messages, []);
+  await requiresV2(lan);
+  lanChannel.send({ id: "same-id", method: "model/list", params: { limit: 19 } });
+  await until(() => lanChannel.read().some((message) => message.id === "same-id"));
+  assert.deepEqual(lanChannel.read().filter((message) => message.id === "same-id"), [
+    { id: "same-id", result: { current: true } },
+  ]);
+  lanChannel.send({ id: "oversized", method: "model/list", params: { limit: 18 } });
+  await until(() => lanChannel.read().some((message) => message.id === "oversized"));
+  assert.equal(lanChannel.read().find((message) => message.id === "oversized").error.data.errorCode,
+    "relay_response_too_large");
+  lan.socket.terminate();
+  await lan.closed;
+  const resumed = await connectAway();
+  await until(() => resumed.messages.some((message) => message.kind === "managedRouteReady"));
+  assert.ok(resumed.messages.some((message) => message.kind === "managedRouteReady" && message.sessionId === sessionId));
+  assert.deepEqual(fixture.pids(), nativePids);
+  assert.deepEqual(host.status().ownership, initial.ownership);
+  assert.equal((await host.run("account/read")).status, "not_logged_in");
+  await host.run("devices/revoke", { deviceId: phoneDeviceId });
+  await resumed.closed;
+  assert.equal((await challenge()).status, 403);
+  assert.deepEqual(host.status().devices, []);
+});
+
+async function openFixtureSecureChannel(peer, { sessionId, mac, phone, macDeviceId, phoneDeviceId }) {
+  const macKey = mac.publicKey.export({ format: "jwk" }).x;
+  const phoneKey = phone.publicKey.export({ format: "jwk" }).x;
+  const ephemeral = generateKeyPairSync("x25519");
+  const ephemeralKey = ephemeral.publicKey.export({ format: "jwk" }).x;
+  const clientNonce = Buffer.alloc(32, 7);
+  const handshakeMode = "trusted_reconnect";
+  const send = (frame) => peer.socket.send(JSON.stringify(frame));
+  const find = (kind) => peer.messages.find((frame) => frame.kind === kind);
+  const base64 = (value) => Buffer.from(value, "base64url").toString("base64");
+  send({ kind: "clientHello", sessionId, protocolVersion: 2, handshakeMode, phoneDeviceId,
+    phoneIdentityPublicKey: base64(phoneKey), phoneEphemeralPublicKey: base64(ephemeralKey),
+    clientNonce: clientNonce.toString("base64") });
+  await until(() => find("serverHello"));
+  const hello = find("serverHello");
+  assert.equal(hello.macDeviceId, macDeviceId);
+  assert.equal(hello.macIdentityPublicKey, base64(macKey));
+  const prefixed = (value) => {
+    const bytes = Buffer.from(value), length = Buffer.alloc(4);
+    length.writeUInt32BE(bytes.length);
+    return Buffer.concat([length, bytes]);
+  };
+  const tag = "remodex-e2ee-v1";
+  const { keyEpoch } = hello;
+  const transcript = Buffer.concat([
+    tag, sessionId, "2", handshakeMode, String(keyEpoch), macDeviceId, phoneDeviceId,
+    ...[macKey, phoneKey, hello.macEphemeralPublicKey, ephemeralKey].map((key) => Buffer.from(key, "base64")),
+    clientNonce, Buffer.from(hello.serverNonce, "base64"), String(hello.expiresAtForTranscript),
+  ].map(prefixed));
+  assert.ok(verify(null, transcript, mac.publicKey, Buffer.from(hello.macSignature, "base64")));
+  const phoneSignature = sign(null, Buffer.concat([transcript, prefixed("client-auth")]), phone.privateKey);
+  send({ kind: "clientAuth", sessionId, keyEpoch, phoneDeviceId, phoneSignature: phoneSignature.toString("base64") });
+  await until(() => find("secureReady"));
+  const shared = diffieHellman({ privateKey: ephemeral.privateKey, publicKey: createPublicKey({
+    format: "jwk", key: { kty: "OKP", crv: "X25519", x: Buffer.from(hello.macEphemeralPublicKey, "base64").toString("base64url") },
+  }) });
+  const salt = createHash("sha256").update(transcript).digest();
+  const derive = (label) => Buffer.from(hkdfSync("sha256", shared, salt,
+    Buffer.from([tag, sessionId, macDeviceId, phoneDeviceId, keyEpoch, label].join("|")), 32));
+  const toMac = derive("phoneToMac"), fromMac = derive("macToPhone");
+  let counter = 0;
+  send({ kind: "resumeState", sessionId, keyEpoch, lastAppliedBridgeOutboundSeq: 0, bridgeReplayEpoch: hello.bridgeReplayEpoch });
+  return {
+    send(message) {
+      const cipher = createCipheriv("aes-256-gcm", toMac, nonceForDirection("iphone", counter));
+      const ciphertext = Buffer.concat([cipher.update(JSON.stringify({ payloadText: JSON.stringify(message) })), cipher.final()]);
+      send({ kind: "encryptedEnvelope", v: 2, sessionId, keyEpoch, sender: "iphone", counter,
+        ciphertext: ciphertext.toString("base64"), tag: cipher.getAuthTag().toString("base64") });
+      counter += 1;
+    },
+    read() {
+      return peer.messages.filter((frame) => frame.kind === "encryptedEnvelope").map((frame) => {
+        const decipher = createDecipheriv("aes-256-gcm", fromMac, nonceForDirection("mac", frame.counter));
+        decipher.setAuthTag(Buffer.from(frame.tag, "base64"));
+        const payload = JSON.parse(Buffer.concat([decipher.update(Buffer.from(frame.ciphertext, "base64")), decipher.final()]));
+        return JSON.parse(payload.payloadText);
+      });
+    },
+  };
+}
+
 function resolveSavedRelay(savedURL, body) {
   const url = new URL(savedURL); url.protocol = "http:"; url.pathname += "/v1/trusted/session/resolve";
   // Exercise the saved hostname and port through the actual resolver while mapping DNS
@@ -509,11 +682,16 @@ fs.appendFileSync(file,process.pid+'\\n');
 const descendant=spawn(process.execPath,['-e','process.on("SIGTERM",()=>{});setInterval(()=>{},1000)'],{stdio:'ignore'});
 fs.appendFileSync(file,descendant.pid+'\\n');
 console.error('SECRET_STDERR');
-let authenticated=false,buffer='';
+let authenticated=false,buffer='',pendingModelList=null;
 process.stdin.on('data',chunk=>{buffer+=chunk;let end;while((end=buffer.indexOf('\\n'))>=0){const line=buffer.slice(0,end);buffer=buffer.slice(end+1);if(!line)continue;const r=JSON.parse(line);let result={};
 switch(r.method){
 case 'account/read': result={account:authenticated?{type:'chatgpt',email:'fixture@example.test',planType:'plus'}:null,requiresOpenaiAuth:true};break;
 case 'getAuthStatus':result=authenticated?{authMethod:'chatgpt',authToken:'SECRET_TOKEN'}:{};break;
+case 'model/list':
+ if(r.params?.limit===17){pendingModelList=r.id;console.log(JSON.stringify({method:'fixture/model-list-pending',params:{}}));continue;}
+ if(r.params?.limit===18)result={data:'x'.repeat(900*1024)};
+ if(r.params?.limit===19){if(pendingModelList)console.log(JSON.stringify({id:pendingModelList,result:{old:true}}));result={current:true};}
+ break;
 case 'account/login/start':result={type:'chatgpt',loginId:'synthetic-login',authUrl:'https://auth.openai.com/authorize?state=synthetic',authToken:'SECRET_TOKEN'};setTimeout(()=>{authenticated=true;console.log(JSON.stringify({method:'account/login/completed',params:{loginId:'synthetic-login',success:true}}))},100);break;
 }
 if(r.id!==undefined)console.log(JSON.stringify({id:r.id,result}));

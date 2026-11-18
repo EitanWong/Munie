@@ -10,6 +10,11 @@ import Network
 import UIKit
 
 extension CodexService {
+    struct ConnectionMacIdentity: Equatable {
+        let deviceId: String
+        let publicKey: String
+    }
+
     // Only close codes that prove the saved pairing/session can no longer be reused
     // should force a QR reset. A `4003` replaces an older mobile socket with a newer one,
     // so it must preserve pairing and follow the reconnect path.
@@ -45,7 +50,8 @@ extension CodexService {
         serverURL: String,
         token: String,
         role: String? = nil,
-        performInitialSync: Bool = true
+        performInitialSync: Bool = true,
+        onLANUnavailable: (() -> Void)? = nil
     ) async throws {
         guard !isConnecting else {
             lastErrorMessage = "Connection already in progress"
@@ -60,17 +66,24 @@ extension CodexService {
         let normalizedServerURL = serverURL.trimmingCharacters(in: .whitespacesAndNewlines)
         let url = try validateConnectionURL(normalizedServerURL)
         try await requestLocalNetworkAuthorizationIfNeeded(for: url)
-        let serverIdentity = canonicalServerIdentity(for: url)
-        if let previousIdentity = connectedServerIdentity, previousIdentity != serverIdentity {
-            resetThreadRuntimeStateForServerSwitch()
-        }
-        connectedServerIdentity = serverIdentity
+        bindLANEndpointForConnection(url)
 
         let trimmedToken = token.trimmingCharacters(in: .whitespacesAndNewlines)
         let transport: CodexWebSocketTransport
         do {
             transport = try await establishWebSocketConnection(url: url, token: trimmedToken, role: role)
-        } catch {
+        } catch let transportError {
+            #if DEBUG
+            if Self.isLANTransportUnreachable(transportError) {
+                onLANUnavailable?()
+            }
+            #endif
+            let error: Error
+            if let deadline = transportError as? CodexConnectionWaitDeadline {
+                error = CodexServiceError.invalidInput(deadline.message)
+            } else {
+                error = transportError
+            }
             let friendlyMessage = userFacingConnectError(
                 error: error,
                 attemptedURL: normalizedServerURL,
@@ -110,31 +123,7 @@ extension CodexService {
             isConnected = true
             lastErrorMessage = nil
             try await initializeSession()
-            flushPendingReplayDiscontinuityHistoryRefresh()
-            shouldAutoReconnectOnForeground = false
-            connectionRecoveryState = .idle
-            trustedReconnectFailureCount = 0
-            if secureSession != nil {
-                secureConnectionState = .encrypted
-            }
-
-            startWebSocketKeepAliveLoop()
-            startSyncLoop()
-            // Push registration is best-effort and talks to the bridge, so it must not
-            // hold the main connect path hostage when the managed backend is slow.
-            Task { @MainActor [weak self] in
-                await self?.syncManagedPushRegistrationIfNeeded(force: true)
-            }
-            if performInitialSync {
-                schedulePostConnectSyncPass()
-            }
-            Task { @MainActor [weak self] in
-                await self?.refreshBridgeManagedState(
-                    allowAvailableBridgeUpdatePrompt: self?.isAppInForeground ?? false
-                )
-                self?.startGPTLoginSyncIfNeeded()
-                await self?.syncBridgeKeepMacAwakePreferenceIfNeeded()
-            }
+            finishConnection(performInitialSync: performInitialSync)
         } catch {
             let shouldResetSavedSession = recordTrustedReconnectFailureIfNeeded(
                 isTrustedReconnectAttempt: isTrustedReconnectAttempt
@@ -146,6 +135,122 @@ extension CodexService {
                 recoverTrustedReconnectCandidate()
             }
             throw error
+        }
+    }
+
+    #if DEBUG
+    // Reuses the selected Mac trust and runtime without reading or replacing the LAN URL/session hint.
+    func connectManagedRelay(origin: String, pinnedMac: CodexTrustedMacRecord) async throws {
+        guard !isConnecting, !isConnected, !shouldForceQRBootstrapOnNextHandshake,
+              isCurrentManagedRelayTarget(pinnedMac),
+              secureConnectionState != .rePairRequired, secureConnectionState != .updateRequired else {
+            throw CancellationError()
+        }
+        isConnecting = true
+        defer { isConnecting = false }
+        await prepareForConnectionAttempt(preserveReconnectIntent: true)
+        try Task.checkCancellation()
+        guard isCurrentManagedRelayTarget(pinnedMac) else { throw CancellationError() }
+
+        let admission = try ManagedRelayPhoneAdmission(identity: phoneIdentityState, trustedMac: pinnedMac)
+        let connector = try ManagedRelayPhoneConnector(origin: origin, admission: admission)
+        let attemptID = UUID()
+        managedRelayAttemptID = attemptID
+        let bootstrapTask = Task { try await connector.connect() }
+        managedRelayBootstrapTask = bootstrapTask
+        do {
+            let bootstrap = try await withTaskCancellationHandler {
+                try await bootstrapTask.value
+            } onCancel: {
+                bootstrapTask.cancel()
+            }
+            var socketAdopted = false
+            defer { if !socketAdopted { bootstrap.cancel() } }
+            try validateManagedRelayAttempt(attemptID, pinnedMac: pinnedMac)
+            managedRelayBootstrapTask = nil
+            webSocketSession = bootstrap.session
+            webSocketTask = bootstrap.webSocketTask
+            socketAdopted = true
+            startReceiveLoop(with: bootstrap.webSocketTask)
+            clearHydrationCaches()
+
+            try await withTaskCancellationHandler {
+                try await performSecureHandshake(managedSessionID: bootstrap.untrustedSessionIDHint, pinnedMac: pinnedMac)
+                try validateManagedRelayAttempt(attemptID, pinnedMac: pinnedMac)
+                try await initializeSession(publishReadiness: false)
+                try validateManagedRelayAttempt(attemptID, pinnedMac: pinnedMac)
+            } onCancel: {
+                bootstrap.cancel()
+            }
+
+            isConnected = true
+            publishInitializedSession(probePlanCollaboration: supportsTurnCollaborationMode)
+            finishConnection(performInitialSync: true)
+        } catch {
+            if managedRelayAttemptID == attemptID {
+                await disconnect(preserveReconnectIntent: shouldAutoReconnectOnForeground)
+            }
+            throw error
+        }
+    }
+
+    private func isCurrentManagedRelayTarget(_ pinnedMac: CodexTrustedMacRecord) -> Bool {
+        normalizedCurrentTrustedMacDeviceId == pinnedMac.macDeviceId
+            && normalizedRelayMacDeviceId == pinnedMac.macDeviceId
+            && trustedMacRegistry.records[pinnedMac.macDeviceId]?.macIdentityPublicKey == pinnedMac.macIdentityPublicKey
+    }
+
+    static func isLANTransportUnreachable(_ error: Error) -> Bool {
+        let unreachableCodes: Set<POSIXErrorCode> = [.ECONNREFUSED, .EHOSTUNREACH, .ENETUNREACH, .ENETDOWN, .ETIMEDOUT]
+        if let deadline = error as? CodexConnectionWaitDeadline {
+            return deadline.waitingError.map { isLANTransportUnreachable($0) } ?? false
+        }
+        if let networkError = error as? NWError, case .posix(let code) = networkError {
+            return unreachableCodes.contains(code)
+        }
+        let error = error as NSError
+        if error.domain == NSPOSIXErrorDomain, let code = POSIXErrorCode(rawValue: Int32(clamping: error.code)) {
+            return unreachableCodes.contains(code)
+        }
+        guard error.domain == NSURLErrorDomain else { return false }
+        return [NSURLErrorCannotConnectToHost, NSURLErrorNotConnectedToInternet, NSURLErrorTimedOut].contains(error.code)
+    }
+
+    private func validateManagedRelayAttempt(_ id: UUID, pinnedMac: CodexTrustedMacRecord) throws {
+        try Task.checkCancellation()
+        guard managedRelayAttemptID == id else { throw CodexServiceError.disconnected }
+        guard isCurrentManagedRelayTarget(pinnedMac) else { throw CancellationError() }
+    }
+    #endif
+
+    private func finishConnection(performInitialSync: Bool) {
+        lastInitializedMacIdentity = secureSession.map {
+            ConnectionMacIdentity(deviceId: $0.macDeviceId, publicKey: $0.macIdentityPublicKey)
+        }
+        lastErrorMessage = nil
+        flushPendingReplayDiscontinuityHistoryRefresh()
+        shouldAutoReconnectOnForeground = false
+        connectionRecoveryState = .idle
+        trustedReconnectFailureCount = 0
+        if secureSession != nil {
+            secureConnectionState = .encrypted
+        }
+
+        startWebSocketKeepAliveLoop()
+        startSyncLoop()
+        // Push registration is best-effort and must not delay connection readiness.
+        Task { @MainActor [weak self] in
+            await self?.syncManagedPushRegistrationIfNeeded(force: true)
+        }
+        if performInitialSync {
+            schedulePostConnectSyncPass()
+        }
+        Task { @MainActor [weak self] in
+            await self?.refreshBridgeManagedState(
+                allowAvailableBridgeUpdatePrompt: self?.isAppInForeground ?? false
+            )
+            self?.startGPTLoginSyncIfNeeded()
+            await self?.syncBridgeKeepMacAwakePreferenceIfNeeded()
         }
     }
 
@@ -335,7 +440,7 @@ extension CodexService {
         clearSavedRelaySession()
     }
 
-    func initializeSession() async throws {
+    func initializeSession(publishReadiness: Bool = true) async throws {
         let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1.0"
         let clientInfo: JSONValue = .object([
             "name": .string("munie_ios"),
@@ -400,9 +505,15 @@ extension CodexService {
         }
 
         try await sendNotification(method: "initialized", params: nil)
+        if publishReadiness {
+            publishInitializedSession(probePlanCollaboration: shouldProbePlanCollaborationMode)
+        }
+    }
+
+    private func publishInitializedSession(probePlanCollaboration: Bool) {
         isInitialized = true
         resumePendingRuntimeSettingsUpdates()
-        if shouldProbePlanCollaborationMode {
+        if probePlanCollaboration {
             schedulePlanCollaborationModeProbe()
         }
     }
@@ -500,10 +611,19 @@ extension CodexService {
             return
         }
 
+        #if DEBUG
+        let wasManagedRelay = managedRelayAttemptID != nil
+        #else
+        let wasManagedRelay = false
+        #endif
         cancelCurrentSocketConnection()
 
         cancelRuntimeSettingsUpdates()
-        let disposition = receiveErrorDisposition(for: error, relayCloseCode: relayCloseCode)
+        // Transport closes from a managed relay are not proof of revocation by the Mac.
+        let disposition = receiveErrorDisposition(
+            for: wasManagedRelay ? CodexServiceError.disconnected : error,
+            relayCloseCode: wasManagedRelay ? nil : relayCloseCode
+        )
         isConnected = false
         isInitialized = false
         shouldAutoReconnectOnForeground = disposition.shouldAutoReconnectOnForeground
@@ -685,7 +805,9 @@ extension CodexService {
     }
 
     // Clears volatile runtime state on server switch.
-    func resetThreadRuntimeStateForServerSwitch() {
+    func resetThreadRuntimeStateForServerSwitch(preserveReconnectIntent: Bool = false) {
+        lastInitializedMacIdentity = nil
+        lastLANAttemptMacIdentity = nil
         resetRuntimeSettingsSyncState()
         activeThreadId = nil
         activeTurnId = nil
@@ -726,8 +848,10 @@ extension CodexService {
         pendingNotificationOpenThreadID = nil
         clearTransientConnectionPrompts()
         endBackgroundRunGraceTask(reason: "server-switch")
-        shouldAutoReconnectOnForeground = false
-        connectionRecoveryState = .idle
+        if !preserveReconnectIntent {
+            shouldAutoReconnectOnForeground = false
+            connectionRecoveryState = .idle
+        }
         supportsStructuredSkillInput = true
         supportsStructuredMentionInput = true
         supportsTurnCollaborationMode = false
@@ -748,6 +872,12 @@ extension CodexService {
     // Removes the current socket reference before reconnect/teardown logic mutates shared state.
     private func cancelCurrentSocketConnection() {
         stopWebSocketKeepAliveLoop()
+        #if DEBUG
+        managedRelayAttemptID = nil
+        managedRelayBootstrapTask?.cancel()
+        managedRelayBootstrapTask = nil
+        managedRelayHandshakeControls.removeAll()
+        #endif
 
         if let connection = webSocketConnection {
             connection.stateUpdateHandler = nil
@@ -962,6 +1092,27 @@ extension CodexService {
         }
 
         return false
+    }
+
+    func bindLANEndpointForConnection(_ url: URL) {
+        let endpoint = canonicalServerIdentity(for: url)
+        let trustedMac = hasTrustedReconnectContext ? currentTrustedMacRecord : nil
+        let attemptedMac = trustedMac.map {
+            ConnectionMacIdentity(deviceId: $0.macDeviceId, publicKey: $0.macIdentityPublicKey)
+        }
+        let previousMac = lastInitializedMacIdentity ?? lastLANAttemptMacIdentity
+        if let previousMac, let attemptedMac, previousMac != attemptedMac {
+            resetThreadRuntimeStateForServerSwitch()
+        } else if let previousEndpoint = connectedServerIdentity, previousEndpoint != endpoint,
+                  attemptedMac == nil || lastInitializedMacIdentity != attemptedMac {
+            // Before authentication, a matching pairing pin may keep the retry alive,
+            // but does not preserve the prior connection's runtime state.
+            resetThreadRuntimeStateForServerSwitch(
+                preserveReconnectIntent: attemptedMac != nil && lastLANAttemptMacIdentity == attemptedMac
+            )
+        }
+        connectedServerIdentity = endpoint
+        lastLANAttemptMacIdentity = attemptedMac
     }
 
     func canonicalServerIdentity(for url: URL) -> String {

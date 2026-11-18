@@ -28,6 +28,8 @@ const { createCodexTransport } = require("./codex-transport");
 const { createTurnCancellationController } = require("./munie-turn-cancellation");
 const { createOpenCodeRuntime } = require("./opencode-runtime");
 const { createRelayWatchdog } = require("./relay-watchdog");
+const { createManagedRelayClient, MANAGED_RELAY_FRAME_LIMIT } = require("./managed-relay-client");
+const { createManagedRouteReplies, isManagedRouteRequestId } = require("./managed-route-replies");
 const {
   createThreadRolloutActivityWatcher,
   findRecentRolloutFileForContextRead,
@@ -724,6 +726,7 @@ function startBridge({
   printPairingQr = true,
   onPairingSession = null,
   onBridgeStatus = null,
+  desktopManagedRelay = null,
 } = {}) {
   const config = explicitConfig || readBridgeConfig();
   const projectResponseGate = createPendingResponseGate();
@@ -769,6 +772,11 @@ function startBridge({
   });
   logIOSAppCompatibilityWarning(cachedIOSAppCompatibilityWarning);
   const sessionId = relaySession.sessionId;
+  const managedClient = initializeForLocalAccount && desktopManagedRelay
+    ? createManagedRelayClient({ ...desktopManagedRelay, sessionId }) : null;
+  const managedRouteReplies = managedClient ? createManagedRouteReplies() : null;
+  let managedRouteId = null;
+  let managedSecureGeneration = null;
   const relaySessionUrl = `${relayBaseUrl}/${sessionId}`;
   const notificationSecret = randomBytes(24).toString("hex");
   const desktopRefresher = new CodexDesktopRefresher({
@@ -873,11 +881,24 @@ function startBridge({
     relayUrl: (config.publicRelayUrl || relayBaseUrl).replace(/\/+$/, ""),
     deviceState,
     displayName: os.hostname(),
+    requireTrustResetForReplacement: Boolean(managedClient),
+    // Encrypted base64 expands by 4/3. Leave room for the envelope, local
+    // route wrapper and historical replay metadata under the 1 MiB wire cap.
+    maxEncodedPayloadBytes: managedClient ? 750 * 1024 : null,
+    onSecureSessionResumed() {
+      if (!managedRouteId || socket?.readyState !== WebSocket.OPEN) return;
+      socket.send(JSON.stringify({ kind: desktopManagedRelay.routeFrame, routeId: managedRouteId, ready: true }));
+    },
     onTrustedPhoneUpdate(nextDeviceState) {
       deviceState = nextDeviceState;
       sendRelayRegistrationUpdate(nextDeviceState);
+      managedClient?.replaceTrust(nextDeviceState);
     },
     onSecureSessionReady(session) {
+      if (managedRouteReplies) {
+        managedSecureGeneration = Symbol();
+        managedRouteReplies.clear();
+      }
       activityStore.resetSubscriber();
       activePhoneSummary = buildActivePhoneSummary(session, deviceState);
       const lastPublishedBridgeStatus = bridgeStatusPublisher.latest();
@@ -893,8 +914,20 @@ function startBridge({
       return false;
     }
 
-    socket.send(wireMessage);
+    if (managedClient && !managedRouteId) return false;
+    const frame = managedClient ? JSON.stringify({
+      kind: desktopManagedRelay.routeFrame, routeId: managedRouteId, message: wireMessage,
+    }) : wireMessage;
+    if (managedClient && Buffer.byteLength(frame) > MANAGED_RELAY_FRAME_LIMIT) return false;
+    socket.send(frame);
     return true;
+  }
+
+  function changeManagedRoute(routeId) {
+    managedRouteId = routeId;
+    managedSecureGeneration = null;
+    managedRouteReplies.clear();
+    secureTransport.invalidateMobileRoute();
   }
   // Only the spawned local runtime needs rollout mirroring; a real endpoint
   // already provides the authoritative live stream for resumed threads.
@@ -1082,6 +1115,7 @@ function startBridge({
 
   function prepareBridgeShutdown() {
     isShuttingDown = true;
+    managedClient?.stop();
     bridgeWakeAssertion.stop();
     clearReconnectTimer();
     clearRelayWatchdog();
@@ -1205,21 +1239,47 @@ function startBridge({
       reconnectAttempt = 0;
       startRelayWatchdog(nextSocket);
       logConnectionStatus("connected");
+      if (managedClient) changeManagedRoute(null);
       secureTransport.bindLiveSendWireMessage(sendRelayWireMessage);
       sendRelayRegistrationUpdate(deviceState);
+      managedClient?.replaceTrust(deviceState);
     });
 
     nextSocket.on("message", (data) => {
+      if (socket !== nextSocket) return;
       markRelayActivity();
-      const message = typeof data === "string" ? data : data.toString("utf8");
+      let message = typeof data === "string" ? data : data.toString("utf8");
+      if (managedClient) {
+        const frame = parseBridgeMessage(message);
+        if (frame?.kind !== desktopManagedRelay.routeFrame) return;
+        if (frame.message === undefined) {
+          changeManagedRoute(typeof frame.routeId === "string" ? frame.routeId : null);
+          return;
+        }
+        if (!managedRouteId || frame.routeId !== managedRouteId || typeof frame.message !== "string") return;
+        message = frame.message;
+      }
       if (secureTransport.handleIncomingWireMessage(message, {
         sendControlMessage(controlMessage) {
-          if (nextSocket.readyState === WebSocket.OPEN) {
-            nextSocket.send(JSON.stringify(controlMessage));
-          }
+          sendRelayWireMessage(JSON.stringify(controlMessage));
         },
         onApplicationMessage(plaintextMessage) {
-          handleApplicationMessage(plaintextMessage);
+          if (!managedRouteReplies) return handleApplicationMessage(plaintextMessage);
+          if (!secureTransport.isSecureChannelReady()) return;
+          const message = parseBridgeMessage(plaintextMessage);
+          if (message?.method && message.id != null) {
+            if (!(typeof message.id === "string" && Buffer.byteLength(message.id) <= 128)
+                && !Number.isSafeInteger(message.id)) return;
+            const request = managedRouteReplies.wrapRequest(message);
+            if (!request) {
+              secureTransport.sendUnbufferedApplicationMessage(createJsonRpcErrorResponse(
+                message.id, new Error("The current connection has too many pending replies."), "relay_reply_limit"
+              ));
+              return;
+            }
+            plaintextMessage = JSON.stringify(request);
+          }
+          handleApplicationMessage(plaintextMessage, false, managedSecureGeneration);
         },
       })) {
         return;
@@ -1237,6 +1297,7 @@ function startBridge({
     nextSocket.on("close", (code) => {
       if (socket === nextSocket) {
         clearRelayWatchdog();
+        if (managedClient) changeManagedRoute(null);
       }
       logConnectionStatus("disconnected");
       if (socket === nextSocket) {
@@ -1340,7 +1401,8 @@ function startBridge({
   process.on("SIGTERM", () => shutdown(codex, () => socket, prepareBridgeShutdown));
 
   // Routes decrypted app payloads through the same bridge handlers as before.
-  function handleApplicationMessage(rawMessage, projectAuthorized = false) {
+  function handleApplicationMessage(rawMessage, projectAuthorized = false, expectedGeneration = null) {
+    if (managedClient && (!expectedGeneration || expectedGeneration !== managedSecureGeneration)) return;
     const projectRoot = configuredRoot();
     if (projectRoot) {
       const incoming = parseBridgeMessage(rawMessage);
@@ -1350,7 +1412,7 @@ function startBridge({
       if (!projectAuthorized && requestedThread && incoming?.method) {
         sendCodexRequest("thread/read", { threadId: requestedThread, includeTurns: false }).then((result) => {
           scopedPath(result?.thread?.cwd || result?.cwd, { root: projectRoot });
-          handleApplicationMessage(rawMessage, true);
+          handleApplicationMessage(rawMessage, true, expectedGeneration);
         }).catch((error) => {
           if (incoming?.id != null) sendApplicationResponse(createJsonRpcErrorResponse(incoming.id, error, "project_not_authorized"));
         });
@@ -1649,6 +1711,18 @@ function startBridge({
     const listRequest = pendingOpenCodeThreadListRequests.get(requestKey);
     const sanitizedMessage = sanitizeRelayBoundCodexMessage(rawMessage, outboundMessage);
     if (configuredRoot() && listRequest) pendingOpenCodeThreadListRequests.delete(requestKey);
+    const sanitizedResponse = managedRouteReplies && sanitizedMessage === rawMessage
+      ? outboundMessage : managedRouteReplies && sanitizedMessage && parseBridgeMessage(sanitizedMessage);
+    if (managedRouteReplies && (isManagedRouteRequestId(responseId)
+        || (sanitizedResponse?.id != null && !sanitizedResponse.method))) {
+      const response = sanitizedResponse && !sanitizedResponse.method && managedRouteReplies.takeReply(sanitizedResponse);
+      if (response && !secureTransport.sendUnbufferedApplicationMessage(JSON.stringify(response))) {
+        secureTransport.sendUnbufferedApplicationMessage(createJsonRpcErrorResponse(
+          response.id, new Error("The response could not fit the current connection."), "relay_response_too_large"
+        ));
+      }
+      return;
+    }
     if (configuredRoot() || !listRequest || !sanitizedMessage) {
       queueEndpointBoundResponse(sanitizedMessage, replyId);
       return;

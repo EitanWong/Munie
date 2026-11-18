@@ -120,6 +120,7 @@ final class ContentViewModel {
                 codex: codex,
                 performAutoRetry: true,
                 continueWhile: { self.shouldContinueManualReconnect },
+                allowManagedFallback: true,
                 serverURLProvider: { await self.preferredReconnectURL(codex: codex) }
             )
         } catch {
@@ -266,7 +267,8 @@ final class ContentViewModel {
                     attempt: max(1, attempt + 1),
                     message: "Reconnecting..."
                 )
-                try await connect(codex: codex, serverURL: fullURL)
+                try await connect(codex: codex, serverURL: fullURL,
+                                  shouldAttemptManagedFallback: { codex.shouldAutoReconnectOnForeground })
                 codex.connectionRecoveryState = .idle
                 codex.lastErrorMessage = nil
                 codex.shouldAutoReconnectOnForeground = false
@@ -342,18 +344,51 @@ extension ContentViewModel {
         let shouldKeepRetrying: Bool
     }
 
-    func connect(codex: CodexService, serverURL: String) async throws {
+    func connect(
+        codex: CodexService, serverURL: String, shouldAttemptManagedFallback: (() -> Bool)? = nil
+    ) async throws {
         if let connectOverride {
             try await connectOverride(codex, serverURL)
             return
         }
 
-        try await codex.connect(
-            serverURL: serverURL,
-            token: "",
-            role: "iphone"
-        )
+        #if DEBUG && targetEnvironment(simulator)
+        if let shouldAttemptManagedFallback,
+           let origin = ProcessInfo.processInfo.environment["MUNIE_DEV_MANAGED_RELAY_ORIGIN"],
+           let pinnedMac = codex.currentTrustedMacRecord {
+            try await Self.connectWithManagedFallback(shouldContinue: shouldAttemptManagedFallback) { unreachable in
+                try await codex.connect(serverURL: serverURL, token: "", role: "iphone", onLANUnavailable: unreachable)
+            } managed: {
+                try await codex.connectManagedRelay(origin: origin, pinnedMac: pinnedMac)
+            }
+            return
+        }
+        #endif
+        try await codex.connect(serverURL: serverURL, token: "", role: "iphone")
     }
+
+    #if DEBUG
+    static func connectWithManagedFallback(
+        shouldContinue: () -> Bool, lan: (_ reportUnreachable: @escaping () -> Void) async throws -> Void,
+        managed: () async throws -> Void
+    ) async throws {
+        guard shouldContinue() else { throw CancellationError() }
+        var lanUnavailable = false
+        do {
+            try await lan { lanUnavailable = true }
+        } catch let lanError {
+            try Task.checkCancellation()
+            guard shouldContinue() else { throw CancellationError() }
+            guard lanUnavailable else { throw lanError }
+            do {
+                try await managed()
+            } catch ManagedRelayPhoneConnector.Failure.transientUnavailable(_) {
+                // Preserve the established retry policy when both transports are unreachable.
+                throw lanError
+            }
+        }
+    }
+    #endif
 
     // Re-resolves the reconnect target on every retry so bridge restarts cannot pin
     // launch/manual recovery loops to one stale saved session id.
@@ -361,6 +396,7 @@ extension ContentViewModel {
         codex: CodexService,
         performAutoRetry: Bool,
         continueWhile shouldContinue: (() -> Bool)? = nil,
+        allowManagedFallback: Bool = false,
         serverURLProvider: () async -> String?
     ) async throws {
         guard !isRunningAutoReconnect else {
@@ -402,7 +438,8 @@ extension ContentViewModel {
             }
 
             do {
-                try await connect(codex: codex, serverURL: serverURL)
+                try await connect(codex: codex, serverURL: serverURL,
+                                  shouldAttemptManagedFallback: allowManagedFallback ? shouldContinue : nil)
                 codex.connectionRecoveryState = .idle
                 codex.lastErrorMessage = nil
                 codex.shouldAutoReconnectOnForeground = false

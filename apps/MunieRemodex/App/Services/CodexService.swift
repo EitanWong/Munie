@@ -646,6 +646,11 @@ final class CodexService {
     var webSocketSession: URLSession?
     var webSocketSessionDelegate: CodexURLSessionWebSocketDelegate?
     var webSocketTask: URLSessionWebSocketTask?
+    #if DEBUG
+    @ObservationIgnored var managedRelayAttemptID: UUID?
+    @ObservationIgnored var managedRelayBootstrapTask: Task<ManagedRelayPhoneConnector.Bootstrap, Error>?
+    @ObservationIgnored var managedRelayHandshakeControls: Set<String> = []
+    #endif
     var webSocketKeepAliveTask: Task<Void, Never>?
     // Raw frame buffer used when the relay runs over manual TCP websocket framing.
     var manualWebSocketReadBuffer = Data()
@@ -777,6 +782,10 @@ final class CodexService {
     @ObservationIgnored var gptAccountLoginSyncTask: Task<Void, Never>?
     var postConnectSyncToken: UUID?
     var connectedServerIdentity: String?
+    // Remember the authenticated peer across socket teardown without retaining session keys.
+    @ObservationIgnored var lastInitializedMacIdentity: ConnectionMacIdentity?
+    // The attempted pairing pin may preserve retry intent, but is not proof of a connection.
+    @ObservationIgnored var lastLANAttemptMacIdentity: ConnectionMacIdentity?
     // Tracks whether the bridge is proxying a real Codex endpoint or a spawned local app-server.
     var codexTransportMode: CodexRuntimeTransportMode = .unknown
     var bridgeHostPlatform: CodexBridgeHostPlatform {

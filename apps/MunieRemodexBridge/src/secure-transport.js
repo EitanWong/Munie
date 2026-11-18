@@ -1,3 +1,4 @@
+// Munie modification: invalidate displaced route keys without clearing buffered replay.
 // FILE: secure-transport.js
 // Purpose: Owns the bridge-side E2EE handshake, envelope crypto, and reconnect catch-up buffer.
 // Layer: CLI helper
@@ -40,6 +41,9 @@ function createBridgeSecureTransport({
   displayName = "",
   onTrustedPhoneUpdate = null,
   onSecureSessionReady = null,
+  onSecureSessionResumed = null,
+  requireTrustResetForReplacement = false,
+  maxEncodedPayloadBytes = null,
   persistTrustedPhone = true,
 }) {
   let currentDeviceState = deviceState;
@@ -108,15 +112,23 @@ function createBridgeSecureTransport({
   }
 
   function queueOutboundApplicationMessage(payloadText, sendWireMessage) {
-    const normalizedPayload = normalizeNonEmptyString(payloadText);
+    let normalizedPayload = normalizeNonEmptyString(payloadText);
     if (!normalizedPayload) {
       return;
     }
 
+    const isGap = applicationPayloadExceedsLimit(normalizedPayload);
+    if (isGap) {
+      normalizedPayload = JSON.stringify({
+        method: "remodex/bufferedReplay/gap",
+        params: { remodexBufferedReplayGap: true, lastDiscardedBridgeOutboundSeq: nextBridgeOutboundSeq },
+      });
+    }
     const bufferEntry = {
       bridgeOutboundSeq: nextBridgeOutboundSeq,
       payloadText: normalizedPayload,
       sizeBytes: Buffer.byteLength(normalizedPayload, "utf8"),
+      isGap,
     };
     nextBridgeOutboundSeq += 1;
     outboundBuffer.push(bufferEntry);
@@ -134,6 +146,20 @@ function createBridgeSecureTransport({
 
   function isSecureChannelReady() {
     return Boolean(activeSession?.isResumed);
+  }
+
+  function sendUnbufferedApplicationMessage(payloadText) {
+    if (applicationPayloadExceedsLimit(payloadText)) return false;
+    return sendBufferedEntry({ payloadText }, activeSession?.sendWireMessage);
+  }
+
+  function applicationPayloadExceedsLimit(payloadText) {
+    return maxEncodedPayloadBytes != null && Buffer.byteLength(JSON.stringify(payloadText)) > maxEncodedPayloadBytes;
+  }
+
+  function invalidateMobileRoute() {
+    pendingHandshake = null;
+    activeSession = null;
   }
 
   function handleClientHello(message, sendControlMessage) {
@@ -178,6 +204,15 @@ function createBridgeSecureTransport({
     }
 
     const trustedPhonePublicKey = getTrustedPhonePublicKey(currentDeviceState, phoneDeviceId);
+    if (requireTrustResetForReplacement && handshakeMode === HANDSHAKE_MODE_QR_BOOTSTRAP
+        && Object.keys(currentDeviceState.trustedPhones || {}).length > 0
+        && trustedPhonePublicKey !== phoneIdentityPublicKey) {
+      sendControlMessage(createSecureError({
+        code: "phone_already_trusted",
+        message: "Remove the existing phone pairing on the Mac before pairing a different phone.",
+      }));
+      return;
+    }
     if (handshakeMode === HANDSHAKE_MODE_TRUSTED_RECONNECT) {
       if (!trustedPhonePublicKey) {
         sendControlMessage(createSecureError({
@@ -435,7 +470,9 @@ function createBridgeSecureTransport({
     const lastAppliedBridgeOutboundSeq = Number(message.lastAppliedBridgeOutboundSeq) || 0;
     const phoneReplayEpoch = normalizeNonEmptyString(message.bridgeReplayEpoch);
     let effectiveReplayCursor = lastAppliedBridgeOutboundSeq;
+    const wasResumed = activeSession.isResumed;
     activeSession.isResumed = true;
+    if (!wasResumed) onSecureSessionResumed?.();
     if (phoneReplayEpoch !== bridgeReplayEpoch || lastAppliedBridgeOutboundSeq >= nextBridgeOutboundSeq) {
       // Sequence numbers are process-local. A trusted phone can reconnect after
       // the bridge restarted with any cursor from the previous process; the
@@ -572,7 +609,7 @@ function createBridgeSecureTransport({
 
     const envelope = encryptEnvelopePayload(
       {
-        bridgeOutboundSeq: entry.bridgeOutboundSeq,
+        bridgeOutboundSeq: entry.isGap ? undefined : entry.bridgeOutboundSeq,
         payloadText: entry.payloadText,
       },
       activeSession.macToPhoneKey,
@@ -638,15 +675,16 @@ function createBridgeSecureTransport({
     const firstUnappliedEntry = outboundBuffer.find((entry) => (
       entry.bridgeOutboundSeq > lastAppliedBridgeOutboundSeq
     ));
-    if (!firstUnappliedEntry
-      || firstUnappliedEntry.bridgeOutboundSeq <= lastAppliedBridgeOutboundSeq + 1) {
-      return null;
-    }
+    if (!firstUnappliedEntry) return null;
+    const containsOversizedEvent = maxEncodedPayloadBytes != null && outboundBuffer.some((entry) => (
+      entry.isGap && entry.bridgeOutboundSeq > lastAppliedBridgeOutboundSeq
+    ));
+    if (!containsOversizedEvent && firstUnappliedEntry.bridgeOutboundSeq <= lastAppliedBridgeOutboundSeq + 1) return null;
 
     const lastAvailableBridgeOutboundSeq = outboundBuffer[outboundBuffer.length - 1]?.bridgeOutboundSeq
       || firstUnappliedEntry.bridgeOutboundSeq;
     const historicalBoundary = (activeSession?.firstOutboundSeq || firstUnappliedEntry.bridgeOutboundSeq) - 1;
-    const lastDiscardedBridgeOutboundSeq = firstUnappliedEntry.bridgeOutboundSeq <= historicalBoundary
+    const lastDiscardedBridgeOutboundSeq = !containsOversizedEvent && firstUnappliedEntry.bridgeOutboundSeq <= historicalBoundary
       ? historicalBoundary
       : lastAvailableBridgeOutboundSeq;
     return {
@@ -742,6 +780,7 @@ function createBridgeSecureTransport({
   function replayTaggedEntryIfHistorical(entry) {
     if (
       !activeSession
+      || entry.isGap
       || entry.bridgeOutboundSeq >= activeSession.firstOutboundSeq
     ) {
       return entry;
@@ -778,10 +817,12 @@ function createBridgeSecureTransport({
     PAIRING_QR_VERSION,
     SECURE_PROTOCOL_VERSION,
     bindLiveSendWireMessage,
+    invalidateMobileRoute,
     createPairingPayload,
     handleIncomingWireMessage,
     isSecureChannelReady,
     queueOutboundApplicationMessage,
+    sendUnbufferedApplicationMessage,
   };
 }
 

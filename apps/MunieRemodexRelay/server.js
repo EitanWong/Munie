@@ -59,7 +59,7 @@ function createRelayServer({
     perMessageDeflate: true,
     ...(maxPayload === undefined ? {} : { maxPayload }),
   });
-  setupRelay(wss, relayOptions);
+  const { attachManagedPhone } = setupRelay(wss, relayOptions);
 
   server.on("upgrade", (req, socket, head) => {
     const pathname = safePathname(req.url);
@@ -93,6 +93,7 @@ function createRelayServer({
   return {
     server,
     wss,
+    attachManagedPhone,
     pushSessionService: resolvedPushSessionService,
   };
 }

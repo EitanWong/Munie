@@ -1,0 +1,3739 @@
+{
+  "schemaVersion": 1,
+  "repository": "https://github.com/Emanuele-web04/remodex.git",
+  "revision": "c06dcb16a7059603a41e26a2cb4a81b6d4b5514d",
+  "files": [
+    {
+      "source": "CodexMobile/CodexMobile/CodexMobileApp.swift",
+      "destination": "apps/MunieRemodex/App/CodexMobileApp.swift",
+      "bytes": 5606,
+      "sha256": "0dabea0cedb34cdb38be8ef9943b02c914e3f110909087d0238953b2664f89a7",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/CodexMobileAppDelegate.swift",
+      "destination": "apps/MunieRemodex/App/CodexMobileAppDelegate.swift",
+      "bytes": 3559,
+      "sha256": "56493536060009f5b9e4d04fa056d22897e85b924ea0caaf87df6a96821d8738",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/ContentView.swift",
+      "destination": "apps/MunieRemodex/App/ContentView.swift",
+      "bytes": 87649,
+      "sha256": "f0a704d5f7d8b59ec3ba6e4e7c052e274f397ca6e5fd13beb7c07c9ec1a49cb5",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Models/AIChangeSetModels.swift",
+      "destination": "apps/MunieRemodex/App/Models/AIChangeSetModels.swift",
+      "bytes": 23337,
+      "sha256": "949910a92e4ffce36714ac218a56c511cb483613ed0f91c6aa293099d34396ef",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Models/AppFont.swift",
+      "destination": "apps/MunieRemodex/App/Models/AppFont.swift",
+      "bytes": 20988,
+      "sha256": "c723eb6cad10ac242092ffc91dc07bdd34e93e2dd86ebb1e663fef3a6358949f",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Models/AppTypographyController.swift",
+      "destination": "apps/MunieRemodex/App/Models/AppTypographyController.swift",
+      "bytes": 4564,
+      "sha256": "b50fa29f62c398b09303378ab557f14ee06b5d6370718cb5a9a5743969782418",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Models/CodexAccessMode.swift",
+      "destination": "apps/MunieRemodex/App/Models/CodexAccessMode.swift",
+      "bytes": 2996,
+      "sha256": "504fa98cfe566a0ab9af0da5868c92d615f9f5dd4f55e1309778045556192e1e",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Models/CodexAsyncUserInput.swift",
+      "destination": "apps/MunieRemodex/App/Models/CodexAsyncUserInput.swift",
+      "bytes": 3165,
+      "sha256": "cd60b0a609c89460514eb4a59e317d49aa2addff3427a96ed2f62b7dc49f89f0",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Models/CodexAsyncUserInputProjection.swift",
+      "destination": "apps/MunieRemodex/App/Models/CodexAsyncUserInputProjection.swift",
+      "bytes": 9595,
+      "sha256": "3e9a365ed24bbdebb6f1b338531018cc72cae77e604ec8fbdac64dff0eb5d608",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Models/CodexAutoApprovalReview.swift",
+      "destination": "apps/MunieRemodex/App/Models/CodexAutoApprovalReview.swift",
+      "bytes": 14453,
+      "sha256": "20d6389e5f7295df07ca3d1a27c10b9458bddbd7ebef42f1dde2497d480f1597",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Models/CodexCollaboration.swift",
+      "destination": "apps/MunieRemodex/App/Models/CodexCollaboration.swift",
+      "bytes": 14875,
+      "sha256": "0f36a49f1b8d0cfbf5e06d267b892ec40bc48e0fc397653927f92575157799c2",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Models/CodexFuzzyFileMatch.swift",
+      "destination": "apps/MunieRemodex/App/Models/CodexFuzzyFileMatch.swift",
+      "bytes": 1878,
+      "sha256": "2d8f49535945cb94d59f9302759f9058bf6fc841bfe5b28701b2b484fef8ae9c",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Models/CodexImageAttachment.swift",
+      "destination": "apps/MunieRemodex/App/Models/CodexImageAttachment.swift",
+      "bytes": 5310,
+      "sha256": "bc49e62849cf2d7a337b8f66aa9366dad83c677d5c03e1e68a31350370db57f4",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Models/CodexMessage.swift",
+      "destination": "apps/MunieRemodex/App/Models/CodexMessage.swift",
+      "bytes": 17011,
+      "sha256": "0035e520a327061e8b8636a5c6b949c979451fdb615635f51fbe408691f9aa96",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Models/CodexMessageOrderCounter.swift",
+      "destination": "apps/MunieRemodex/App/Models/CodexMessageOrderCounter.swift",
+      "bytes": 1711,
+      "sha256": "f47baba1e13bd448ce70dcc28563f3280d406af30d1147cbeabf087a940c2813",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Models/CodexModelOption.swift",
+      "destination": "apps/MunieRemodex/App/Models/CodexModelOption.swift",
+      "bytes": 9847,
+      "sha256": "73a758fc8b77b2a6c3213f31ffd0927015d7caa4eaddd18a603ad9c23abd808c",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Models/CodexRateLimitStatus.swift",
+      "destination": "apps/MunieRemodex/App/Models/CodexRateLimitStatus.swift",
+      "bytes": 4794,
+      "sha256": "b81c4110b36bd7938da8eaf1e85f08bb15d4f878f6ece3df3ec2d12719af871e",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Models/CodexReasoningEffortOption.swift",
+      "destination": "apps/MunieRemodex/App/Models/CodexReasoningEffortOption.swift",
+      "bytes": 2038,
+      "sha256": "b49eaa6c9c1da1fb4417db38c80c0b3107afa5ed64283e6d82c1cbbf8b5bd076",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Models/CodexRuntimeSettings.swift",
+      "destination": "apps/MunieRemodex/App/Models/CodexRuntimeSettings.swift",
+      "bytes": 1703,
+      "sha256": "175241b12839a78e106f4700fe74514537f63649a7b4c7563f847f1a6fb63b11",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Models/CodexServiceTier.swift",
+      "destination": "apps/MunieRemodex/App/Models/CodexServiceTier.swift",
+      "bytes": 2341,
+      "sha256": "c7f28aaf0949c21eeebd2a671722c95ccfe107353bb525d696a9d8f8bcd8db29",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Models/CodexSkillMetadata.swift",
+      "destination": "apps/MunieRemodex/App/Models/CodexSkillMetadata.swift",
+      "bytes": 4279,
+      "sha256": "5fe8a415303d1fe5cb482a563132c7b739100f0d6a0ad6d0f5677f83cff39411",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Models/CodexStreamFailure.swift",
+      "destination": "apps/MunieRemodex/App/Models/CodexStreamFailure.swift",
+      "bytes": 2260,
+      "sha256": "81f6977c604eddb79a4230bbce3f28cc040cee3aaf458fb9419e82f3641d8b28",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Models/CodexSyntheticIdentifiers.swift",
+      "destination": "apps/MunieRemodex/App/Models/CodexSyntheticIdentifiers.swift",
+      "bytes": 4756,
+      "sha256": "0b2ec7dcda717ec6ea4c1bda2928c3c80fc63570a13be7c293f1cee627c4935c",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Models/CodexTextContentFingerprint.swift",
+      "destination": "apps/MunieRemodex/App/Models/CodexTextContentFingerprint.swift",
+      "bytes": 1037,
+      "sha256": "4aebe03ec7acf66eab396ebe8923a4c2402601a55ece1a66069be3011f1a2c9d",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Models/CodexThread.swift",
+      "destination": "apps/MunieRemodex/App/Models/CodexThread.swift",
+      "bytes": 34061,
+      "sha256": "877425dfaa40d257960c3d406ff073365ca9cdcbec5e2388d1f99f7869740bf0",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Models/CodexThreadGoal.swift",
+      "destination": "apps/MunieRemodex/App/Models/CodexThreadGoal.swift",
+      "bytes": 4476,
+      "sha256": "c2c50553555592099ada01d139107568bf8312f395c79f3b6b3c065a35ab5a9c",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Models/CommandExecutionDetails.swift",
+      "destination": "apps/MunieRemodex/App/Models/CommandExecutionDetails.swift",
+      "bytes": 793,
+      "sha256": "a5dcbc005f4d90a256c67a34e8c810b7842cd0d95fc64405a209443c768c78ef",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Models/ContextWindowUsage.swift",
+      "destination": "apps/MunieRemodex/App/Models/ContextWindowUsage.swift",
+      "bytes": 1446,
+      "sha256": "aa1113ad67b492b86ed52f68406c423c0272e53c7269be19d032d6f25e708a19",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Models/GitActionModels.swift",
+      "destination": "apps/MunieRemodex/App/Models/GitActionModels.swift",
+      "bytes": 21936,
+      "sha256": "f6f5ca1d1ea245a419d60d712e1674cbcd80db117435048a7eb3fecdb2cb4931",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Models/JSONValue.swift",
+      "destination": "apps/MunieRemodex/App/Models/JSONValue.swift",
+      "bytes": 3279,
+      "sha256": "e16dbfceb9881b1d851854d4b94d096f004a26706cd932de463d2964f265b9ea",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Models/OpenCodeModelOption.swift",
+      "destination": "apps/MunieRemodex/App/Models/OpenCodeModelOption.swift",
+      "bytes": 4968,
+      "sha256": "a28903c23f4531d5305925e315f54e1f451cc476b1fcb8c1ca3827ddb3bd54e0",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Models/PetCompanionModels.swift",
+      "destination": "apps/MunieRemodex/App/Models/PetCompanionModels.swift",
+      "bytes": 4948,
+      "sha256": "fd1a55a7500b0d6b5a416cfbd3e14349983046eb8c9abc0b48b5951b7f021220",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Models/RPCMessage.swift",
+      "destination": "apps/MunieRemodex/App/Models/RPCMessage.swift",
+      "bytes": 2530,
+      "sha256": "b033d3bd1d5c67f229f17a67f08726b3710860a57cde36d8fb406a65e336b80a",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Models/String+PathDisplayName.swift",
+      "destination": "apps/MunieRemodex/App/Models/String+PathDisplayName.swift",
+      "bytes": 837,
+      "sha256": "4b112f00192152abfadfa1a7d7eac71eac62719b97d757f7b1fbb5d07328b472",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/RemodexQuickActionCenter.swift",
+      "destination": "apps/MunieRemodex/App/RemodexQuickActionCenter.swift",
+      "bytes": 3582,
+      "sha256": "4a1b4aefd3042afa079b078aa036a2060803704cc1993cce937ea05d613ac851",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/AIChangeSetPersistence.swift",
+      "destination": "apps/MunieRemodex/App/Services/AIChangeSetPersistence.swift",
+      "bytes": 5014,
+      "sha256": "a6ca7b27727575dd370d88c375799408a227994f03868efe22ae69e9632b1568",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/AppEnvironment.swift",
+      "destination": "apps/MunieRemodex/App/Services/AppEnvironment.swift",
+      "bytes": 7111,
+      "sha256": "8da50d906b565eb83ff25c80a0639eda774f63b53c9d65427051131eae9925ed",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/AppReviewPromptCoordinator.swift",
+      "destination": "apps/MunieRemodex/App/Services/AppReviewPromptCoordinator.swift",
+      "bytes": 4354,
+      "sha256": "8bbde3496a766abceb6650a8aa478f7e65a6473553fcc288c0b3bef7a0622088",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/AssistantReplayDeduper.swift",
+      "destination": "apps/MunieRemodex/App/Services/AssistantReplayDeduper.swift",
+      "bytes": 10176,
+      "sha256": "ca90b921930ad3bb2c91b8cd19cf98c6a3f4b6e013dfd99826fb3096d4837e77",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexComposerDraftPersistence.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexComposerDraftPersistence.swift",
+      "bytes": 4347,
+      "sha256": "d4e4c4f8ada182a55ee2d525a07d84674a2bd71c973eb3e9102f6b5e7c1acabd",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexLocalPersistenceKeyProvider.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexLocalPersistenceKeyProvider.swift",
+      "bytes": 2202,
+      "sha256": "6dc561c56223a3e56de212701215fa5ea30719104d68c62d7c49d71e114f854f",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexMessagePersistence.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexMessagePersistence.swift",
+      "bytes": 6901,
+      "sha256": "ebe3525fc087626f037be7ebfadce5d9168c7cd1a836cecad7eda2b9d49599cd",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexSecureTransportModels.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexSecureTransportModels.swift",
+      "bytes": 12731,
+      "sha256": "f3250d9549e46d9b5f0bb6c162c037f5336a3e4b10458c4748ec3f923e750b4e",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+AIChangeSets.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+AIChangeSets.swift",
+      "bytes": 32479,
+      "sha256": "e8ef543bc400b087e039e7b7b1fcec5c1c735737066061b4aebf53128f6294f3",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+Account.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+Account.swift",
+      "bytes": 49790,
+      "sha256": "87ff123f5812264f5a4a28fde3a7baf716adffbc20aa45d2c4eb2070106e5ff2",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+AsyncUserInput.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+AsyncUserInput.swift",
+      "bytes": 15748,
+      "sha256": "c28dd6505d54ab3b4ef83fd11d2414946cd4fb0d042fc4d62a853707bfba8e04",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+AutoApprovalReview.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+AutoApprovalReview.swift",
+      "bytes": 13068,
+      "sha256": "9b7da8463db9a4a690857cef37fd5b72a5abe319eb35e4b5e11bbc7d1c6068a6",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+Connection.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+Connection.swift",
+      "bytes": 57264,
+      "sha256": "6256dc388653c2542330fa5324a1a4c1a09308b5e9a1b26c16d276b15dbb173c",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+Helpers.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+Helpers.swift",
+      "bytes": 40488,
+      "sha256": "47a0215a15ddb71be513dbdb8d7b9b7a7917c7af717e734ee8b8213c3d89b8d4",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+History.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+History.swift",
+      "bytes": 195671,
+      "sha256": "fdee578ecd58efeadadd0c8bd81ac09f6dcfd7765dff72cf8e97462df7796534",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+Incoming.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+Incoming.swift",
+      "bytes": 155490,
+      "sha256": "9b41c5d450094c4e2a0409237913d4f02503f0426104f72ec43612472740f0fa",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+IncomingAssistant.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+IncomingAssistant.swift",
+      "bytes": 26658,
+      "sha256": "83ac8501b0a3e0524b63f08ec789685f242e8727e7af378597f80c67f9342e4a",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+IncomingPlanMode.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+IncomingPlanMode.swift",
+      "bytes": 8409,
+      "sha256": "0db1def4f2601927e9df0dc1f46d6eecd033829fe263b51c23120295e0512a59",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+IncomingSupport.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+IncomingSupport.swift",
+      "bytes": 24961,
+      "sha256": "0b142778cfa721063be11f7769902759cb903d0ef7f7543fdde093fa30c6fbf7",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+MacContext.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+MacContext.swift",
+      "bytes": 42915,
+      "sha256": "7af571a8e9081b5f7108a0e1c8c9ebbf07971d206d7310f2b5b73d2d241ad45c",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+Messages.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+Messages.swift",
+      "bytes": 306842,
+      "sha256": "3c3017b61e5abddbf0d2fff5dc191ca5e7c887d2bc6501b1af5d3231a18fedd5",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+Notifications.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+Notifications.swift",
+      "bytes": 29999,
+      "sha256": "73ee8b45ae27df4c965e02f336dbec884fd2e5146158768d0b97964fd3d17cc2",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+Pets.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+Pets.swift",
+      "bytes": 10427,
+      "sha256": "56f441c384408d83da1451bba79717056412e21bfd961a13b2e7d6741c6ea377",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+ProjectFolders.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+ProjectFolders.swift",
+      "bytes": 6774,
+      "sha256": "ab1fe2757dd9b8a60d0df2d9950d5dbc196ec3995963a1c367cf3ed57b9e2ba4",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+Review.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+Review.swift",
+      "bytes": 6667,
+      "sha256": "e2690b22e71678811c5073d2555b5b5310793066257eeabc2a1b3ca4605dbc54",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+RuntimeCompatibility.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+RuntimeCompatibility.swift",
+      "bytes": 2428,
+      "sha256": "5cd6a17c762c3f742b5e4165d5a8873e83eebc772515aa66e561ce957e88b574",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+RuntimeConfig.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+RuntimeConfig.swift",
+      "bytes": 43827,
+      "sha256": "6ff8835b8c50f3e7035e0a42134aecc162c055b1a3640241fc7f94f274bf15cb",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+RuntimeSettingsSync.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+RuntimeSettingsSync.swift",
+      "bytes": 11264,
+      "sha256": "02f1759297b102bbc94bfb6e7da571190959673cdb6ff4db28d012a41a56e7ac",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+SecureTransport.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+SecureTransport.swift",
+      "bytes": 66151,
+      "sha256": "af583248b3b2e66a6e9a4c50eb14c45a743ac7694387bd7ddcd405b2ed9a99bd",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+Status.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+Status.swift",
+      "bytes": 12074,
+      "sha256": "76acf1fbef82d1a842fbf194d891fa3f58cdd6cf772c24bc53812f0c60a0cc6b",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+StreamRecovery.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+StreamRecovery.swift",
+      "bytes": 8300,
+      "sha256": "361af4d3fed479b2fabf6e3c2cc080282712d45db0359fa22f4cccbcfc921c21",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+Sync.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+Sync.swift",
+      "bytes": 57667,
+      "sha256": "e23d7486f9987e7f6109736e729cdbb3d3472b710a8d91dcf9890d39a9fcd99d",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+ThreadFork.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+ThreadFork.swift",
+      "bytes": 11058,
+      "sha256": "5f2f04965dc5d04323c7d5ce79e3a28eb15a2108f6b6b9a2cafb8d95dabde36e",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+ThreadForkCompatibility.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+ThreadForkCompatibility.swift",
+      "bytes": 2436,
+      "sha256": "47bf68765ba097e1f5fc749811a53e5420f87096ce128ae532505783eca7d244",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+ThreadGoal.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+ThreadGoal.swift",
+      "bytes": 8059,
+      "sha256": "2bbf111915a1d14747980bdcc3760c14f1b2a89e5e173aa9d52526f5662f1c55",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+ThreadHistoryPagination.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+ThreadHistoryPagination.swift",
+      "bytes": 44781,
+      "sha256": "782212886bcd51e82a5b39a481d3d39fdd76baabdc7be4ffa537fc3a88875991",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+ThreadProjectRouting.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+ThreadProjectRouting.swift",
+      "bytes": 13878,
+      "sha256": "ab081893c626eee83003c73abcba2d6e2b936e40c928e5c67874e9845ad9abf1",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+ThreadsTurns.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+ThreadsTurns.swift",
+      "bytes": 150899,
+      "sha256": "432e3b13e92aada7b29448c7a614458148496f69cae63897ed060da18d5ab6d1",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+Transport.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+Transport.swift",
+      "bytes": 47103,
+      "sha256": "8573b391551b5353a51c699645f9e2d77746fe607a2321084cf8be286e433be3",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+TrustedPairPresentation.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+TrustedPairPresentation.swift",
+      "bytes": 5370,
+      "sha256": "b1eb33a2b14460575df4f71a75272f69fa0549d4c67c587fb9241c00d8ffc627",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+TurnPaginationCompatibility.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+TurnPaginationCompatibility.swift",
+      "bytes": 5669,
+      "sha256": "5dbb8e7612633f3d7fd842d6c2667fa688cbbbdf04ec621e97223b2e4727e601",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+Voice.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+Voice.swift",
+      "bytes": 11825,
+      "sha256": "fab4bf2f04dc8a2d6606f0e21703938950dc5ea7535887c55d54d34f583c095d",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+VoiceCompatibility.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+VoiceCompatibility.swift",
+      "bytes": 8303,
+      "sha256": "5c76ff4c9b964892b16c1b15ec82292864e638b56ba95c0705dea21cddcf5523",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+WorkspaceCheckpoints.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+WorkspaceCheckpoints.swift",
+      "bytes": 16370,
+      "sha256": "fbc3ff2a20b47a3f3638f09358e132dea70290634db0ae063edd69f1fcd0fe39",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService+WorkspaceImages.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService+WorkspaceImages.swift",
+      "bytes": 8682,
+      "sha256": "7b6bc0d72bbcfdc36944339497c220feb227235b4f1b1d6b29711cbb07caa88b",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexService.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexService.swift",
+      "bytes": 59846,
+      "sha256": "1629313ae7274a50bde008d14131c157ce7b9209cf18f272d7860ecda76d99ed",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexServiceError.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexServiceError.swift",
+      "bytes": 1288,
+      "sha256": "bd567bb5d3ac3619a740216bfda562af575d822f30273a2e548578e9eca51fa1",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/CodexThreadListPersistence.swift",
+      "destination": "apps/MunieRemodex/App/Services/CodexThreadListPersistence.swift",
+      "bytes": 4386,
+      "sha256": "db87229a633742cde79cf69d6d3921567efe0867c7b54c1c8c2ba62b64c602c5",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/Coordination/WorktreeFlowCoordinator.swift",
+      "destination": "apps/MunieRemodex/App/Services/Coordination/WorktreeFlowCoordinator.swift",
+      "bytes": 32075,
+      "sha256": "2d226a110be43e5e9371864ba4d026d2641ce3dfa19a0b49210178d734d254e3",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/DesktopHandoffService.swift",
+      "destination": "apps/MunieRemodex/App/Services/DesktopHandoffService.swift",
+      "bytes": 10092,
+      "sha256": "55a42ee0f76f2305d1b48b6998742862859737e9a38d6e8bdcbf0723db89d3b1",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/GPTVoiceTranscriptionManager.swift",
+      "destination": "apps/MunieRemodex/App/Services/GPTVoiceTranscriptionManager.swift",
+      "bytes": 30972,
+      "sha256": "48eead3aeaf65b4ac526e4ac1a091a8031106e1ea03678f73acdcec5a9d33f18",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/GitActionsService.swift",
+      "destination": "apps/MunieRemodex/App/Services/GitActionsService.swift",
+      "bytes": 15900,
+      "sha256": "b99458584412cc764281c3eda091d8d2963c41f29358cd8a89d533c4666caf6d",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/HapticFeedback.swift",
+      "destination": "apps/MunieRemodex/App/Services/HapticFeedback.swift",
+      "bytes": 771,
+      "sha256": "8edde171c3f008388d0e8d8207c9ca443bc6a53c3e07644216a6f99ac44bce41",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/LocalNetworkAuthorization.swift",
+      "destination": "apps/MunieRemodex/App/Services/LocalNetworkAuthorization.swift",
+      "bytes": 4107,
+      "sha256": "c1fef31e0efffdebbf1cba1e976212534d4512338abacf03cc3e702fc2dece36",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/Payments/RevenueCatDisplayExtensions.swift",
+      "destination": "apps/MunieRemodex/App/Services/Payments/RevenueCatDisplayExtensions.swift",
+      "bytes": 1627,
+      "sha256": "dff8f9445cf643e648a0bfe442102ebdcbd8186633abd9dea670c58a1bb8502d",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/Payments/SubscriptionService.swift",
+      "destination": "apps/MunieRemodex/App/Services/Payments/SubscriptionService.swift",
+      "bytes": 12900,
+      "sha256": "3c6098e80b7716103b96e2f0920fbcdf26e1d66d4511403f7500c00a65908aaa",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/PetCompanionStore.swift",
+      "destination": "apps/MunieRemodex/App/Services/PetCompanionStore.swift",
+      "bytes": 5856,
+      "sha256": "3e942236f71bdc1e2f6331356794fd3673cf4d7dc7384f67f9cbf393356cd477",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/RemodexDisplayIslandCoordinator.swift",
+      "destination": "apps/MunieRemodex/App/Services/RemodexDisplayIslandCoordinator.swift",
+      "bytes": 17353,
+      "sha256": "d9c5684d82cd3950c270360941b67ba50b816df6a67755d77f195607bb7c87fe",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/SecureStore.swift",
+      "destination": "apps/MunieRemodex/App/Services/SecureStore.swift",
+      "bytes": 5647,
+      "sha256": "3af2c8022d8474640b17f2f0633647c4159d5511ad304184a06a915a94bb16b7",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/SidebarActivityDiffStore.swift",
+      "destination": "apps/MunieRemodex/App/Services/SidebarActivityDiffStore.swift",
+      "bytes": 2953,
+      "sha256": "e39f766b3701f1e68f03a05251694e542d38170d171f320453d0b80c74a6b160",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/StreamingUIInteractionMonitor.swift",
+      "destination": "apps/MunieRemodex/App/Services/StreamingUIInteractionMonitor.swift",
+      "bytes": 1452,
+      "sha256": "844e544822a76b576a69629bb2e652ae298f4116362e679f6ab32b971cc42e98",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/Terminal/CodexService+Terminal.swift",
+      "destination": "apps/MunieRemodex/App/Services/Terminal/CodexService+Terminal.swift",
+      "bytes": 10504,
+      "sha256": "98f825f0a5fb4f4967cc1377a000fc76c88e5952ab7aa3113af6573aaf4bc871",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/Terminal/RemodexNativeSSHTerminal.swift",
+      "destination": "apps/MunieRemodex/App/Services/Terminal/RemodexNativeSSHTerminal.swift",
+      "bytes": 15733,
+      "sha256": "04f3785e5d650690bf641e1b98dafd6a17f56e73f243eafbdbf4d8103ea11b12",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/Terminal/RemodexSSHKnownHostStore.swift",
+      "destination": "apps/MunieRemodex/App/Services/Terminal/RemodexSSHKnownHostStore.swift",
+      "bytes": 1018,
+      "sha256": "f9228739b5a8d338905a45d73680740f395250d8cbfd167ff6571c4a6ce9c061",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/Terminal/RemodexTerminalModels.swift",
+      "destination": "apps/MunieRemodex/App/Services/Terminal/RemodexTerminalModels.swift",
+      "bytes": 13379,
+      "sha256": "31933d084126263601d2e168022fe932c6ee21ba4b2ba5f62b249451d0a6960c",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/Terminal/RemodexTerminalPrivateKeyStore.swift",
+      "destination": "apps/MunieRemodex/App/Services/Terminal/RemodexTerminalPrivateKeyStore.swift",
+      "bytes": 1505,
+      "sha256": "c9e2743da127b6558b85e857178050ca437311bf5b577c3a761504954d7a22a8",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Services/Terminal/RemodexTerminalProfileStore.swift",
+      "destination": "apps/MunieRemodex/App/Services/Terminal/RemodexTerminalProfileStore.swift",
+      "bytes": 730,
+      "sha256": "ec5d3873922194a12e83f94ff5586e8d74dd52a4ae4cdeb9857f2110280450a1",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/RemodexWidget/RemodexLaunchIntent.swift",
+      "destination": "apps/MunieRemodex/App/Shared/RemodexLaunchIntent.swift",
+      "bytes": 2768,
+      "sha256": "4170d2aaf499fe736cb658c26b773055770e087618e108e34e7202e115b1bb0d",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/AboutRemodexView.swift",
+      "destination": "apps/MunieRemodex/App/Views/AboutRemodexView.swift",
+      "bytes": 14270,
+      "sha256": "6660dc3a2b5c495ca1fa89250fccf0450f868f5e705181b45e247ebd07d73d69",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Home/BridgeUpdateSheet.swift",
+      "destination": "apps/MunieRemodex/App/Views/Home/BridgeUpdateSheet.swift",
+      "bytes": 6229,
+      "sha256": "191552508cd9ff8f2b72f1636251f7c946d82c2836f6b14878ba996dada9063e",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Home/ContentViewModel.swift",
+      "destination": "apps/MunieRemodex/App/Views/Home/ContentViewModel.swift",
+      "bytes": 53304,
+      "sha256": "72b8e4a7a3e846fe9fc48571cf7bd3e7f0d7481543e80d2f62f6a38894552676",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Home/HomeEmptyStateView.swift",
+      "destination": "apps/MunieRemodex/App/Views/Home/HomeEmptyStateView.swift",
+      "bytes": 6576,
+      "sha256": "3c74ecf8662a3a2e7052c6fb25d764598210e90b3b236a489a91f59f3eaf767b",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Home/ThreadCompletionBannerView.swift",
+      "destination": "apps/MunieRemodex/App/Views/Home/ThreadCompletionBannerView.swift",
+      "bytes": 5288,
+      "sha256": "ee22918a24dbe56df37c562c2d81fa144cf8e61eb377e18589b6043f24d4eaec",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Home/WhatsNewSheet.swift",
+      "destination": "apps/MunieRemodex/App/Views/Home/WhatsNewSheet.swift",
+      "bytes": 6467,
+      "sha256": "46316384d0ff717606e0b0ccf16597af4517d7271f4b5afce712a596a34a072f",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/MyMacs/MyDevicesPresentation.swift",
+      "destination": "apps/MunieRemodex/App/Views/MyMacs/MyDevicesPresentation.swift",
+      "bytes": 7808,
+      "sha256": "9ba3704412f3065eec9cbcfb810a48d9850919fcab1b3f3341243ada8f8bd271",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/MyMacs/MyDevicesSettingsSheet.swift",
+      "destination": "apps/MunieRemodex/App/Views/MyMacs/MyDevicesSettingsSheet.swift",
+      "bytes": 17107,
+      "sha256": "4f18d2bebd5600afa9828255d82c69d480cf3e2227b2df4e4971cb3fce4a8398",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Onboarding/OnboardingCommandCard.swift",
+      "destination": "apps/MunieRemodex/App/Views/Onboarding/OnboardingCommandCard.swift",
+      "bytes": 2684,
+      "sha256": "20e61f11dade67429be4827fe8a2dfb1855b32c10247a5c8a42a46a2896ab9bf",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Onboarding/OnboardingFeaturesPage.swift",
+      "destination": "apps/MunieRemodex/App/Views/Onboarding/OnboardingFeaturesPage.swift",
+      "bytes": 3534,
+      "sha256": "1e7c6599d23919831e4c8338aecc81146fc73ec8047ae281d227ffc4083c8009",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Onboarding/OnboardingStepPage.swift",
+      "destination": "apps/MunieRemodex/App/Views/Onboarding/OnboardingStepPage.swift",
+      "bytes": 5395,
+      "sha256": "e30a62ebb17d899cc3a154600332368a7808332123aba486a667d647c9562733",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Onboarding/OnboardingView.swift",
+      "destination": "apps/MunieRemodex/App/Views/Onboarding/OnboardingView.swift",
+      "bytes": 6708,
+      "sha256": "0e789234e27b32fb4f41f32685a9752b3b360b2d3559980c447cfd7251173671",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Onboarding/OnboardingWelcomePage.swift",
+      "destination": "apps/MunieRemodex/App/Views/Onboarding/OnboardingWelcomePage.swift",
+      "bytes": 3125,
+      "sha256": "f7a3462fefeeedafa31cfe855e88512e2f6c94d8f0ca9d90b58974fe412e51f3",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/OpenSourceBadge.swift",
+      "destination": "apps/MunieRemodex/App/Views/OpenSourceBadge.swift",
+      "bytes": 2004,
+      "sha256": "6faac9645a394c5c488327d9cde080cb7fa814366a38fdf6a02377893cfe25ee",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Payments/RevenueCatPaywallView.swift",
+      "destination": "apps/MunieRemodex/App/Views/Payments/RevenueCatPaywallView.swift",
+      "bytes": 20613,
+      "sha256": "504cbf874a951f9dea207cb2c28b256bd292336021c5224c6f4a52063652ea60",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Payments/SubscriptionGateView.swift",
+      "destination": "apps/MunieRemodex/App/Views/Payments/SubscriptionGateView.swift",
+      "bytes": 25731,
+      "sha256": "e52012b6fa5b7b48e2de6df512dd28e7e64eec69d73898933d87bb65b7b2f891",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Pet/PetCompanionOverlay.swift",
+      "destination": "apps/MunieRemodex/App/Views/Pet/PetCompanionOverlay.swift",
+      "bytes": 14557,
+      "sha256": "3433a812ed781fb6524a9db24792274195f6d014a6cf4229f6150fda2156043c",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/QRScannerPairingValidator.swift",
+      "destination": "apps/MunieRemodex/App/Views/QRScannerPairingValidator.swift",
+      "bytes": 4838,
+      "sha256": "aef4846531a39903b9d6041fb52220bc0c65c2533161f6bc6665e9f3a27a2acd",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/QRScannerView.swift",
+      "destination": "apps/MunieRemodex/App/Views/QRScannerView.swift",
+      "bytes": 17317,
+      "sha256": "b91540862ea56147329e66bca4a1b709cec05335532a11818b913cdd1bcda83f",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Settings/SettingsBaseComponents.swift",
+      "destination": "apps/MunieRemodex/App/Views/Settings/SettingsBaseComponents.swift",
+      "bytes": 6768,
+      "sha256": "2489319cb2424b94a91ac089cc2a453f169cb2004425fc9adabc0267defc5494",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Settings/SettingsCommandReferenceCard.swift",
+      "destination": "apps/MunieRemodex/App/Views/Settings/SettingsCommandReferenceCard.swift",
+      "bytes": 4931,
+      "sha256": "a48ded2edc3b5489eb931ca9ca715730f30062e67f520b0232e87045fca6725e",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Settings/SettingsConnectionCard.swift",
+      "destination": "apps/MunieRemodex/App/Views/Settings/SettingsConnectionCard.swift",
+      "bytes": 4814,
+      "sha256": "40b4265265099b203ed9fb0fc40ced78bcab32909fad92d692f2ce815c493c39",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Settings/SettingsRuntimeDefaultsCard.swift",
+      "destination": "apps/MunieRemodex/App/Views/Settings/SettingsRuntimeDefaultsCard.swift",
+      "bytes": 6742,
+      "sha256": "251575bd770daa2b2c565e57df9cf18be68e611bcca87e4af1259782f151262f",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Settings/SettingsSubscriptionCard.swift",
+      "destination": "apps/MunieRemodex/App/Views/Settings/SettingsSubscriptionCard.swift",
+      "bytes": 1983,
+      "sha256": "5033bd37ba7243a2b1e0f6aea7b338c47dba32cdf600287223607c2b86495f26",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Settings/SettingsSupportCards.swift",
+      "destination": "apps/MunieRemodex/App/Views/Settings/SettingsSupportCards.swift",
+      "bytes": 8495,
+      "sha256": "66f3ed21bfa20a193e040bfedde4fa49feb52e9cc725e09fa38a7823b60f9d57",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Settings/SettingsView.swift",
+      "destination": "apps/MunieRemodex/App/Views/Settings/SettingsView.swift",
+      "bytes": 24222,
+      "sha256": "72cc47500956f14142edce379db15f14438bde6b8efba9cf48363171c2bbe2b7",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Shared/AdaptiveGlassModifier.swift",
+      "destination": "apps/MunieRemodex/App/Views/Shared/AdaptiveGlassModifier.swift",
+      "bytes": 7962,
+      "sha256": "28428cd1a6984472387d078485fb7f8a304b12b6a71564bd825e60ca72a9c5c0",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Shared/AppMenuPresentation.swift",
+      "destination": "apps/MunieRemodex/App/Views/Shared/AppMenuPresentation.swift",
+      "bytes": 2178,
+      "sha256": "2c6855ce2c480f6f09d86fd003bb4f2ae17d5e8c2cb60f70e9ee1ecaab1eb807",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Shared/CircularIconBadge.swift",
+      "destination": "apps/MunieRemodex/App/Views/Shared/CircularIconBadge.swift",
+      "bytes": 3252,
+      "sha256": "e12073f5ccf7738b26f44fa6965a66fca17fae3e1e20752aeeb3c47bc5ff04a9",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Shared/CodexWorktreeIcon.swift",
+      "destination": "apps/MunieRemodex/App/Views/Shared/CodexWorktreeIcon.swift",
+      "bytes": 2444,
+      "sha256": "65b760af5e489df43266b64941ad3564cf60ddb7b88f7363ff999c77a39e08ba",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Shared/ComposerPillLabel.swift",
+      "destination": "apps/MunieRemodex/App/Views/Shared/ComposerPillLabel.swift",
+      "bytes": 2463,
+      "sha256": "fae12578bc3cfdfe6999cc55ee30cc68a9f6e928072407510f449358fd25585d",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Shared/FullScreenOverlay.swift",
+      "destination": "apps/MunieRemodex/App/Views/Shared/FullScreenOverlay.swift",
+      "bytes": 6368,
+      "sha256": "5019d523b8d511ddff74635ca27f9114b0a52929dfa0b2e486d0408ef5b3c8fb",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Shared/GlassStatusPill.swift",
+      "destination": "apps/MunieRemodex/App/Views/Shared/GlassStatusPill.swift",
+      "bytes": 996,
+      "sha256": "782ff9faa4e9ef5b279afc2c61609be19fbdaa880308fe177b53351e4257f7cf",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Shared/HapticButton.swift",
+      "destination": "apps/MunieRemodex/App/Views/Shared/HapticButton.swift",
+      "bytes": 1061,
+      "sha256": "958ab9ef114873ba8904e3b027ea61900bcb38146116680f61cb677751e82405",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Shared/PrimaryCapsuleButton.swift",
+      "destination": "apps/MunieRemodex/App/Views/Shared/PrimaryCapsuleButton.swift",
+      "bytes": 1219,
+      "sha256": "abd247bc5acb730ae3bb9c7c4a2a9d5ae8ca8cf32d53a01053d7f103a4245840",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Shared/RemodexIcon.swift",
+      "destination": "apps/MunieRemodex/App/Views/Shared/RemodexIcon.swift",
+      "bytes": 12453,
+      "sha256": "43eab64232a17db07a5c9b29b759a6ca44a65d57b577269af1cabb339e918670",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Shared/RunningThreadSpinner.swift",
+      "destination": "apps/MunieRemodex/App/Views/Shared/RunningThreadSpinner.swift",
+      "bytes": 1344,
+      "sha256": "9bd7a8fdc409fa27f4432dd107ff9660f6e72627494782cc22619714e0d8f5fe",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Shared/RuntimeProviderIcon.swift",
+      "destination": "apps/MunieRemodex/App/Views/Shared/RuntimeProviderIcon.swift",
+      "bytes": 722,
+      "sha256": "eafd7ae4daacfc942eb1eb67610d613a05efd43f18d522edaf01a775f610dc33",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Shared/ShimmerText.swift",
+      "destination": "apps/MunieRemodex/App/Views/Shared/ShimmerText.swift",
+      "bytes": 2877,
+      "sha256": "32b4c3ea06d12671b7a575a0b66aead784346a96d134aecfc0bd4a83f768aa10",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Shared/ThreadRenamePrompt.swift",
+      "destination": "apps/MunieRemodex/App/Views/Shared/ThreadRenamePrompt.swift",
+      "bytes": 1553,
+      "sha256": "da3967597fda1cd7115cd90535dcfa57fa212f9c7b796549fd7e2a9508818693",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Shared/ToolCallIcon.swift",
+      "destination": "apps/MunieRemodex/App/Views/Shared/ToolCallIcon.swift",
+      "bytes": 7628,
+      "sha256": "69304a49c42598985c82a85df0648ef1932febb4d2d8bda9aed04b2d48680a50",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Shared/TrustedPairSummaryView.swift",
+      "destination": "apps/MunieRemodex/App/Views/Shared/TrustedPairSummaryView.swift",
+      "bytes": 2729,
+      "sha256": "f0a870e3b3bb62724b726c69c94fb1a0e0309f807da561d9729002943faf7dfb",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Shared/UIKitContextMenu.swift",
+      "destination": "apps/MunieRemodex/App/Views/Shared/UIKitContextMenu.swift",
+      "bytes": 5710,
+      "sha256": "4e5269ccc0026c0841f2e62f33538e346693d3aac164885806a7db82f89f9aed",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Shared/UsageStatusSummaryContent.swift",
+      "destination": "apps/MunieRemodex/App/Views/Shared/UsageStatusSummaryContent.swift",
+      "bytes": 9960,
+      "sha256": "7e20eacdfb51f838ba6b813265289b5849eb35d41dca6a17759221bfdb9ab24d",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Sidebar/ArchivedChatsView.swift",
+      "destination": "apps/MunieRemodex/App/Views/Sidebar/ArchivedChatsView.swift",
+      "bytes": 5378,
+      "sha256": "da9e04730eb2079aa5b84abbac9aa4ec80aceb221e30c813d951940fdd2b3bf6",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Sidebar/ManagedWorktreeCleanupSheet.swift",
+      "destination": "apps/MunieRemodex/App/Views/Sidebar/ManagedWorktreeCleanupSheet.swift",
+      "bytes": 4733,
+      "sha256": "8505326c1b89a71a8fa8888c55120b87ca1fb494030746bd9fcd453ba4f959db",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Sidebar/SidebarActionPill.swift",
+      "destination": "apps/MunieRemodex/App/Views/Sidebar/SidebarActionPill.swift",
+      "bytes": 7698,
+      "sha256": "47a36a9d0dbe3b71c6628abd877bb1bd32e8c4f94d82588d802a65de5f9d5d22",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Sidebar/SidebarActivityListView.swift",
+      "destination": "apps/MunieRemodex/App/Views/Sidebar/SidebarActivityListView.swift",
+      "bytes": 4579,
+      "sha256": "1bdf845214fa199c9ad0e5799db849277f968484a7ce48b51ade32e31588620e",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Sidebar/SidebarActivityRowContent.swift",
+      "destination": "apps/MunieRemodex/App/Views/Sidebar/SidebarActivityRowContent.swift",
+      "bytes": 6357,
+      "sha256": "ebed41b182c4c1c99c4b181134ec8c6d50596fd16f7405a9bc1f309e5344e2b0",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Sidebar/SidebarActivitySection.swift",
+      "destination": "apps/MunieRemodex/App/Views/Sidebar/SidebarActivitySection.swift",
+      "bytes": 1921,
+      "sha256": "9864ae7ba8fb17c3fd5bdd9f1d85ecd0e1dfa4ff9fc2d4cff49084713b39c905",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Sidebar/SidebarBottomActionBar.swift",
+      "destination": "apps/MunieRemodex/App/Views/Sidebar/SidebarBottomActionBar.swift",
+      "bytes": 3296,
+      "sha256": "cea73f36d51406466a99326e56e91f17833cd8258c04799a6c8da733ec1ff57e",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Sidebar/SidebarConnectionEmptyStateFooter.swift",
+      "destination": "apps/MunieRemodex/App/Views/Sidebar/SidebarConnectionEmptyStateFooter.swift",
+      "bytes": 2005,
+      "sha256": "3f526b45a2411f7c6ecd2b0f1d14721d530baa2d424c6e34ce99c7ab795db935",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Sidebar/SidebarConnectionEmptyStatePanel.swift",
+      "destination": "apps/MunieRemodex/App/Views/Sidebar/SidebarConnectionEmptyStatePanel.swift",
+      "bytes": 11905,
+      "sha256": "20d154ed7a3afd6fb9bed270864e3c45846007ff6f714f0769994624cfe223e0",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Sidebar/SidebarConnectionStatusBadge.swift",
+      "destination": "apps/MunieRemodex/App/Views/Sidebar/SidebarConnectionStatusBadge.swift",
+      "bytes": 4480,
+      "sha256": "fcef592c49860dc9b88ce452e6c38698ae6621f7a152bb51d594b7435cccfa85",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Sidebar/SidebarContentScopePicker.swift",
+      "destination": "apps/MunieRemodex/App/Views/Sidebar/SidebarContentScopePicker.swift",
+      "bytes": 7498,
+      "sha256": "51cdf0ef4463aeb02ce7f9f29133cc680826797839dcd96e6c5906551ffdd428",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Sidebar/SidebarFloatingSettingsButton.swift",
+      "destination": "apps/MunieRemodex/App/Views/Sidebar/SidebarFloatingSettingsButton.swift",
+      "bytes": 3077,
+      "sha256": "08057958078c99619da01e56147df755452b89e07b9cf1e8b8134f1c06cd535d",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Sidebar/SidebarForegroundStyle.swift",
+      "destination": "apps/MunieRemodex/App/Views/Sidebar/SidebarForegroundStyle.swift",
+      "bytes": 673,
+      "sha256": "c50b039cff5bd4b343fd4c018c7ec98892740bf029a4410f312679e7efd6618b",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Sidebar/SidebarHeaderView.swift",
+      "destination": "apps/MunieRemodex/App/Views/Sidebar/SidebarHeaderView.swift",
+      "bytes": 8904,
+      "sha256": "38f47ad3faf6abb27df65516807ad79d8ad956e499511c5d74d76fe7af845fd5",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Sidebar/SidebarLocalFolderBrowserSheet.swift",
+      "destination": "apps/MunieRemodex/App/Views/Sidebar/SidebarLocalFolderBrowserSheet.swift",
+      "bytes": 13032,
+      "sha256": "df3e28f1d867e9bc58654e3ea0bd93523460576e65f2429b74f8d77794d24642",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Sidebar/SidebarNewChatProjectPickerSheet.swift",
+      "destination": "apps/MunieRemodex/App/Views/Sidebar/SidebarNewChatProjectPickerSheet.swift",
+      "bytes": 9173,
+      "sha256": "0d52766c32e97db1ddd1043e7d9a6787fbebcd7e0f9d9a130d70ec3874ae78fa",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Sidebar/SidebarPinIcon.swift",
+      "destination": "apps/MunieRemodex/App/Views/Sidebar/SidebarPinIcon.swift",
+      "bytes": 1826,
+      "sha256": "ab3315ce9870ca67083d1d666b2985da0d2320e248b96fb0b4ac61a6855f0ee3",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Sidebar/SidebarPinnedSectionHeader.swift",
+      "destination": "apps/MunieRemodex/App/Views/Sidebar/SidebarPinnedSectionHeader.swift",
+      "bytes": 1452,
+      "sha256": "9e27f306f7f27d21f6689253b99ee021c9e5ce9943ec38cef4e4aef2a9ec81d4",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Sidebar/SidebarProjectSectionHeader.swift",
+      "destination": "apps/MunieRemodex/App/Views/Sidebar/SidebarProjectSectionHeader.swift",
+      "bytes": 4897,
+      "sha256": "681c3c4c119cb77ee206a6e76d0582df43797af52d1b1843e05d338518054c9f",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Sidebar/SidebarProjectShowMoreButton.swift",
+      "destination": "apps/MunieRemodex/App/Views/Sidebar/SidebarProjectShowMoreButton.swift",
+      "bytes": 1376,
+      "sha256": "f763922c54e54f38008bcb5cca341676eb9d759140fcc7ee2a5cd9ed958956b0",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Sidebar/SidebarSearchField.swift",
+      "destination": "apps/MunieRemodex/App/Views/Sidebar/SidebarSearchField.swift",
+      "bytes": 2846,
+      "sha256": "d3b7a17c16c44de60a4dfef05eb6055d36c6e70e2b2188d826557058fef80a57",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Sidebar/SidebarSectionHeader.swift",
+      "destination": "apps/MunieRemodex/App/Views/Sidebar/SidebarSectionHeader.swift",
+      "bytes": 5329,
+      "sha256": "772e0e8aecf7d65ad56f99fe74469067cc4de4a32d5a8140003c9cf827ee8964",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Sidebar/SidebarThreadContextMenu.swift",
+      "destination": "apps/MunieRemodex/App/Views/Sidebar/SidebarThreadContextMenu.swift",
+      "bytes": 3208,
+      "sha256": "0d0ace499327ad4c07e94de292a5d4ee7633618bc0c1396453322c4d03e16865",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Sidebar/SidebarThreadGroupBlock.swift",
+      "destination": "apps/MunieRemodex/App/Views/Sidebar/SidebarThreadGroupBlock.swift",
+      "bytes": 902,
+      "sha256": "7d8360b79dd1db2f145b902537972cd7cfac6411f3b008709856c25d5ec118dc",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Sidebar/SidebarThreadGrouping.swift",
+      "destination": "apps/MunieRemodex/App/Views/Sidebar/SidebarThreadGrouping.swift",
+      "bytes": 19881,
+      "sha256": "7113b5a5b02b2d45b70f9f4ad50b6b3b35c6ccb603b80ff6b36fb4d4908f12d9",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Sidebar/SidebarThreadListState.swift",
+      "destination": "apps/MunieRemodex/App/Views/Sidebar/SidebarThreadListState.swift",
+      "bytes": 8104,
+      "sha256": "bff93de28e4177951c66dd60505d3968d39260c097ecb7c303ad1909699ab18b",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Sidebar/SidebarThreadListView.swift",
+      "destination": "apps/MunieRemodex/App/Views/Sidebar/SidebarThreadListView.swift",
+      "bytes": 28078,
+      "sha256": "9fae870d432cc1f9de5935ba810398c24d2a7ff5c393c1ce326c1f4ddcfd8fb8",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Sidebar/SidebarThreadRowView.swift",
+      "destination": "apps/MunieRemodex/App/Views/Sidebar/SidebarThreadRowView.swift",
+      "bytes": 12212,
+      "sha256": "17aeac03c47e0373cef894bbd8407f5b1f740cd58dbb04d642af81f55d5dc5cc",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Sidebar/SidebarThreadRunBadgeView.swift",
+      "destination": "apps/MunieRemodex/App/Views/Sidebar/SidebarThreadRunBadgeView.swift",
+      "bytes": 1838,
+      "sha256": "9d6898687f0ba18970876b7a05cda3263d29a1b459d351dfa08b7dd6eb810452",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Sidebar/SidebarThreadSourceLabel.swift",
+      "destination": "apps/MunieRemodex/App/Views/Sidebar/SidebarThreadSourceLabel.swift",
+      "bytes": 2213,
+      "sha256": "0b9cdd29d0e6072d64a9c05d073028ea1d0968a74f8144baa4159fcfbbb1f756",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Sidebar/SidebarThreadStatusIcon.swift",
+      "destination": "apps/MunieRemodex/App/Views/Sidebar/SidebarThreadStatusIcon.swift",
+      "bytes": 1900,
+      "sha256": "07cf613d9798f99e68fab0d95171929f50ac7139be0283e62de0edb9bf8c37db",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Sidebar/SidebarToolbarIconButton.swift",
+      "destination": "apps/MunieRemodex/App/Views/Sidebar/SidebarToolbarIconButton.swift",
+      "bytes": 3347,
+      "sha256": "37cafb52b2a05d3f690b40766f4e852d8a8ca863f4e057c85a236c1171afb01c",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Sidebar/SidebarTopActionsRow.swift",
+      "destination": "apps/MunieRemodex/App/Views/Sidebar/SidebarTopActionsRow.swift",
+      "bytes": 3725,
+      "sha256": "32de56d4503450fe1e11b7c0d4b23784aeb002110fa90ed24a2a745dd9e872a1",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/SidebarView.swift",
+      "destination": "apps/MunieRemodex/App/Views/SidebarView.swift",
+      "bytes": 40471,
+      "sha256": "38c965a88b41e0149c15de8839292277d02c024561ffc90c00ceb9071f979056",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Terminal/GhosttyTerminalSurface.swift",
+      "destination": "apps/MunieRemodex/App/Views/Terminal/GhosttyTerminalSurface.swift",
+      "bytes": 4038,
+      "sha256": "b4f727eb4179fd6799aecdeccd9b04990fe74a31778672af07c16f0e73802c13",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Terminal/GhosttyTerminalView.swift",
+      "destination": "apps/MunieRemodex/App/Views/Terminal/GhosttyTerminalView.swift",
+      "bytes": 64335,
+      "sha256": "7ace35fbefaa87bd6821a4c3cfd81d91b68dedc39269f66a645e8bcee509458c",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Terminal/TerminalConnectionEditorFields.swift",
+      "destination": "apps/MunieRemodex/App/Views/Terminal/TerminalConnectionEditorFields.swift",
+      "bytes": 6071,
+      "sha256": "e51a40a35e4aabd741462485246abdee6339fdb5b226e8eee042e5816bd32204",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Terminal/TerminalConnectionEditorSheet.swift",
+      "destination": "apps/MunieRemodex/App/Views/Terminal/TerminalConnectionEditorSheet.swift",
+      "bytes": 7634,
+      "sha256": "701f54045d24c63cb5b990cf844fe2399cab34fb068a6578efc42fb9fce4a73a",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Terminal/TerminalConnectionHelpSheet.swift",
+      "destination": "apps/MunieRemodex/App/Views/Terminal/TerminalConnectionHelpSheet.swift",
+      "bytes": 16521,
+      "sha256": "79e849881e436896aedeef4814f32c2f1c43ec34708f9091e8a98f2da331f179",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Terminal/TerminalFallbackSurface.swift",
+      "destination": "apps/MunieRemodex/App/Views/Terminal/TerminalFallbackSurface.swift",
+      "bytes": 4572,
+      "sha256": "3be962bd6fac9e2de6521609e494a719d1766a94d63e4f76d9921e288d0b7040",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Terminal/TerminalOptionsMenu.swift",
+      "destination": "apps/MunieRemodex/App/Views/Terminal/TerminalOptionsMenu.swift",
+      "bytes": 5260,
+      "sha256": "e419b6f79b7e626e05fdb63d160d1b839c72e878789052c454ef95cfbe2f02c0",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Terminal/TerminalRouteChrome.swift",
+      "destination": "apps/MunieRemodex/App/Views/Terminal/TerminalRouteChrome.swift",
+      "bytes": 20673,
+      "sha256": "49863bc7a043e640362d7159655ca11368f7ed670225fb7405c6f8a366d51609",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Terminal/TerminalScreen.swift",
+      "destination": "apps/MunieRemodex/App/Views/Terminal/TerminalScreen.swift",
+      "bytes": 28768,
+      "sha256": "e3f504bc20edff94c3b7fd8031bdd01111d26f2adff787da624791d117f1bbcc",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Terminal/TerminalSelectableTextSheet.swift",
+      "destination": "apps/MunieRemodex/App/Views/Terminal/TerminalSelectableTextSheet.swift",
+      "bytes": 2650,
+      "sha256": "e9082cf47eafd0db78163d56bef6199f15285364ee3d190264cba984cd3ad615",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Terminal/TerminalUIModels.swift",
+      "destination": "apps/MunieRemodex/App/Views/Terminal/TerminalUIModels.swift",
+      "bytes": 3867,
+      "sha256": "92ed995771d3788400857a59ce3a2ddbe5bcbd353e9c666f61732f3f004f8f7d",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Composer/AllModelsSheet.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Composer/AllModelsSheet.swift",
+      "bytes": 3621,
+      "sha256": "c5a285f736c772e1789a56c7eea71fb0a786a768e9bf5ba04b25f4fbe77d8f4e",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Composer/AutocompleteRowButtonStyle.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Composer/AutocompleteRowButtonStyle.swift",
+      "bytes": 521,
+      "sha256": "a3ea0f8d278508e4f91218cfe9f54a78dcec5a5cb3984d52c274260a42762f0a",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Composer/CameraImagePicker.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Composer/CameraImagePicker.swift",
+      "bytes": 2470,
+      "sha256": "9d2521f895b61089cd01b225f5bbb9675294430bf04d03c9bcf8f1b6a075fa6a",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Composer/ComposerAccessModeControl.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Composer/ComposerAccessModeControl.swift",
+      "bytes": 4276,
+      "sha256": "f85f1a03f4eae0f5c8f8635f9cb05c1980512d883fc3a562eb848a958e35a53b",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Composer/ComposerAttachmentTile.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Composer/ComposerAttachmentTile.swift",
+      "bytes": 3175,
+      "sha256": "ea5e20b01750b6010893e96f7aba19aab7e34c58af4250116ae7ad4aa581d6d4",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Composer/ComposerAttachmentsPreview.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Composer/ComposerAttachmentsPreview.swift",
+      "bytes": 811,
+      "sha256": "4864fb066b6fa4ca0b241d077462ed1ada8aed1a04cc31033ca92e5f1679ab4c",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Composer/ComposerBottomBar.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Composer/ComposerBottomBar.swift",
+      "bytes": 11893,
+      "sha256": "c8bc71043a02b1972a2bbc4d519bb3f3615c6f3aa5985fd8c87cccbbe24fe4e2",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Composer/ComposerControls.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Composer/ComposerControls.swift",
+      "bytes": 8385,
+      "sha256": "61dc26f0966b68ab1e897cf7c2163e7aa8e8a1b2cdf69facbfa2e98511179f14",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Composer/ComposerRuntimeSliderOverlay.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Composer/ComposerRuntimeSliderOverlay.swift",
+      "bytes": 17842,
+      "sha256": "58e25dc33d0804c6344411c7336f46b166894dacd503d50d2ea4b88a6eb70d6a",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Composer/FileAutocompletePanel.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Composer/FileAutocompletePanel.swift",
+      "bytes": 6796,
+      "sha256": "1f171708aa0360a880206acca9985c5fb0948da1de504e3dabd98ebb34727c77",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Composer/QueuedDraftsPanel.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Composer/QueuedDraftsPanel.swift",
+      "bytes": 8185,
+      "sha256": "856e0a17f77508b400a933c6d99aded7193d478c9b181ded012da811217c8317",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Composer/SkillAutocompletePanel.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Composer/SkillAutocompletePanel.swift",
+      "bytes": 4798,
+      "sha256": "50626ad72a0a5c30fc39225543d61ec2e7e5b7c19a6995386d031f044d1bc4f8",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Composer/SlashCommandAutocompletePanel.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Composer/SlashCommandAutocompletePanel.swift",
+      "bytes": 13064,
+      "sha256": "c7e364e2e988103272b06359378860d275e5904fa6f9b0ac396739044478049b",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Composer/TurnAttachmentPipeline.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Composer/TurnAttachmentPipeline.swift",
+      "bytes": 4372,
+      "sha256": "49932121f031c78baa7e45656cf433de72acede9641a744c882a84d8bf4a0e73",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Composer/TurnComposerCollapsibleContextCluster.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Composer/TurnComposerCollapsibleContextCluster.swift",
+      "bytes": 9092,
+      "sha256": "9e9f84cd4777344ee7eac440cf1b6244554c31681b472dcb0ee6fd8694f48691",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Composer/TurnComposerCommandState.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Composer/TurnComposerCommandState.swift",
+      "bytes": 10637,
+      "sha256": "1dbcefa850a429f36fbd416e10f5a6c7b4cb2fccc3bdb6c00ea765a11d838a5d",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Composer/TurnComposerGitContext.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Composer/TurnComposerGitContext.swift",
+      "bytes": 1625,
+      "sha256": "2a33d191922bf357862986da2317e61aec9c1c3e267b42d3eb676832bc5a8480",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Composer/TurnComposerHostView.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Composer/TurnComposerHostView.swift",
+      "bytes": 20427,
+      "sha256": "ef12a1ac6629cd70cbbb4a29d1a09b002f3e2d77d17576bbd1cd4f684230be6f",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Composer/TurnComposerInlineSkillToken.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Composer/TurnComposerInlineSkillToken.swift",
+      "bytes": 7690,
+      "sha256": "92a1ef9ba1b1cb594158517e37107fc7605a815745988b620668ee1745d1eec4",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Composer/TurnComposerInputTextView.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Composer/TurnComposerInputTextView.swift",
+      "bytes": 29890,
+      "sha256": "5bbd1da12f02ec6ac43182692f8444104605229e0692c350f44b577c727ec7ed",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Composer/TurnComposerMetaMapper.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Composer/TurnComposerMetaMapper.swift",
+      "bytes": 9777,
+      "sha256": "a849107878935eebeb5156cde5dab158cdb1e5f71601180494832fda6af23e1a",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Composer/TurnComposerRuntimeActions.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Composer/TurnComposerRuntimeActions.swift",
+      "bytes": 1406,
+      "sha256": "c36b65e640a8d53a5017569914ed10e150c135f35c675c13e553c85bf4ea9de2",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Composer/TurnComposerRuntimeMenuBuilder.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Composer/TurnComposerRuntimeMenuBuilder.swift",
+      "bytes": 2791,
+      "sha256": "e8b02ec56f5b78a560b61d08483ce16470835da3ac90696720e0cf2cc2a3a02e",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Composer/TurnComposerRuntimeState.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Composer/TurnComposerRuntimeState.swift",
+      "bytes": 3188,
+      "sha256": "f44a4b8f5c493fe78e75a05007337f65de68964273f032ad2d829e315ecbc809",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Composer/TurnComposerRuntimeUIKitMenu.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Composer/TurnComposerRuntimeUIKitMenu.swift",
+      "bytes": 4534,
+      "sha256": "9757c63fd1d29cedd6d7bc3d2d8cdcc7781773684ca650f78187b1b4951e8452",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Composer/TurnComposerSecondaryBar.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Composer/TurnComposerSecondaryBar.swift",
+      "bytes": 6810,
+      "sha256": "3b6db93f1b9ec562984b2cf2139be6e613848cc440ba04d5d1545dc81046ebf9",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Composer/TurnComposerView.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Composer/TurnComposerView.swift",
+      "bytes": 42342,
+      "sha256": "76bc850f537075ae155f768475be0fcac155c7385203fea20f7de936dbf8eca8",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Composer/TurnComposerViewState.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Composer/TurnComposerViewState.swift",
+      "bytes": 3761,
+      "sha256": "94617f312d9194333ce804909106a840f4e603bf9b0e2d04b4d62d39ee6b0db8",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Composer/TurnMentionChips.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Composer/TurnMentionChips.swift",
+      "bytes": 23257,
+      "sha256": "d9e57c64e02ffe64166d376975e3845ddf9c78dd60ce97dbbaf6cab2cb27f66f",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Composer/UIKitMenuButton.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Composer/UIKitMenuButton.swift",
+      "bytes": 6056,
+      "sha256": "576e7401b6cd79f60d4c046bc13e25489a553fe0a08d24d15d1d80b454e73b58",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Composer/UserMessageMentionParsing.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Composer/UserMessageMentionParsing.swift",
+      "bytes": 2454,
+      "sha256": "cc088657d4e0b854e235482014657102a8496c2deba226c8a0305fd2f4caceac",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Core/ChatEmptyStatePlaceholder.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Core/ChatEmptyStatePlaceholder.swift",
+      "bytes": 2203,
+      "sha256": "6c61313e241e015afb62b23817bf6ee934400e659a758673ce02220c92a55a71",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Core/NewChatDraftView.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Core/NewChatDraftView.swift",
+      "bytes": 55509,
+      "sha256": "25a9a692fe07a680fbc23b968e8bef9236b00b2b6e45c90fbd35dc7a53577f7f",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Core/TurnChatToolbarTitleLabel.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Core/TurnChatToolbarTitleLabel.swift",
+      "bytes": 2138,
+      "sha256": "91981f68c97fb6d5c54eaa642bee850e53468bbd6a8a70e5f63157618231255b",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Core/TurnConnectionRecoverySnapshotBuilder.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Core/TurnConnectionRecoverySnapshotBuilder.swift",
+      "bytes": 2641,
+      "sha256": "1d70047ae40d78da6febcf88f283afd735083ae2397e3bd1abdc08d721b8c91f",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Core/TurnConversationContainerView.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Core/TurnConversationContainerView.swift",
+      "bytes": 15096,
+      "sha256": "296e815211af86dc1e814d492a2ab381ebc8dffb67f208cf0a0f50ca0412c0c4",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Core/TurnFooterErrorFilter.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Core/TurnFooterErrorFilter.swift",
+      "bytes": 2077,
+      "sha256": "5208d6714e6d700076a206212492933a519f0d7d6859105bd50bdb37e4dbc35a",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Core/TurnToolbarContent.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Core/TurnToolbarContent.swift",
+      "bytes": 19711,
+      "sha256": "df84a8d023b1a02fb8fad26b12d3856a541b036ef7d0eb19a039d4a9515530ed",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Core/TurnView.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Core/TurnView.swift",
+      "bytes": 80615,
+      "sha256": "b23e69b1723a37fad47764aaf14934f274f8f9af42cd6626c30f4e1410d2ad02",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Core/TurnViewAlertModifier.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Core/TurnViewAlertModifier.swift",
+      "bytes": 7112,
+      "sha256": "b4e5a9a33190ca945b94bc67f1e003af320376e8910673bc4d90b6d335399a9f",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Core/TurnViewLifecycleModifier.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Core/TurnViewLifecycleModifier.swift",
+      "bytes": 3561,
+      "sha256": "dd6f62b89cf3d484001b452e688e82b102159587a07e73728958e2639c9fae2a",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Core/TurnViewModel+GitBranchWorktree.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Core/TurnViewModel+GitBranchWorktree.swift",
+      "bytes": 37916,
+      "sha256": "cc00b2f3a85ef039a55443aa4c0984b014d766ddc9f12a2b0e492f52a7c1356e",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Core/TurnViewModel+StreamRecovery.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Core/TurnViewModel+StreamRecovery.swift",
+      "bytes": 1306,
+      "sha256": "372a3fb83b78c81340e1e054f9b42461880f2a215cc476c8e9365c123e543700",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Core/TurnViewModel.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Core/TurnViewModel.swift",
+      "bytes": 148086,
+      "sha256": "0a7f0ae32f610965d32c19fb6fd44f1732e4dba8442ab3fae40331be56a40627",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Core/TurnViewSupportViews.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Core/TurnViewSupportViews.swift",
+      "bytes": 5016,
+      "sha256": "b48c6d27c82048aa0ff9ed8d1c88bf5df5581771584ab6197f516bbfd5f54654",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Diff/TurnDiffRenderer.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Diff/TurnDiffRenderer.swift",
+      "bytes": 3517,
+      "sha256": "63e6eff3d5665d3d34ed62057d1b4c6c4687c3a239a9da0e092732edd8e2e53a",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Diff/TurnDiffSheet.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Diff/TurnDiffSheet.swift",
+      "bytes": 16002,
+      "sha256": "58602d8de700ab3e5c8adc8740be9f2d2e8d698632c7dd910adfc7ef777003dd",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Diff/TurnFileChangeBlockPresentation.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Diff/TurnFileChangeBlockPresentation.swift",
+      "bytes": 16418,
+      "sha256": "9303f1c38fca5052957f2109b5322d36d68e6d4779219db9ccc06388e55b81d6",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Diff/TurnFileChangeSummaryParser.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Diff/TurnFileChangeSummaryParser.swift",
+      "bytes": 22065,
+      "sha256": "bf511755fa35a09af07ac16e6d5b93c9d1859edff3036adfe9d79aa1b463c6db",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Diff/TurnFileChangeSummaryViews.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Diff/TurnFileChangeSummaryViews.swift",
+      "bytes": 10229,
+      "sha256": "586d5e98f2779edb1d1a0b2647c2f74a38ad44d4a4accdf84f264980776457bc",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Diff/TurnPerFileDiffParser.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Diff/TurnPerFileDiffParser.swift",
+      "bytes": 14270,
+      "sha256": "7d8ca7416bd823ae190ebaaabc2c232a2bf68e4870fefcc08565877d3df5d335",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Diff/TurnSessionDiffSummary.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Diff/TurnSessionDiffSummary.swift",
+      "bytes": 4737,
+      "sha256": "f8c46d36d0560ab64dc496c0ea46aa9593d93cee6858a67a548a8d41abdf8ded",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Diff/TurnUnifiedDiffView.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Diff/TurnUnifiedDiffView.swift",
+      "bytes": 22985,
+      "sha256": "9d88cfa7e81acaa40873bd188a2553e51ed551064021ea934f6867375b5c696c",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Git/AssistantRevertSheet.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Git/AssistantRevertSheet.swift",
+      "bytes": 8965,
+      "sha256": "9574d1b789df43b2e4712d94e7517c767369f5c458af2e7c47883ccddaa9f8d3",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Git/AssistantTurnEndActionsView.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Git/AssistantTurnEndActionsView.swift",
+      "bytes": 4064,
+      "sha256": "db0b5b3c3d84ee52571a487e15a4439fe357310c0a36755d176b852979218eba",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Git/TurnGitActionToastOverlay.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Git/TurnGitActionToastOverlay.swift",
+      "bytes": 3670,
+      "sha256": "599712fa9ebd3390c658204d9cdb68305234f97b07b3dda6a8f7e48892952121",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Git/TurnGitActionsToolbar.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Git/TurnGitActionsToolbar.swift",
+      "bytes": 18290,
+      "sha256": "ffc772de1fb403e8b61a93df967b4e06d3868b5f685888a8cfd331d9a8e3f9fa",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Git/TurnGitBranchSelector.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Git/TurnGitBranchSelector.swift",
+      "bytes": 19489,
+      "sha256": "9815b31a70738ca13b577db8f3ddcf5235dcc79802e60ac468fa18d11cfbd56f",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Git/TurnWorktreeHandoffOverlay.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Git/TurnWorktreeHandoffOverlay.swift",
+      "bytes": 7428,
+      "sha256": "17fd1bc2430b2cb4090131b0665aa596562df82fc3da5f5fe4fc580a6859e2b3",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Git/TurnWorktreeRouting.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Git/TurnWorktreeRouting.swift",
+      "bytes": 1480,
+      "sha256": "4dbbbc1b8c03143581f060de94535e8656c620902b966beb1342301cd68e4137",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/AssistantMemoryCitationParser.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/AssistantMemoryCitationParser.swift",
+      "bytes": 5040,
+      "sha256": "692d75a952c5ab48f55cadfd5964e51ff8dd158705c6ec45611be3ffbb4b1e04",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/AsyncUserInputCardView.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/AsyncUserInputCardView.swift",
+      "bytes": 5957,
+      "sha256": "682e608f50774a32e9f9706c378a41816df3a3367a1a559c815a0242b891fd50",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/AutoApprovalReviewRow.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/AutoApprovalReviewRow.swift",
+      "bytes": 7809,
+      "sha256": "968c6cf1d9d66ae8a568ac6d108862b3244f3bb70b99c0bc36f14c829e32c780",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/CodeCommentDirectiveParser.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/CodeCommentDirectiveParser.swift",
+      "bytes": 6873,
+      "sha256": "45412f1d408a6b8e43a149088d5edc9f8edf74e516cfa7bdbc82f694c5e8f9c2",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/CodeCommentFindingCard.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/CodeCommentFindingCard.swift",
+      "bytes": 3300,
+      "sha256": "6ce01e78371432a4dae51d22ae0903e8695cf9a2d8354ed7686f4a15b915fbd5",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/CommandExecutionStatusCard.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/CommandExecutionStatusCard.swift",
+      "bytes": 7738,
+      "sha256": "85bb093895df2100d2e2417b173e12f12bddb45e828d93282ca1a8567eeebe4b",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/CommandExecutionViews.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/CommandExecutionViews.swift",
+      "bytes": 40280,
+      "sha256": "1488060e61ba52cb163a00fd5b55140e26aa3d6a7ac27a7cba3633aa2f7ee32b",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/CopyBlockButton.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/CopyBlockButton.swift",
+      "bytes": 3817,
+      "sha256": "2513bac9f8be01cc084c3faa5ebc2cefabc8364ca23ee21a80d7e4e19c06ac62",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/FileChangeStatusCapsule.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/FileChangeStatusCapsule.swift",
+      "bytes": 7460,
+      "sha256": "5e14035d089a0d23a53bb8672d6a21d7ce90bde5920dd9a732e149d02324ac77",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/MarkdownTextFormatter.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/MarkdownTextFormatter.swift",
+      "bytes": 11328,
+      "sha256": "3f1fb4ea9a7a52ced90d746fba630b8a0255c11c4e014e26151904ac3568c03a",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/SelectableMessageTextSheet.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/SelectableMessageTextSheet.swift",
+      "bytes": 2152,
+      "sha256": "006998079757b16a48f54c15be75f221c24f7153113d2265268ded347dafffb5",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/SkillReferenceFormatter.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/SkillReferenceFormatter.swift",
+      "bytes": 8681,
+      "sha256": "c0e14a0ee77b385ffce81c8205c2dad88071a36bf38ac90444b0eca4bb09a742",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/StreamingAssistantMarkdownTextView.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/StreamingAssistantMarkdownTextView.swift",
+      "bytes": 19657,
+      "sha256": "05ef60bd10e1142d7d527ad12a8455d97006b8ea9a405829ca87be39803770df",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/StreamingInlineMarkupAutoCloser.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/StreamingInlineMarkupAutoCloser.swift",
+      "bytes": 7536,
+      "sha256": "17a4beb5e19566d6abd5e9019be9d5c1aec49a0c96786458661aba33f7b483b0",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/StreamingMarkdownBlockSplitter.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/StreamingMarkdownBlockSplitter.swift",
+      "bytes": 7347,
+      "sha256": "82cd2c91e9cf7d499f0e48fa620e83e245463781915cdecefd44ccbe700bfc91",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/StreamingMarkdownFence.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/StreamingMarkdownFence.swift",
+      "bytes": 1302,
+      "sha256": "ccfb8481ef94a445197ad5d30daa844ec1deea0d12bbb757c112ef16778edd5c",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/StreamingMarkdownReveal.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/StreamingMarkdownReveal.swift",
+      "bytes": 8400,
+      "sha256": "a7ce8141b284f339dd00c9f19ad02445f0fd2dc4945f1fadb9064c0b62bfe543",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/SubagentViews.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/SubagentViews.swift",
+      "bytes": 20757,
+      "sha256": "34c973777abbccbca5a6c5a3d96a94350e1df0f8c400be1f9f72c610aa0116d1",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/SystemMessageContentView.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/SystemMessageContentView.swift",
+      "bytes": 10665,
+      "sha256": "52340699fc4a6826da470213164f8301c4643adc59cb30234cfef96972a1c782",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/ThinkingDisclosureParser.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/ThinkingDisclosureParser.swift",
+      "bytes": 8346,
+      "sha256": "80eebafdf3dfa7dd2addc42bf9fb1c19fbecc895240c7ed3a79f4a6992cf92f3",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/ThinkingSystemBlock.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/ThinkingSystemBlock.swift",
+      "bytes": 10460,
+      "sha256": "73abd2a91ce5fc7f2d5b92116d3d34de18382c1f261b13901366d80b777909a6",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/TurnMarkdownModels.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/TurnMarkdownModels.swift",
+      "bytes": 715,
+      "sha256": "757e2c8c02eae0d25b0bc836309c84ae404d218fb3e0647703efe6667f8ea816",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/TurnMarkdownTextRendering.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/TurnMarkdownTextRendering.swift",
+      "bytes": 9503,
+      "sha256": "2819e4f45395d9e68731b0ce46d9365869b806d2ba5cdab658449d95f4a9750b",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/TurnMermaidRenderer.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/TurnMermaidRenderer.swift",
+      "bytes": 33465,
+      "sha256": "745a2cf0d5451a06ec256baa19551253173a78f1804fb115a5e4029fa0e5ea36",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/TurnMessageAccessoryViews.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/TurnMessageAccessoryViews.swift",
+      "bytes": 2694,
+      "sha256": "b8b01154830f0788a04a16213b0b7146c2c3162d4a62aba0c8ed22cce9217796",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/TurnMessageCacheCore.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/TurnMessageCacheCore.swift",
+      "bytes": 5214,
+      "sha256": "e04faefd613015dbc054ce431a50b3d00603facbbac1f9ade4a79d7a72e2e941",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/TurnMessageCaches.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/TurnMessageCaches.swift",
+      "bytes": 19170,
+      "sha256": "24073cf69820df45fb9a6a6837d20bca38c07730663043006e740ce56b3c05d7",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/TurnMessageComponents.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/TurnMessageComponents.swift",
+      "bytes": 39205,
+      "sha256": "9392212b3e8ae5aac73493550501452f656b455ef97f59cef525f3e582aab0d7",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/TurnMessageEnvironmentKeys.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/TurnMessageEnvironmentKeys.swift",
+      "bytes": 2504,
+      "sha256": "5c741de937c494ab71939548e96c8f47f1f19b640a369b181695b2e616d2b415",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/TurnMessageRegexCache.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/TurnMessageRegexCache.swift",
+      "bytes": 7453,
+      "sha256": "883610942efa4cce354853f6731d08fa5a9de521d371e19181c3eb6ea618de42",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/UserAttachmentViews.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/UserAttachmentViews.swift",
+      "bytes": 4274,
+      "sha256": "4422147b8115370a83fbcfa8c7af6ee405a159d76f338a35880189997c9d5e8e",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/UserBubbleInlineMarkdownText.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/UserBubbleInlineMarkdownText.swift",
+      "bytes": 13533,
+      "sha256": "da1e8a0febf56f0cc4a5097fd7975ae99a42a3a0dd71d66e2338f3ad550530a7",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/UserBubbleLayout.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/UserBubbleLayout.swift",
+      "bytes": 754,
+      "sha256": "783d27785d1353f2436b4d83111e00aa939ba3c179e138784ab5750243b513b0",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/UserBubbleTextBlock.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/UserBubbleTextBlock.swift",
+      "bytes": 3064,
+      "sha256": "ef3d62488d0cde497e6b89f64d96dd0144e8585020246aa698ed3f635df938cd",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/UserMessageBubble.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/UserMessageBubble.swift",
+      "bytes": 25032,
+      "sha256": "49e3d3781c0620492990a0d6ea7d8fa036ed671a869076ff907b64e933286221",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/WorkspaceImagePreview.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/WorkspaceImagePreview.swift",
+      "bytes": 53483,
+      "sha256": "091f517001ee968cbf4ebce87318a2414c564a613681973c0d5d2bcebcef985c",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Messages/WorkspaceSVGPreviewSecurity.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Messages/WorkspaceSVGPreviewSecurity.swift",
+      "bytes": 1355,
+      "sha256": "0d8428b24dad2477fabd625e95ec0456be753175f92edf62308a5c8a292ba7c5",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Plan/PlanAccessoryCard.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Plan/PlanAccessoryCard.swift",
+      "bytes": 18945,
+      "sha256": "2016dcf09dd7fb937cc9d0e596149d4d1562f7835111787f1e98683b51969124",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Plan/StructuredUserInputCardView.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Plan/StructuredUserInputCardView.swift",
+      "bytes": 24500,
+      "sha256": "5390e010e8c3687ba4b4c85d9edd3e9fe40fab08e5c2875f3943a10c194e70c7",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Plan/TurnPlanModeComponents.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Plan/TurnPlanModeComponents.swift",
+      "bytes": 37407,
+      "sha256": "135f25ffb3a04a0bbe5a0fd77853bc79d9a4ae506c31aa5bbd94fc1ae515645c",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Support/ConnectionRecoveryCard.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Support/ConnectionRecoveryCard.swift",
+      "bytes": 5526,
+      "sha256": "39618b5d38c0cf2b2efb2d0cdf7c02f1e2f88ab0e14cca954b5057ea5af9f88b",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Support/ContextWindowProgressRing.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Support/ContextWindowProgressRing.swift",
+      "bytes": 4138,
+      "sha256": "85b895f205275d6730b6f3101e68db231e56da0f3dfe2846662d8618a40368cc",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Support/GoalStatusChip.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Support/GoalStatusChip.swift",
+      "bytes": 6373,
+      "sha256": "77d050095597ebf19eca3a004135c48584dc3988bfa799c114237a86af3cc1cb",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Support/GoalStatusSheet.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Support/GoalStatusSheet.swift",
+      "bytes": 13074,
+      "sha256": "24ad6ecfd927eac1e1fad95d33080a70d83cf73d9e6c47800e14c9bed1031a9c",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Support/TerminalRunningIndicator.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Support/TerminalRunningIndicator.swift",
+      "bytes": 1863,
+      "sha256": "78fdedf0842473b28a3cb2c7f11ab226423163f3a70ef89553a57cba1fadcae3",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Support/TurnAttachmentThumbnailMetrics.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Support/TurnAttachmentThumbnailMetrics.swift",
+      "bytes": 356,
+      "sha256": "e03ae0ef54e7a3353106da392e23d475086b6afb3710f07ecba0883832d33f0c",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Support/TurnErrorReportCard.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Support/TurnErrorReportCard.swift",
+      "bytes": 2654,
+      "sha256": "ba835ef2db24992f3f4b1f939f2e91821bb3b3dc23cf90a591f98c9ea0b877a6",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Support/TurnImagePreview.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Support/TurnImagePreview.swift",
+      "bytes": 6966,
+      "sha256": "0b4959a2e63cac4dee546f16556f857eb007a97857297d524e0656c2ea24c924",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Support/TurnStatusSheet.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Support/TurnStatusSheet.swift",
+      "bytes": 1328,
+      "sha256": "f606dcc9540afff537f83fbe2364df02525c804382e08a6d87d921fd4c95caa7",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Timeline/TurnScrollStateTracker.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Timeline/TurnScrollStateTracker.swift",
+      "bytes": 5322,
+      "sha256": "28d159a4c51d05b16cffb30d575aaa72f9e62b8fed7c1a5d1905c8d90a09d32c",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Timeline/TurnTimelineBlockAccessories.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Timeline/TurnTimelineBlockAccessories.swift",
+      "bytes": 17022,
+      "sha256": "ae9b0914eb1a00e57dbb18414e662b9448129401e350d66bd3c2ac533776f880",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Timeline/TurnTimelineCacheKeys.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Timeline/TurnTimelineCacheKeys.swift",
+      "bytes": 2555,
+      "sha256": "4fd8818affd5d96b52277c929eb3a8c3907a4694dd5796deba9ae3e9e80fe940",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Timeline/TurnTimelineCommandGroupView.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Timeline/TurnTimelineCommandGroupView.swift",
+      "bytes": 4877,
+      "sha256": "f4a86c1a504e86f5a048758fa7d6c081ece33c95816bd24747b6db02b3c0aece",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Timeline/TurnTimelineFooter.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Timeline/TurnTimelineFooter.swift",
+      "bytes": 2500,
+      "sha256": "b8a511e633a226368edbca2c2777752a093a8f0a6190614f4c7f58726b5081e3",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Timeline/TurnTimelinePlaceholderViews.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Timeline/TurnTimelinePlaceholderViews.swift",
+      "bytes": 1489,
+      "sha256": "55dd9f408062bde37dd8d64bb303692e0bb44d916628781840e518cd4bc64b75",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Timeline/TurnTimelineReducer.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Timeline/TurnTimelineReducer.swift",
+      "bytes": 61915,
+      "sha256": "91aa7880fbcf3e6203cbddb2db0fd2f92525a6fa7335dfd8346df65509c6b5b0",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Timeline/TurnTimelineRenderProjection.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Timeline/TurnTimelineRenderProjection.swift",
+      "bytes": 52251,
+      "sha256": "bbb1d55337eaf82185abe3d34ab4935a10ea987a2ce23d6d2be9117aee146b81",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Timeline/TurnTimelineRows.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Timeline/TurnTimelineRows.swift",
+      "bytes": 24421,
+      "sha256": "217b4d45ebafe8b11c57a339acdcfc2a730e57724e8032bf8a9153999bf6ad95",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Timeline/TurnTimelineScrollSupport.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Timeline/TurnTimelineScrollSupport.swift",
+      "bytes": 11727,
+      "sha256": "ebced15cf2f8ec878682c014038ad563c35c478e2bf0b42000af3151c6380809",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Timeline/TurnTimelineView.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Timeline/TurnTimelineView.swift",
+      "bytes": 62746,
+      "sha256": "14303c3a33070aee7a35a322daab9905e853a9003a94458a9a41005f55aef712",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Voice/GPTVoiceSetupSheet.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Voice/GPTVoiceSetupSheet.swift",
+      "bytes": 4501,
+      "sha256": "ad2952504d77c3857922c9e3411b4786695f788799e2c625a2ba1704c17b5cff",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Voice/TurnVoicePresentationBuilders.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Voice/TurnVoicePresentationBuilders.swift",
+      "bytes": 8163,
+      "sha256": "158ef62fd326cb3473504e42e79c70cf91ac7fb22cf23378b3220af3bcf5728e",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Voice/VoiceInputCoordinator.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Voice/VoiceInputCoordinator.swift",
+      "bytes": 12304,
+      "sha256": "24fad260e74c2e46c98db208c8264f713d59677820a2f16833120ccaa7711107",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Voice/VoiceRecordingCapsule.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Voice/VoiceRecordingCapsule.swift",
+      "bytes": 13993,
+      "sha256": "deedf96b1157d88b1df82d39b0467e57cf32224d04e78c4ce17bdb330ae275bd",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Views/Turn/Voice/VoiceTranscriptionBackgroundTask.swift",
+      "destination": "apps/MunieRemodex/App/Views/Turn/Voice/VoiceTranscriptionBackgroundTask.swift",
+      "bytes": 1951,
+      "sha256": "d1f528ad68249544a24c73559b95091a913e083dfdbd185b12a4c9d38adbf3fc",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "LICENSE",
+      "destination": "apps/MunieRemodex/LICENSE",
+      "bytes": 10338,
+      "sha256": "0b29f8cd089e60610dc1cb4d380919eae28a566b9d97ac30dbcfb37951882c5a",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Assets.xcassets/AccentColor.colorset/Contents.json",
+      "destination": "apps/MunieRemodex/Resources/Assets.xcassets/AccentColor.colorset/Contents.json",
+      "bytes": 123,
+      "sha256": "9af65086fa30b49252fae1a1225731691de794f7775af74d71befeb507d12b7c",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Assets.xcassets/Color.colorset/Contents.json",
+      "destination": "apps/MunieRemodex/Resources/Assets.xcassets/Color.colorset/Contents.json",
+      "bytes": 695,
+      "sha256": "1f35d01ac5cd215175ddea857e16ceec171a532f8a512568a3bb00cd83c4e278",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Assets.xcassets/command.colorset/Contents.json",
+      "destination": "apps/MunieRemodex/Resources/Assets.xcassets/command.colorset/Contents.json",
+      "bytes": 695,
+      "sha256": "b2a38cf1c7a31038d30968efd6cc8c5108377603834bb30f9c6cc622e9baadd1",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobile/Assets.xcassets/plan.colorset/Contents.json",
+      "destination": "apps/MunieRemodex/Resources/Assets.xcassets/plan.colorset/Contents.json",
+      "bytes": 701,
+      "sha256": "63107ee623188ad8fc61ab2f62d588dc803e3e7141dead78d8476df798a8bdf9",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/AIChangeSetTests.swift",
+      "destination": "apps/MunieRemodex/Tests/AIChangeSetTests.swift",
+      "bytes": 25466,
+      "sha256": "9b5b453231f53e6081358a0d8a7180e3e6fae4b10cbabf375be45292d8431db8",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/AssistantMemoryCitationParserTests.swift",
+      "destination": "apps/MunieRemodex/Tests/AssistantMemoryCitationParserTests.swift",
+      "bytes": 2979,
+      "sha256": "374adf598ad5b3805b111ac5e6d0219fde79f9b1c9d43aeec32d788417bb0c56",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/AssistantTurnEndActionVisibilityTests.swift",
+      "destination": "apps/MunieRemodex/Tests/AssistantTurnEndActionVisibilityTests.swift",
+      "bytes": 3521,
+      "sha256": "c6a0df68968ce388f7fbcfcda2a3b0a3f39077bdfa7a0500e2d3eda6bc16c434",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/CodeCommentDirectiveParserTests.swift",
+      "destination": "apps/MunieRemodex/Tests/CodeCommentDirectiveParserTests.swift",
+      "bytes": 2422,
+      "sha256": "50194f3c9739129984042bc10e8407d89c370cf640571e0532758149c5735bfa",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/CodexAccessModeTests.swift",
+      "destination": "apps/MunieRemodex/Tests/CodexAccessModeTests.swift",
+      "bytes": 1196,
+      "sha256": "90a46a279dc904d4e4ced7612399682be7be830228f84f467a9c6546b3f3f12c",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/CodexApprovalResponsePayloadTests.swift",
+      "destination": "apps/MunieRemodex/Tests/CodexApprovalResponsePayloadTests.swift",
+      "bytes": 3957,
+      "sha256": "9eaa4b6c1c8081fa64a0bf5aab1801f87f0cb9f54c826f09fcb71b9644e8924b",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/CodexApprovalStateTests.swift",
+      "destination": "apps/MunieRemodex/Tests/CodexApprovalStateTests.swift",
+      "bytes": 8785,
+      "sha256": "703ab35be9b89a1b4e8f5ab81068120e00bb2645c4f0c93a73163fb30deef665",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/CodexAutoApprovalReviewTests.swift",
+      "destination": "apps/MunieRemodex/Tests/CodexAutoApprovalReviewTests.swift",
+      "bytes": 28412,
+      "sha256": "45b81f1248c9f69b2676498afa59011164218d25823877a1e094993f838cacb2",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/CodexFuzzyFileSearchDecodeTests.swift",
+      "destination": "apps/MunieRemodex/Tests/CodexFuzzyFileSearchDecodeTests.swift",
+      "bytes": 2241,
+      "sha256": "f463c3abe1619d5512f30d49abbdb493da2aea13b6e0af10065bb3788f7b0c8d",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/CodexGPTAccountTests.swift",
+      "destination": "apps/MunieRemodex/Tests/CodexGPTAccountTests.swift",
+      "bytes": 41536,
+      "sha256": "449569e4a4608fa20e4a83ff1c9f66ae3468c2693b5cffcee14c5da70f9fc6a7",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/CodexGitWriterModelTests.swift",
+      "destination": "apps/MunieRemodex/Tests/CodexGitWriterModelTests.swift",
+      "bytes": 3093,
+      "sha256": "7163b3bda413659cb4ca601eb641ad6ad6c7ceafd2dc798763ecf698bedb3b14",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/CodexPlanModeTests.swift",
+      "destination": "apps/MunieRemodex/Tests/CodexPlanModeTests.swift",
+      "bytes": 84310,
+      "sha256": "4a0868d687018ebf666d40e40337508e0c20f3477e258be27f2c3ac9e640ccac",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/CodexPushNotificationRegistrationTests.swift",
+      "destination": "apps/MunieRemodex/Tests/CodexPushNotificationRegistrationTests.swift",
+      "bytes": 41025,
+      "sha256": "1336dd6966f543e65320a0a4761ddf50d225f069a6f0fc80c0f3094e3e6cdd7b",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/CodexSecurePairingStateTests.swift",
+      "destination": "apps/MunieRemodex/Tests/CodexSecurePairingStateTests.swift",
+      "bytes": 14594,
+      "sha256": "556b03b91e2f11beb12f9b081c558c80ac0a1534a77f03894bba3d2433dddedb",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/CodexServiceCatchupRecoveryTests.swift",
+      "destination": "apps/MunieRemodex/Tests/CodexServiceCatchupRecoveryTests.swift",
+      "bytes": 50569,
+      "sha256": "a118a6bbb1ad4697921158f086e77d347707297049a10da7d0c9392d7025960d",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/CodexServiceConnectionErrorTests.swift",
+      "destination": "apps/MunieRemodex/Tests/CodexServiceConnectionErrorTests.swift",
+      "bytes": 19646,
+      "sha256": "e1bdecda7ed3241538f05012c77d3ded12dd7375fc7ef9a4f5a62efe45d82659",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/CodexServiceImmediateSyncTests.swift",
+      "destination": "apps/MunieRemodex/Tests/CodexServiceImmediateSyncTests.swift",
+      "bytes": 22090,
+      "sha256": "3e48fb10bff421b34ed7e2f257ca00273558b6707b05dcc7485030535df0c716",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/CodexServiceIncomingCommandExecutionTests.swift",
+      "destination": "apps/MunieRemodex/Tests/CodexServiceIncomingCommandExecutionTests.swift",
+      "bytes": 196642,
+      "sha256": "1ac96e22d3fd6652b0eb6d89ea1a9bdd944431fc8f827590a9595640aa210469",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/CodexServiceIncomingRunIndicatorTests.swift",
+      "destination": "apps/MunieRemodex/Tests/CodexServiceIncomingRunIndicatorTests.swift",
+      "bytes": 153077,
+      "sha256": "2b5389e07228a6c6b919bbd3353d8c476ad3bc2ffb88c80244a519431080d685",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/CodexServiceThreadDisplayPhaseTests.swift",
+      "destination": "apps/MunieRemodex/Tests/CodexServiceThreadDisplayPhaseTests.swift",
+      "bytes": 5529,
+      "sha256": "7a8d8f7c72c127f16d73625de9b79e9579ca627864011c2043ee706d119df8ef",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/CodexServiceThreadListTests.swift",
+      "destination": "apps/MunieRemodex/Tests/CodexServiceThreadListTests.swift",
+      "bytes": 20252,
+      "sha256": "436a41e1064c411df66fb03891b84fe6dbc62fb314ce4cf8c625cbdebc8deb0a",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/CodexServiceTierTests.swift",
+      "destination": "apps/MunieRemodex/Tests/CodexServiceTierTests.swift",
+      "bytes": 8242,
+      "sha256": "a1506b023e473c271cca8f69335b29ba376f65d3ede5cb436e577a7a752b18aa",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/CodexSkillsListDecodeTests.swift",
+      "destination": "apps/MunieRemodex/Tests/CodexSkillsListDecodeTests.swift",
+      "bytes": 6377,
+      "sha256": "f170e1437b193082300a7043be2b0d1beefc2c1bf64d72975b1524237d522d09",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/CodexStatusTests.swift",
+      "destination": "apps/MunieRemodex/Tests/CodexStatusTests.swift",
+      "bytes": 14053,
+      "sha256": "30d155b99d207286385ef3188c92475a5965000dec0c1d5c44981b8be092c8de",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/CodexStructuredUserInputDecodeTests.swift",
+      "destination": "apps/MunieRemodex/Tests/CodexStructuredUserInputDecodeTests.swift",
+      "bytes": 9945,
+      "sha256": "9c083dedb69402c0dee73dd820b07a61f34b3a7316be81d6aea411d11b945f14",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/CodexThreadForkTests.swift",
+      "destination": "apps/MunieRemodex/Tests/CodexThreadForkTests.swift",
+      "bytes": 16243,
+      "sha256": "92a7466b04fd3739b5ff2bc2e5ff3ab9d223e43bd31c00dc8efdb6623a8ad158",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/CodexThreadGitControlScopeTests.swift",
+      "destination": "apps/MunieRemodex/Tests/CodexThreadGitControlScopeTests.swift",
+      "bytes": 3530,
+      "sha256": "126879641598b0039a6c79efcccee3417712a0a30b558d124b50614510119377",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/CodexThreadGoalTests.swift",
+      "destination": "apps/MunieRemodex/Tests/CodexThreadGoalTests.swift",
+      "bytes": 6895,
+      "sha256": "be820e55e9899a70f017d421793f77f8c2c24e23641a3a6bae09cb3de55d6fb2",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/CodexThreadProjectRoutingTests.swift",
+      "destination": "apps/MunieRemodex/Tests/CodexThreadProjectRoutingTests.swift",
+      "bytes": 15553,
+      "sha256": "5afff814549b02123ee46c7c0dfe867b88943e4bdda2d9388ac22941939f999f",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/CodexThreadProvenanceTests.swift",
+      "destination": "apps/MunieRemodex/Tests/CodexThreadProvenanceTests.swift",
+      "bytes": 2349,
+      "sha256": "d5a91a36ec811937c5624c2fb47cbc32f838587e00a0b743f695915f9f265a11",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/CodexThreadRenamePersistenceTests.swift",
+      "destination": "apps/MunieRemodex/Tests/CodexThreadRenamePersistenceTests.swift",
+      "bytes": 28506,
+      "sha256": "0295a2f557acf18b0e0500990b44c26d8f1445811277fabc4ed6f9b46b99c0ac",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/CodexThreadRuntimeOverrideTests.swift",
+      "destination": "apps/MunieRemodex/Tests/CodexThreadRuntimeOverrideTests.swift",
+      "bytes": 17898,
+      "sha256": "4a56430ce49af683acff8e6bf585c604c69178a53f311783fe3925f38378c08a",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/CodexThreadStartProjectBindingTests.swift",
+      "destination": "apps/MunieRemodex/Tests/CodexThreadStartProjectBindingTests.swift",
+      "bytes": 7429,
+      "sha256": "4eca93271d573e30efc7003a31e674b2e4f4a306de49b152bb02b428bf66b61e",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/CodexTrustedMacSelectionTests.swift",
+      "destination": "apps/MunieRemodex/Tests/CodexTrustedMacSelectionTests.swift",
+      "bytes": 33805,
+      "sha256": "f0fc791009870952edcb4f73bf0f30fccfd2a5435b591ab50af2dfa85b8b4089",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/CodexTurnInputPayloadSkillTests.swift",
+      "destination": "apps/MunieRemodex/Tests/CodexTurnInputPayloadSkillTests.swift",
+      "bytes": 14095,
+      "sha256": "c162f1e09fa1c39184ebd91a98e9937120ea19163f51e5318b0ba990010aa929",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/ContentViewModelReconnectTests.swift",
+      "destination": "apps/MunieRemodex/Tests/ContentViewModelReconnectTests.swift",
+      "bytes": 47911,
+      "sha256": "5406bd9a577d4155df037bee4e8f830562e59612d02b7fdf41dfea8afe7311d4",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/DesktopHandoffServiceTests.swift",
+      "destination": "apps/MunieRemodex/Tests/DesktopHandoffServiceTests.swift",
+      "bytes": 8353,
+      "sha256": "38fc62e6b7db30cb33931045bba7d4c4810fe0cf3a60f11533720a0ccea147aa",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/QRScannerPairingValidatorTests.swift",
+      "destination": "apps/MunieRemodex/Tests/QRScannerPairingValidatorTests.swift",
+      "bytes": 3994,
+      "sha256": "822ae94613a27482baec5a6c58feb214753ae64f69c2b805e62fd9d7fb937cf2",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/RemodexTextKitMarkdownRenderingRegressionTests.swift",
+      "destination": "apps/MunieRemodex/Tests/RemodexTextKitMarkdownRenderingRegressionTests.swift",
+      "bytes": 5137,
+      "sha256": "6eff44a4de99faf027d0547b5b1ac2002177f4ee8d6e1422dcd72fdd1935394d",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/SidebarRunBadgePerformanceTests.swift",
+      "destination": "apps/MunieRemodex/Tests/SidebarRunBadgePerformanceTests.swift",
+      "bytes": 3395,
+      "sha256": "b490f7ee188b01827b73bb9b407d7419f1d6f3e86076ccf3b289edeb90c9ff57",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/SidebarThreadGroupingTests.swift",
+      "destination": "apps/MunieRemodex/Tests/SidebarThreadGroupingTests.swift",
+      "bytes": 33423,
+      "sha256": "c3af98fc839c0bbe361f30d0bcd72e7b77256b2684a88726f63ea58a723ba79a",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/SidebarThreadsLoadingPresentationTests.swift",
+      "destination": "apps/MunieRemodex/Tests/SidebarThreadsLoadingPresentationTests.swift",
+      "bytes": 880,
+      "sha256": "8f7ff9e66d9d74ec00a47325fe3b0a48e7d9973fee030e467e3130d22e722937",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/SkillReferenceFormatterTests.swift",
+      "destination": "apps/MunieRemodex/Tests/SkillReferenceFormatterTests.swift",
+      "bytes": 1749,
+      "sha256": "4cbbc449a7ef46bddde91fbfecc343998d86ffdc38fa900933b09a8b7cb0bbd0",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/StreamingInlineMarkupAutoCloserTests.swift",
+      "destination": "apps/MunieRemodex/Tests/StreamingInlineMarkupAutoCloserTests.swift",
+      "bytes": 5458,
+      "sha256": "b509905aab66b0bdbfe4f928302dd6bd8be47be84cd9a5b101f40cfe883e0fea",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/StreamingMarkdownBlockSplitterTests.swift",
+      "destination": "apps/MunieRemodex/Tests/StreamingMarkdownBlockSplitterTests.swift",
+      "bytes": 7478,
+      "sha256": "291bf31ec6e765da6842f7ac6e3f4450cc39661abee688ace232640bf360c070",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/SubscriptionServiceAccessTests.swift",
+      "destination": "apps/MunieRemodex/Tests/SubscriptionServiceAccessTests.swift",
+      "bytes": 1362,
+      "sha256": "650be9a933a73e872f37d322e093adb9e39dea8cc9d42db06fe0e579fddc449a",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/TerminalPasteTests.swift",
+      "destination": "apps/MunieRemodex/Tests/TerminalPasteTests.swift",
+      "bytes": 2464,
+      "sha256": "0cfc6179cb14f3d1f51f6bebb6e63c610800cb6d1cf65635ad8eb2f8391ebfc8",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/TerminalSelectableTextNormalizerTests.swift",
+      "destination": "apps/MunieRemodex/Tests/TerminalSelectableTextNormalizerTests.swift",
+      "bytes": 1151,
+      "sha256": "713a677bbb7655a4c122abacf7faa04d9c95279a9e97f7cc7d237e85170e0a9e",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/ThinkingDisclosureParserTests.swift",
+      "destination": "apps/MunieRemodex/Tests/ThinkingDisclosureParserTests.swift",
+      "bytes": 4628,
+      "sha256": "27eb715c2ce29454df760749d9931f094efa526b0d5386f677057c3e0e899e33",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/TurnComposerAttachmentIntakePlanTests.swift",
+      "destination": "apps/MunieRemodex/Tests/TurnComposerAttachmentIntakePlanTests.swift",
+      "bytes": 1236,
+      "sha256": "176b785ddb77c9771e984531d68dfb50170cc67cd5414f1f29a6de013a232630",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/TurnComposerInlineSkillTokenTests.swift",
+      "destination": "apps/MunieRemodex/Tests/TurnComposerInlineSkillTokenTests.swift",
+      "bytes": 3228,
+      "sha256": "2fe6c44977d37cb7613e564ca0a88a7f32508f30c815e9f2c53454f0d7c91b1f",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/TurnComposerReviewModeTests.swift",
+      "destination": "apps/MunieRemodex/Tests/TurnComposerReviewModeTests.swift",
+      "bytes": 9456,
+      "sha256": "f8a73aac11f55b776f442e0a7d6c1349b0cd374bd3723837b4ab4154a5fbad18",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/TurnComposerSendAvailabilityTests.swift",
+      "destination": "apps/MunieRemodex/Tests/TurnComposerSendAvailabilityTests.swift",
+      "bytes": 44299,
+      "sha256": "306857b4650ca9c5315eaff6ab9bf0a6bbe7333bb45e72c2696ffa7d96872a75",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/TurnConnectionRecoverySnapshotBuilderTests.swift",
+      "destination": "apps/MunieRemodex/Tests/TurnConnectionRecoverySnapshotBuilderTests.swift",
+      "bytes": 4369,
+      "sha256": "1bd92df610737a312b61bcc464fbc126938fff6e7ba33fece35af8d0f8668419",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/TurnFileAutocompleteTokenTests.swift",
+      "destination": "apps/MunieRemodex/Tests/TurnFileAutocompleteTokenTests.swift",
+      "bytes": 7867,
+      "sha256": "9d18f055fb38d4f112560226c1a241f1846e7776aaa517f4c779425e32b90791",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/TurnFileChangeSummaryParserTests.swift",
+      "destination": "apps/MunieRemodex/Tests/TurnFileChangeSummaryParserTests.swift",
+      "bytes": 1434,
+      "sha256": "43dcbe287f12ee277d218c15ca8d924d2f7944df6a05c13daba070f237e2ea50",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/TurnGitBranchSelectorTests.swift",
+      "destination": "apps/MunieRemodex/Tests/TurnGitBranchSelectorTests.swift",
+      "bytes": 2336,
+      "sha256": "c63063cbea5b7664336310844710c0722742f360b170686108c66ef673f21b37",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/TurnGitDraftFlowTests.swift",
+      "destination": "apps/MunieRemodex/Tests/TurnGitDraftFlowTests.swift",
+      "bytes": 11767,
+      "sha256": "3160b6c7d2e904543d929218dfdf762da6ccb0e86b7281d800688c6cdc26e547",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/TurnGitSyncAlertTests.swift",
+      "destination": "apps/MunieRemodex/Tests/TurnGitSyncAlertTests.swift",
+      "bytes": 2532,
+      "sha256": "6113463f76af59225fb189e26cbf73011aabc0151d377aa42ebe8bb92b55d433",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/TurnMessageCachesTests.swift",
+      "destination": "apps/MunieRemodex/Tests/TurnMessageCachesTests.swift",
+      "bytes": 29034,
+      "sha256": "bec2dff5f1fe535a98f02a46bed3e5999a33cb330d4c4098e6b043e0469492a5",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/TurnSessionDiffSummaryTests.swift",
+      "destination": "apps/MunieRemodex/Tests/TurnSessionDiffSummaryTests.swift",
+      "bytes": 6043,
+      "sha256": "9d84c4dce2da9db7e3c7f0809e12f46a3fc3bc00972fb1b2007bff57274c17fd",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/TurnSkillAutocompleteTokenTests.swift",
+      "destination": "apps/MunieRemodex/Tests/TurnSkillAutocompleteTokenTests.swift",
+      "bytes": 9371,
+      "sha256": "dad996e6677655c1e2733fd74f3ffe199ff9872eea43db4b1a5df675e140a601",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/TurnSlashCommandTokenTests.swift",
+      "destination": "apps/MunieRemodex/Tests/TurnSlashCommandTokenTests.swift",
+      "bytes": 3258,
+      "sha256": "d9442e11a121cf0d618196438ca878a4418163f9eb9564a605ae3d86348bba33",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/TurnTimelineReducerTests.swift",
+      "destination": "apps/MunieRemodex/Tests/TurnTimelineReducerTests.swift",
+      "bytes": 254348,
+      "sha256": "5fa159931b5c42ce9e0309781616a245031b0861f06f3cfbfde4f0654a3a1d74",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/TurnViewModelGitActionAvailabilityTests.swift",
+      "destination": "apps/MunieRemodex/Tests/TurnViewModelGitActionAvailabilityTests.swift",
+      "bytes": 7206,
+      "sha256": "1ae2d9bbdd43fdb13e54df5d15935440f53d95b9e4dbaa3f1846d082274be25a",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/TurnViewModelGitBranchAlertTests.swift",
+      "destination": "apps/MunieRemodex/Tests/TurnViewModelGitBranchAlertTests.swift",
+      "bytes": 3019,
+      "sha256": "4a434895cad3a263a350e01ef72002e38cbce0844eac132043a49ca8de65921a",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/TurnViewModelGitBranchWorktreeTests.swift",
+      "destination": "apps/MunieRemodex/Tests/TurnViewModelGitBranchWorktreeTests.swift",
+      "bytes": 3306,
+      "sha256": "cfe90142e132643a9f44a4f87d23ee4d6ab45d839766e7e8a6dbef20c19db084",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/TurnViewModelQueueTests.swift",
+      "destination": "apps/MunieRemodex/Tests/TurnViewModelQueueTests.swift",
+      "bytes": 61064,
+      "sha256": "e9ae97656c1bd93f5c0dd31842ae8cca1e979fd6963a76848c48cf8bb57b4c81",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/UserBubbleInlineMarkdownRendererTests.swift",
+      "destination": "apps/MunieRemodex/Tests/UserBubbleInlineMarkdownRendererTests.swift",
+      "bytes": 6236,
+      "sha256": "be1ebb89a33897ec4193aebd3bf606934186f501c4e68d0f512023815c03df6e",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileTests/UserMessageParserTests.swift",
+      "destination": "apps/MunieRemodex/Tests/UserMessageParserTests.swift",
+      "bytes": 2288,
+      "sha256": "57f1f9e8434f1f32581fa7f883fdf45016db0b268c0210c55910ba51e55221e1",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/CodexMobileUITests/CodexMobileUITests.swift",
+      "destination": "apps/MunieRemodex/UITests/CodexMobileUITests.swift",
+      "bytes": 1637,
+      "sha256": "9623a26e8e757f98f163e4af4e02c8917236a1ffb303ebecf5ad011b37fc4a62",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/RemodexWidget/RemodexControlCenterWidget.swift",
+      "destination": "apps/MunieRemodex/Widget/RemodexControlCenterWidget.swift",
+      "bytes": 1014,
+      "sha256": "3aeb2f68e9c1ac771a11fafffb071a474a6024c1da08d776ea7c68f9b259bb7e",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/RemodexWidget/RemodexLaunchIntent.swift",
+      "destination": "apps/MunieRemodex/Widget/RemodexLaunchIntent.swift",
+      "bytes": 2768,
+      "sha256": "4170d2aaf499fe736cb658c26b773055770e087618e108e34e7202e115b1bb0d",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/RemodexWidget/RemodexLockScreenWidget.swift",
+      "destination": "apps/MunieRemodex/Widget/RemodexLockScreenWidget.swift",
+      "bytes": 15119,
+      "sha256": "1466b1239c80d2e55c0922f40ae41cb8eb565fbf322b49fb7959880356f220c2",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "CodexMobile/RemodexWidget/RemodexWidgetBundle.swift",
+      "destination": "apps/MunieRemodex/Widget/RemodexWidgetBundle.swift",
+      "bytes": 593,
+      "sha256": "1ec033c0660901d5a47a44f2a0e63c774643b22be43594dbd379dd71464d4dba",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "LICENSE",
+      "destination": "apps/MunieRemodexBridge/LICENSE",
+      "bytes": 10338,
+      "sha256": "0b29f8cd089e60610dc1cb4d380919eae28a566b9d97ac30dbcfb37951882c5a",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/README.md",
+      "destination": "apps/MunieRemodexBridge/README.md",
+      "bytes": 12,
+      "sha256": "dbcc210d7f4962499db6d4cfa18658e26d05ee700c962a811cac911f095e22fd",
+      "sourceMode": "120000",
+      "copyMode": "regular file containing original link text; no symlink traversal"
+    },
+    {
+      "source": "phodex-bridge/bin/phodex.js",
+      "destination": "apps/MunieRemodexBridge/bin/phodex.js",
+      "bytes": 252,
+      "sha256": "bf45c9b483662ff8ede20220ffb8a3e08c92fc5dc753214dd7f83bd5054c1b2e",
+      "sourceMode": "100755"
+    },
+    {
+      "source": "phodex-bridge/bin/remodex-jsonl-diagnose.js",
+      "destination": "apps/MunieRemodexBridge/bin/remodex-jsonl-diagnose.js",
+      "bytes": 15948,
+      "sha256": "ffde7a11456cd2f52873a7fd1748be32748fa34a237279e101d14680ebcb0cdf",
+      "sourceMode": "100755"
+    },
+    {
+      "source": "phodex-bridge/bin/remodex.js",
+      "destination": "apps/MunieRemodexBridge/bin/remodex.js",
+      "bytes": 10581,
+      "sha256": "0b6ff39f6938a8dde9541c2a8d78f9d300bd604d014d025375d51aee326902e8",
+      "sourceMode": "100755"
+    },
+    {
+      "source": "phodex-bridge/package-lock.json",
+      "destination": "apps/MunieRemodexBridge/package-lock.json",
+      "bytes": 1415,
+      "sha256": "ee0c89ac4cf981b2c78f7400d2f016cc47461ab7e9d3c92f6d33c61515fd1673",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/package.json",
+      "destination": "apps/MunieRemodexBridge/package.json",
+      "bytes": 1128,
+      "sha256": "872660b64542bb2c31ce5a35e2e0721b30abfe47379adb2b562e8e7c41e22485",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/scripts/cleanup-private-defaults.js",
+      "destination": "apps/MunieRemodexBridge/scripts/cleanup-private-defaults.js",
+      "bytes": 277,
+      "sha256": "35374cffe825092d47fba3e5cf803603dee9914337f85cdbc5692e5710b878d4",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/scripts/prepare-private-defaults.js",
+      "destination": "apps/MunieRemodexBridge/scripts/prepare-private-defaults.js",
+      "bytes": 897,
+      "sha256": "9a81c190e960db1989794a52ba516760037ee53ba010ba3663a1e437093742df",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/account-status.js",
+      "destination": "apps/MunieRemodexBridge/src/account-status.js",
+      "bytes": 6269,
+      "sha256": "a13c20eca6141ef424e310adf1eee2e0f3b2c76f1c201ab61235dcf93baf1a44",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/apply-patch-changes.js",
+      "destination": "apps/MunieRemodexBridge/src/apply-patch-changes.js",
+      "bytes": 4888,
+      "sha256": "ecca705587ee37298486c960c31ef891e90a3aee0cba27e423eb65da0005e756",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/bootstrap-codex-cli.js",
+      "destination": "apps/MunieRemodexBridge/src/bootstrap-codex-cli.js",
+      "bytes": 1501,
+      "sha256": "05bfffb31981870932ce899a032de2ed155fd310bac0d9e9bc36a2e342dd2f46",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/bridge-status.js",
+      "destination": "apps/MunieRemodexBridge/src/bridge-status.js",
+      "bytes": 3125,
+      "sha256": "bd8a90828743fcffa60bc116a0e38d3a1dce5bb421bf5ca94e596e080879c8d8",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/bridge.js",
+      "destination": "apps/MunieRemodexBridge/src/bridge.js",
+      "bytes": 196509,
+      "sha256": "fc943551ccdc7dcc6096aede9aadef73e17b5b85d8607a1e42c46be750982580",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/codex-cli-bootstrap.js",
+      "destination": "apps/MunieRemodexBridge/src/codex-cli-bootstrap.js",
+      "bytes": 4735,
+      "sha256": "10a02cbb89c1ef98ea898b79786a935ec3e7e852d980ac0d1a2562b066fe2ca9",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/codex-desktop-app.js",
+      "destination": "apps/MunieRemodexBridge/src/codex-desktop-app.js",
+      "bytes": 1556,
+      "sha256": "41ce2e9f9d2daf3e050b7ae4baeaa6baecc81ee0e377066cb351a6632e3edf64",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/codex-desktop-refresher.js",
+      "destination": "apps/MunieRemodexBridge/src/codex-desktop-refresher.js",
+      "bytes": 31249,
+      "sha256": "47d876e1cdc03a7e77c1b543d2f3537851b2c92c93489baa7d7afd42b063dfb7",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/codex-home.js",
+      "destination": "apps/MunieRemodexBridge/src/codex-home.js",
+      "bytes": 548,
+      "sha256": "751bae04bd5cd80ac8b98ae16d6eaf8f908af77fe32125a26177ff687825185f",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/codex-runtime-settings.js",
+      "destination": "apps/MunieRemodexBridge/src/codex-runtime-settings.js",
+      "bytes": 5417,
+      "sha256": "3f3c4dfa6d7c7a36f66c9fa2593b7973abafed2da3f8569cf12b952233f460dc",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/codex-tool-wrapper.js",
+      "destination": "apps/MunieRemodexBridge/src/codex-tool-wrapper.js",
+      "bytes": 14158,
+      "sha256": "4f123e7990b8a2bee8ee0d0091d61cf64d6a5ede56dbe235fe8cc63e79866e28",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/codex-transport.js",
+      "destination": "apps/MunieRemodexBridge/src/codex-transport.js",
+      "bytes": 10411,
+      "sha256": "93abfedd14ac41557a298c87b1d655ace8719305c966b43f4e616ce644db4787",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/daemon-state.js",
+      "destination": "apps/MunieRemodexBridge/src/daemon-state.js",
+      "bytes": 4913,
+      "sha256": "951be27fa11353f574e2f08fe0234b4a47fe1cb14ff275b0a38ea08715c8b6c0",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/desktop-handler.js",
+      "destination": "apps/MunieRemodexBridge/src/desktop-handler.js",
+      "bytes": 15914,
+      "sha256": "ba563e83ef2e6d374a9cf05f7c1a2611658582f8f5c34f4035186db39965420d",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/desktop-ipc-action-follower.js",
+      "destination": "apps/MunieRemodexBridge/src/desktop-ipc-action-follower.js",
+      "bytes": 161155,
+      "sha256": "f34dbdee3af4bd10492d047bef3f630b75e88965c4078a195c3915339a91534b",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/desktop-ipc-conversation-adapter.js",
+      "destination": "apps/MunieRemodexBridge/src/desktop-ipc-conversation-adapter.js",
+      "bytes": 49504,
+      "sha256": "9a36f36332040c03d7aceb9b8964a9b2fa14ad2385732844db0f81a8f1d749cd",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/desktop-ipc-conversation-projector.js",
+      "destination": "apps/MunieRemodexBridge/src/desktop-ipc-conversation-projector.js",
+      "bytes": 44042,
+      "sha256": "69a198d5cfbc315a9183ad82da6e3068418f3e12d19f43a9c8cc5abc78ecbb05",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/desktop-ipc-live-owner.js",
+      "destination": "apps/MunieRemodexBridge/src/desktop-ipc-live-owner.js",
+      "bytes": 87924,
+      "sha256": "76106b071e7aaca206bafef9e2caee54aa869e01e4b43dc8367e95a189b9a23b",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/desktop-ipc-owner-transport.js",
+      "destination": "apps/MunieRemodexBridge/src/desktop-ipc-owner-transport.js",
+      "bytes": 24357,
+      "sha256": "fe126fa3a132362ed68e96e9150f3ddd1d0894374318e8d77aa5ecbf46c0c687",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/desktop-ipc-shared.js",
+      "destination": "apps/MunieRemodexBridge/src/desktop-ipc-shared.js",
+      "bytes": 28396,
+      "sha256": "6149100b3d4a92262b67876503a409f8e92826a9369cd18ffa02ffc5b6bf711e",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/desktop-ipc-state-patches.js",
+      "destination": "apps/MunieRemodexBridge/src/desktop-ipc-state-patches.js",
+      "bytes": 6127,
+      "sha256": "ee15e02cc99b5d88e9eefa7525945c008bd233b79215afe3c3cdfadec69dfcc0",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/git-handler.js",
+      "destination": "apps/MunieRemodexBridge/src/git-handler.js",
+      "bytes": 100427,
+      "sha256": "be2d9cba39ecc17dbf8bea19ef491f07997fee40095dca30f05b65d152acff27",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/index.js",
+      "destination": "apps/MunieRemodexBridge/src/index.js",
+      "bytes": 1361,
+      "sha256": "7ffa0ba654c39c2e33cb3a93df9f5a58e885912f7a577d667881da7e7674ebcd",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/ios-app-compatibility.js",
+      "destination": "apps/MunieRemodexBridge/src/ios-app-compatibility.js",
+      "bytes": 7014,
+      "sha256": "53fbedbf22b7d2d48fab16a69c800265e4f175486203ec06a5864e737f909e96",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/macos-launch-agent.js",
+      "destination": "apps/MunieRemodexBridge/src/macos-launch-agent.js",
+      "bytes": 20616,
+      "sha256": "32c5d3093392c2b8898ab88ddff504a29454f690b2f086bbc8a2f261272ddb0d",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/notifications-handler.js",
+      "destination": "apps/MunieRemodexBridge/src/notifications-handler.js",
+      "bytes": 2845,
+      "sha256": "ff2737da73e6f9ca39c5c597fe6f0527d467fafe319961b60796848e7a5b8e25",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/opencode-runtime.js",
+      "destination": "apps/MunieRemodexBridge/src/opencode-runtime.js",
+      "bytes": 61538,
+      "sha256": "c489f471e14092c8a99a4b9ef056e96ddb3d789f043eec071a4ef262c9a39364",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/package-version-status.js",
+      "destination": "apps/MunieRemodexBridge/src/package-version-status.js",
+      "bytes": 5593,
+      "sha256": "24ccf9c1b0b508ba46ce1a0b4d82dff0e8989aa544eaee5ad6e9047e28e53497",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/pet-handler.js",
+      "destination": "apps/MunieRemodexBridge/src/pet-handler.js",
+      "bytes": 15296,
+      "sha256": "6d945197f77d6875400512fd6ffbf78d56ff0f946160bce8839293b2ff3b162f",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/project-handler.js",
+      "destination": "apps/MunieRemodexBridge/src/project-handler.js",
+      "bytes": 20684,
+      "sha256": "52a92be06821e5e9c43976204045f345ff894664d2103b3d2d844d652d82847b",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/push-notification-completion-dedupe.js",
+      "destination": "apps/MunieRemodexBridge/src/push-notification-completion-dedupe.js",
+      "bytes": 3071,
+      "sha256": "eca7c7fdccea30329fe4001e1faf1eaa20067cc2284bf0d1ec54aa0b7e4290a2",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/push-notification-service-client.js",
+      "destination": "apps/MunieRemodexBridge/src/push-notification-service-client.js",
+      "bytes": 5200,
+      "sha256": "6f12dbb115decb5b65948533e598b4576e229884686938035754ce88596d0b11",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/push-notification-tracker.js",
+      "destination": "apps/MunieRemodexBridge/src/push-notification-tracker.js",
+      "bytes": 31203,
+      "sha256": "16d9fd81db73b1edba3272d1b90cc8c1545751a54471c952b033a5fd0182571f",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/qr.js",
+      "destination": "apps/MunieRemodexBridge/src/qr.js",
+      "bytes": 2974,
+      "sha256": "d89c5e72c523f216fcd64e38523e6a7d02f8fb4442152831d068a14f05702ff1",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/relay-watchdog.js",
+      "destination": "apps/MunieRemodexBridge/src/relay-watchdog.js",
+      "bytes": 1661,
+      "sha256": "43a044c9fea924d957621a5408d16cff7733c5eacab2470f7be761117fc3844d",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/rollout-live-mirror.js",
+      "destination": "apps/MunieRemodexBridge/src/rollout-live-mirror.js",
+      "bytes": 76004,
+      "sha256": "c8229f8cec342b40aed2a0131d30bf823bafcee10d7760ebfd2fc89096bdfb8b",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/rollout-turn-semantics.js",
+      "destination": "apps/MunieRemodexBridge/src/rollout-turn-semantics.js",
+      "bytes": 927,
+      "sha256": "60e83450dc023d4fde1d4bed6ed0b0698a3dec1c461f6ef282b35b2abf859f3a",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/rollout-watch.js",
+      "destination": "apps/MunieRemodexBridge/src/rollout-watch.js",
+      "bytes": 25285,
+      "sha256": "23e341d9b66a745a768a32a05ab7370fb22c4501e7d49f9b0c3cee9f61202fc6",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/scripts/codex-handoff.applescript",
+      "destination": "apps/MunieRemodexBridge/src/scripts/codex-handoff.applescript",
+      "bytes": 2395,
+      "sha256": "a51b586625ec8cee9b8e67c6f8f3a08e48e6a0d8af7f0d8ea0d4daa0ea45908f",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/scripts/codex-refresh.applescript",
+      "destination": "apps/MunieRemodexBridge/src/scripts/codex-refresh.applescript",
+      "bytes": 2106,
+      "sha256": "a3f3ae89aace234b3552d1079615961ba5568745c442856b47dba91ea524cae6",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/secure-device-state.js",
+      "destination": "apps/MunieRemodexBridge/src/secure-device-state.js",
+      "bytes": 13949,
+      "sha256": "febccb30ef1f9efa8dcffcbee6de6db908f43ac0497eed8d4a76d3df4f1fada6",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/secure-transport.js",
+      "destination": "apps/MunieRemodexBridge/src/secure-transport.js",
+      "bytes": 32615,
+      "sha256": "76dc535f92881b7240b55052c190d28c195bf7a30d5ae8cae2f89befd6210947",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/session-jsonl-history.js",
+      "destination": "apps/MunieRemodexBridge/src/session-jsonl-history.js",
+      "bytes": 53450,
+      "sha256": "61d3a7deaa4e81582c4b8fff57dc3fded1d53f973e920a3499b5a1e6d7179e5a",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/session-state.js",
+      "destination": "apps/MunieRemodexBridge/src/session-state.js",
+      "bytes": 1573,
+      "sha256": "9a36e66b31c33300866c5f3edebabc4d2c810a91ced692f801eb03c497375b42",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/thread-activity-projector.js",
+      "destination": "apps/MunieRemodexBridge/src/thread-activity-projector.js",
+      "bytes": 22384,
+      "sha256": "9982a1d84d945d886c17a0e708d961f6d8cda2f9948f8d76dad0ed2a43f3e752",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/thread-activity-store.js",
+      "destination": "apps/MunieRemodexBridge/src/thread-activity-store.js",
+      "bytes": 9043,
+      "sha256": "c509376d068f064fd6700a95a5bb298193506e04465732200d14a7e2918c6282",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/thread-context-handler.js",
+      "destination": "apps/MunieRemodexBridge/src/thread-context-handler.js",
+      "bytes": 2197,
+      "sha256": "1b3d4a22ba237238be915e6536c124c77cc82d16e952569c282a89e7b4a355dd",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/thread-list-provenance.js",
+      "destination": "apps/MunieRemodexBridge/src/thread-list-provenance.js",
+      "bytes": 4099,
+      "sha256": "525dc66ff9f9d97cce61d17bba159ee9f852e575ba24c47e122022e067cfa23f",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/thread-row-enrichment.js",
+      "destination": "apps/MunieRemodexBridge/src/thread-row-enrichment.js",
+      "bytes": 1285,
+      "sha256": "736e8b580f524bbc7c2ff36070916a69541636bdd116e836d128dec1fa29790c",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/thread-runtime-settings-store.js",
+      "destination": "apps/MunieRemodexBridge/src/thread-runtime-settings-store.js",
+      "bytes": 7899,
+      "sha256": "bf0d70bdaf92b86fd57465acda1b95a8a5039db41788dbce965caa11766da610",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/voice-audio.js",
+      "destination": "apps/MunieRemodexBridge/src/voice-audio.js",
+      "bytes": 10692,
+      "sha256": "b29ad05dada6dd8f6f6574729dfe0e418baef26ddea14a3ffb11dfd16d2550ad",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/voice-handler.js",
+      "destination": "apps/MunieRemodexBridge/src/voice-handler.js",
+      "bytes": 18774,
+      "sha256": "f93e0f8a18dfac40be40af339ed017d1a430989cf0d5dfd0bbbd0939c4c4deab",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/workspace-checkpoints.js",
+      "destination": "apps/MunieRemodexBridge/src/workspace-checkpoints.js",
+      "bytes": 12754,
+      "sha256": "a427daf2737183772430679bf6aaa430c252468ecc7899342d125f5140c6a990",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/workspace-handler.js",
+      "destination": "apps/MunieRemodexBridge/src/workspace-handler.js",
+      "bytes": 44797,
+      "sha256": "e1931de00e47d3de7054f3e5efd050ad2cbe15feff53cdf7771dc1a13e27aeb4",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/src/worktree-origin.js",
+      "destination": "apps/MunieRemodexBridge/src/worktree-origin.js",
+      "bytes": 6155,
+      "sha256": "07d2c23c0f488747257c69a8a13fb1725cb7c81a885968ea1ad8e58d5105e0b3",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/account-status.test.js",
+      "destination": "apps/MunieRemodexBridge/test/account-status.test.js",
+      "bytes": 10236,
+      "sha256": "4cf6f72694da8b3490b7212ea4d2c70fc2446958205744772c971ad220f2df32",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/bridge-desktop-ipc-integration.test.js",
+      "destination": "apps/MunieRemodexBridge/test/bridge-desktop-ipc-integration.test.js",
+      "bytes": 87420,
+      "sha256": "7f394a5dc8c65f267b3128cbdf2d28c766697cc1c4e085fc3d4fffe5837071f2",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/bridge-status.test.js",
+      "destination": "apps/MunieRemodexBridge/test/bridge-status.test.js",
+      "bytes": 1850,
+      "sha256": "937a6d3bfaadcc8c64388297f8b134c32619011920ee130fa6b6b445eb0f64ff",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/bridge.test.js",
+      "destination": "apps/MunieRemodexBridge/test/bridge.test.js",
+      "bytes": 128015,
+      "sha256": "870f2e24642b3456b2c4090848ff72289148926cd3513df2f2d7ecdf368e6b6d",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/codex-cli-bootstrap.test.js",
+      "destination": "apps/MunieRemodexBridge/test/codex-cli-bootstrap.test.js",
+      "bytes": 4088,
+      "sha256": "ea3feb73514ef000f2129786af6abbfec8ebe0432b91bae78b9eac91e8c79f98",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/codex-desktop-refresher.test.js",
+      "destination": "apps/MunieRemodexBridge/test/codex-desktop-refresher.test.js",
+      "bytes": 26285,
+      "sha256": "e22de5021890d680aac6fdf167de80a01ae7644c3f191ed6f0b8c1f431c82212",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/codex-runtime-settings.test.js",
+      "destination": "apps/MunieRemodexBridge/test/codex-runtime-settings.test.js",
+      "bytes": 6614,
+      "sha256": "b34eecd135e55695976da0fc7a7c76ff7737ea1aa6533db52632aab5e4c24708",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/codex-tool-wrapper.test.js",
+      "destination": "apps/MunieRemodexBridge/test/codex-tool-wrapper.test.js",
+      "bytes": 4335,
+      "sha256": "aff9e6ba059e644c9433052537fc2c3b8e4975556e0b3bc581f8c24aaa5a94d9",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/codex-transport.test.js",
+      "destination": "apps/MunieRemodexBridge/test/codex-transport.test.js",
+      "bytes": 8078,
+      "sha256": "e9f99ae31ad703ed394b7d0b25f440f87947567a921425f15167c8dcc67722b9",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/daemon-state.test.js",
+      "destination": "apps/MunieRemodexBridge/test/daemon-state.test.js",
+      "bytes": 3217,
+      "sha256": "726a4b5749187598f2bfbb344300cba70e52a5dbedbb92bdaf17b5be3c3cd382",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/desktop-handler.test.js",
+      "destination": "apps/MunieRemodexBridge/test/desktop-handler.test.js",
+      "bytes": 18054,
+      "sha256": "f413a5ac5a9139527f63867b4710c2768cafe6dd4938a14ec3713d33bbc163b5",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/desktop-ipc-action-follower.test.js",
+      "destination": "apps/MunieRemodexBridge/test/desktop-ipc-action-follower.test.js",
+      "bytes": 291098,
+      "sha256": "166fa7b6d3509903fd84c45bb9eca98dddfa5737760ef6b24556b6120c5f1bdc",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/desktop-ipc-conversation-adapter.test.js",
+      "destination": "apps/MunieRemodexBridge/test/desktop-ipc-conversation-adapter.test.js",
+      "bytes": 36318,
+      "sha256": "0942103c411bfda96797b97529c170bfdfd510b351e7603642c881904e8a828e",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/desktop-ipc-conversation-projector.test.js",
+      "destination": "apps/MunieRemodexBridge/test/desktop-ipc-conversation-projector.test.js",
+      "bytes": 29427,
+      "sha256": "626fb50ec52a763b4d999676d5b5c346c4bfa78d580b04577138a5996b57fd61",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/desktop-ipc-live-owner.test.js",
+      "destination": "apps/MunieRemodexBridge/test/desktop-ipc-live-owner.test.js",
+      "bytes": 166326,
+      "sha256": "599e377c6297aad5b85da5d4fd9aa284ed4f3e074634ca965086a64958e8d674",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/desktop-ipc-owner-transport.test.js",
+      "destination": "apps/MunieRemodexBridge/test/desktop-ipc-owner-transport.test.js",
+      "bytes": 8995,
+      "sha256": "6f83056c8a16ec4742beb939d4dc6bf26dad117157b376cd9b95af82ca5257d0",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/desktop-ipc-shared.test.js",
+      "destination": "apps/MunieRemodexBridge/test/desktop-ipc-shared.test.js",
+      "bytes": 21521,
+      "sha256": "1b433ffb4cc23a66396412beaf0a80329685466a596ac02e01870cd94cb85533",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/fixtures/ai-change-set-persistence-harness.swift",
+      "destination": "apps/MunieRemodexBridge/test/fixtures/ai-change-set-persistence-harness.swift",
+      "bytes": 15888,
+      "sha256": "9342de015d97339d2743fc0470e83c88bb9367da139873546d780f07e1abbe32",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/fixtures/async-user-input-harness.swift",
+      "destination": "apps/MunieRemodexBridge/test/fixtures/async-user-input-harness.swift",
+      "bytes": 12112,
+      "sha256": "c275e72118feb643650459812ccc06849c10d6726bf35c6642acc7862d8332a2",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/fixtures/codex-runtime-contract.json",
+      "destination": "apps/MunieRemodexBridge/test/fixtures/codex-runtime-contract.json",
+      "bytes": 9307,
+      "sha256": "bd4f2627e4385b1e1b7e1f4766489dfb8eae706ebd373814826d79846ddd1671",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/fixtures/desktop-steer-harness.swift",
+      "destination": "apps/MunieRemodexBridge/test/fixtures/desktop-steer-harness.swift",
+      "bytes": 6241,
+      "sha256": "f935937b1958851526d563d85465b95a4d899b56348501c2b4bdab293e80c812",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/fixtures/runtime-settings-harness.swift",
+      "destination": "apps/MunieRemodexBridge/test/fixtures/runtime-settings-harness.swift",
+      "bytes": 18629,
+      "sha256": "a8e617856a22a67c3d78e01999e066dd0bc996f88720db871699c8b9e9712dc8",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/fixtures/stream-recovery-harness.swift",
+      "destination": "apps/MunieRemodexBridge/test/fixtures/stream-recovery-harness.swift",
+      "bytes": 15304,
+      "sha256": "4b9051ba7548c1d0a44df8f06093851d12403ff71d5aacb329833b89db2681b5",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/fixtures/thread-identity-harness.swift",
+      "destination": "apps/MunieRemodexBridge/test/fixtures/thread-identity-harness.swift",
+      "bytes": 7625,
+      "sha256": "291affbc0416bb2d986c5d9ad67c6ac2a4e8a127ff2f48cf7b042db6a72c6164",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/fixtures/timeline-images-harness.swift",
+      "destination": "apps/MunieRemodexBridge/test/fixtures/timeline-images-harness.swift",
+      "bytes": 2990,
+      "sha256": "3fa2b17742b35783032fce783a37cab7c628fdb300bf7b52e44709747209dc61",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/git-handler.test.js",
+      "destination": "apps/MunieRemodexBridge/test/git-handler.test.js",
+      "bytes": 79588,
+      "sha256": "39d29436cd87433ed74446f3d4fe10c82b9d0d6d391dc0f068cfe8525e6c3675",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/ios-ai-change-set-persistence.test.js",
+      "destination": "apps/MunieRemodexBridge/test/ios-ai-change-set-persistence.test.js",
+      "bytes": 3348,
+      "sha256": "1f88df5e74f15fc0e35b7166df55f7c2f132da84aa52b5d6c50ef6db966529ff",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/ios-app-compatibility.test.js",
+      "destination": "apps/MunieRemodexBridge/test/ios-app-compatibility.test.js",
+      "bytes": 2793,
+      "sha256": "3250c04b01a261f6bace95386d64d9ed11894b040debc3dc76a0ccb460ba5a16",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/ios-async-user-input.test.js",
+      "destination": "apps/MunieRemodexBridge/test/ios-async-user-input.test.js",
+      "bytes": 1430,
+      "sha256": "c77caacd7207f3a5de11f11fef3aab5210cc35ada4105702c4517820a38d9d24",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/ios-desktop-steer.test.js",
+      "destination": "apps/MunieRemodexBridge/test/ios-desktop-steer.test.js",
+      "bytes": 1982,
+      "sha256": "14a1b554e75fb655e8deb112aaad8b7bfb5ef81bffd4a24e1e8ccd3220fed085",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/ios-runtime-settings.test.js",
+      "destination": "apps/MunieRemodexBridge/test/ios-runtime-settings.test.js",
+      "bytes": 2425,
+      "sha256": "c41c8bcb733577ea496eaad345170a3c79950ed19f1e7b1b41ffa3a504633960",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/ios-stream-recovery.test.js",
+      "destination": "apps/MunieRemodexBridge/test/ios-stream-recovery.test.js",
+      "bytes": 2354,
+      "sha256": "9424429f5a0dbb5db7832d0521d4255ad366e3659c1745b977655c907fd347be",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/ios-thread-identity.test.js",
+      "destination": "apps/MunieRemodexBridge/test/ios-thread-identity.test.js",
+      "bytes": 1822,
+      "sha256": "825d987a1db7a11d8820e2159eafcf136fc036ad982c439211764225967dc39c",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/ios-timeline-images.test.js",
+      "destination": "apps/MunieRemodexBridge/test/ios-timeline-images.test.js",
+      "bytes": 1935,
+      "sha256": "3b22d194b0fb2f839c6b7d20bdada7a8433a95bcbea2f7daabf85ad468e55612",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/macos-launch-agent.test.js",
+      "destination": "apps/MunieRemodexBridge/test/macos-launch-agent.test.js",
+      "bytes": 21918,
+      "sha256": "a5f9f3bfd93277f2cab37ad397b465f48b2e436ab5a3f3be8f5c7ebe79eb966a",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/opencode-runtime.test.js",
+      "destination": "apps/MunieRemodexBridge/test/opencode-runtime.test.js",
+      "bytes": 67949,
+      "sha256": "8ed2ce755bb5f008388da6ddd11ae98292f6cbd74114fda638f76e22ccbe8fc9",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/package-version-status.test.js",
+      "destination": "apps/MunieRemodexBridge/test/package-version-status.test.js",
+      "bytes": 3386,
+      "sha256": "cd9fe9df13cf72632b0c89b993d020cf66837675def4a3f19f92879af9853fea",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/pet-handler.test.js",
+      "destination": "apps/MunieRemodexBridge/test/pet-handler.test.js",
+      "bytes": 6304,
+      "sha256": "c04f0676d8e7640e7a02718903f78facaa900b0331a62afb13bdcc1169817e05",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/project-handler.test.js",
+      "destination": "apps/MunieRemodexBridge/test/project-handler.test.js",
+      "bytes": 8910,
+      "sha256": "c027778d7d4cfc685145890749388428e34a5dc3db911afa30bd328700245a9f",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/push-notification-completion-dedupe.test.js",
+      "destination": "apps/MunieRemodexBridge/test/push-notification-completion-dedupe.test.js",
+      "bytes": 1417,
+      "sha256": "d5450630612b19fd31d3734fe70777d589395cb28577f4a656b774a11dbb68e6",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/push-notification-service-client.test.js",
+      "destination": "apps/MunieRemodexBridge/test/push-notification-service-client.test.js",
+      "bytes": 2615,
+      "sha256": "b060db74a5df59e29e6b4a1786b991f64879d2f3eb22e0ef44bb0becf77265f4",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/push-notification-tracker.test.js",
+      "destination": "apps/MunieRemodexBridge/test/push-notification-tracker.test.js",
+      "bytes": 28819,
+      "sha256": "3f0bb89355e61b4f20466bbb3484a67bdd3af3d1939e51f72fe9b58108c7f4c7",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/qr.test.js",
+      "destination": "apps/MunieRemodexBridge/test/qr.test.js",
+      "bytes": 2912,
+      "sha256": "6b8a2e8183a0c167d437d7682445909dbdfb61a44995355f34e5ae6b16f57f84",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/relay-watchdog.test.js",
+      "destination": "apps/MunieRemodexBridge/test/relay-watchdog.test.js",
+      "bytes": 4242,
+      "sha256": "c2bc5ccadefd739a78f57660fbe4d1a3c4d2b78f76b3b7fafb041d15c64867d9",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/remodex-cli.test.js",
+      "destination": "apps/MunieRemodexBridge/test/remodex-cli.test.js",
+      "bytes": 13401,
+      "sha256": "2bb50a440d8515ed954e844ba0d56e215895b8067bb45c3daef468dc1cf81815",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/rollout-live-mirror.test.js",
+      "destination": "apps/MunieRemodexBridge/test/rollout-live-mirror.test.js",
+      "bytes": 96403,
+      "sha256": "d77a4f075cce13307cc913cac42078e88608395337853e5018c2dde490d4b2cd",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/rollout-watch.test.js",
+      "destination": "apps/MunieRemodexBridge/test/rollout-watch.test.js",
+      "bytes": 11895,
+      "sha256": "0572f80aec5baf9b7b2f68211b17fee46a84ba66f04300b4a794bec41c5fd061",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/secure-device-state.test.js",
+      "destination": "apps/MunieRemodexBridge/test/secure-device-state.test.js",
+      "bytes": 11061,
+      "sha256": "fe5dfca420d5634d2cfb0bd5242dd9ef88f6bed1ac582dc5c05256f0d2e1de9f",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/secure-transport.test.js",
+      "destination": "apps/MunieRemodexBridge/test/secure-transport.test.js",
+      "bytes": 37645,
+      "sha256": "a8b4088e4ad18d1b3677d01cf32764aae0ec9e6be50ae465329c40a8a3044e6b",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/session-jsonl-history.test.js",
+      "destination": "apps/MunieRemodexBridge/test/session-jsonl-history.test.js",
+      "bytes": 52273,
+      "sha256": "0a38afb73a6b23df8f2067f57d47c85dee261094fd8902047de50ba6efaaf6bf",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/thread-activity-projector.test.js",
+      "destination": "apps/MunieRemodexBridge/test/thread-activity-projector.test.js",
+      "bytes": 12861,
+      "sha256": "b825001b24bea2bb24efa662dd0e76d1917f276f36513e1dece87f9f55c8397a",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/thread-activity-store.test.js",
+      "destination": "apps/MunieRemodexBridge/test/thread-activity-store.test.js",
+      "bytes": 7799,
+      "sha256": "bfa162855c673f53aef4c7b4558d7256ea9595746be1f02d608a953da265457a",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/thread-list-provenance.test.js",
+      "destination": "apps/MunieRemodexBridge/test/thread-list-provenance.test.js",
+      "bytes": 5388,
+      "sha256": "606d69c101a63b6f89a2518c0185c16607f03b81f78cb2c529e1156d31a23b7d",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/thread-row-enrichment.test.js",
+      "destination": "apps/MunieRemodexBridge/test/thread-row-enrichment.test.js",
+      "bytes": 1549,
+      "sha256": "1576c3d41623ddaa74cf519a951fc41e41f977a2e962ce54fc22aea1217d38b0",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/thread-runtime-settings-store.test.js",
+      "destination": "apps/MunieRemodexBridge/test/thread-runtime-settings-store.test.js",
+      "bytes": 7201,
+      "sha256": "dce2431dbe4891046cb96ded0965a7a0380ed86494fbf608cc5ea654cca7af96",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/voice-handler.test.js",
+      "destination": "apps/MunieRemodexBridge/test/voice-handler.test.js",
+      "bytes": 37441,
+      "sha256": "9b0b1c967936fcecb9b3acff250c4a8023464d8cd9e19d59461b0e7085263c05",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/workspace-file.test.js",
+      "destination": "apps/MunieRemodexBridge/test/workspace-file.test.js",
+      "bytes": 4743,
+      "sha256": "646e0ba3ec51f9d30da02e8b918f5e6d8cc38b940783b09e2db6b996fd8f0ae9",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/workspace-image.test.js",
+      "destination": "apps/MunieRemodexBridge/test/workspace-image.test.js",
+      "bytes": 19605,
+      "sha256": "0f18aa58bf485f4fe834c5a07cafe13ff78fe1a9c365cd08d9145a97060c8877",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "phodex-bridge/test/worktree-origin.test.js",
+      "destination": "apps/MunieRemodexBridge/test/worktree-origin.test.js",
+      "bytes": 6241,
+      "sha256": "23f783919664556cdb096e80c4f55c929e61db6bada1131c19b068f8653a9135",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "LICENSE",
+      "destination": "apps/MunieRemodexRelay/LICENSE",
+      "bytes": 10338,
+      "sha256": "0b29f8cd089e60610dc1cb4d380919eae28a566b9d97ac30dbcfb37951882c5a",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "relay/README.md",
+      "destination": "apps/MunieRemodexRelay/README.md",
+      "bytes": 6352,
+      "sha256": "1e2895ea55fa5e4544ff8e1dd7242d805507051eb57b2bd96b657939f44b9cf3",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "relay/apns-client.js",
+      "destination": "apps/MunieRemodexRelay/apns-client.js",
+      "bytes": 5066,
+      "sha256": "05a8dcd6c1c37b8976517c9b8ea0beac670d739ea7d9681af71eabb98592ef67",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "relay/apns-client.test.js",
+      "destination": "apps/MunieRemodexRelay/apns-client.test.js",
+      "bytes": 4866,
+      "sha256": "4de83953ecd1c47d83c2543a694834e3a2d9934d550d943d60740de70f100a23",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "relay/package-lock.json",
+      "destination": "apps/MunieRemodexRelay/package-lock.json",
+      "bytes": 824,
+      "sha256": "54726238ff4a88941f19cf130d8b4d7e69edb91935e5f761e307ac1594149944",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "relay/package.json",
+      "destination": "apps/MunieRemodexRelay/package.json",
+      "bytes": 234,
+      "sha256": "2fa7f03a8d20ad4ea54a87bca297b2302066646844df2cb084dc121cea14cf85",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "relay/phodex-backend-relay.mjs",
+      "destination": "apps/MunieRemodexRelay/phodex-backend-relay.mjs",
+      "bytes": 9913,
+      "sha256": "558e4038c9698edfa676e863f541db9da2165c3101e704c792e6448b128d4229",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "relay/push-service.js",
+      "destination": "apps/MunieRemodexRelay/push-service.js",
+      "bytes": 11683,
+      "sha256": "b85a5b93b4702199b44a1dbead7f859a23087cbb018f0f9d31971d8ad3a0b824",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "relay/push-service.test.js",
+      "destination": "apps/MunieRemodexRelay/push-service.test.js",
+      "bytes": 8875,
+      "sha256": "63e10d3a46d14eba54840507a40ff301d74d4245fcaa78dbf1056fba222ae7aa",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "relay/relay.js",
+      "destination": "apps/MunieRemodexRelay/relay.js",
+      "bytes": 23684,
+      "sha256": "81b925a91bd439d5cf06b4812dbe7021febe94ca180776de375406879247793f",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "relay/server.js",
+      "destination": "apps/MunieRemodexRelay/server.js",
+      "bytes": 12912,
+      "sha256": "31153f753edf71b4ba5fd1ad29ae28b1a8450a8c4dfcec1fa7a6edccb9731075",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "relay/server.test.js",
+      "destination": "apps/MunieRemodexRelay/server.test.js",
+      "bytes": 35316,
+      "sha256": "3ca39dcbc9017a24cf6e72fc573d9e1c7f5228925539401a1a0f6be1f6c61ba9",
+      "sourceMode": "100644"
+    },
+    {
+      "source": "relay/simulated-pairing-reconnect.test.js",
+      "destination": "apps/MunieRemodexRelay/simulated-pairing-reconnect.test.js",
+      "bytes": 19191,
+      "sha256": "7619586da93302d506186e205b3724ff5eea133d57acfecc06affeeab71b1c8b",
+      "sourceMode": "100644"
+    }
+  ]
+}

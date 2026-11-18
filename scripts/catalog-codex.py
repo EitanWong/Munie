@@ -185,7 +185,7 @@ def build_catalog(schema_directory, default_directory, cli_version):
         'totalMethods': sum(len(group) for group in grouped.values()),
         'implementedMethods': 0,
         'notes': [
-            'Generated method inventory only; no remote adapter or method behavior has been implemented.',
+            'Full-method scope inventory only; bounded product subsets and evidence are recorded separately.',
             'Default-export presence is not a stability, feature-flag, account or platform availability claim.',
             'Experimental methods and fields need explicit runtime negotiation and upstream eligibility.',
             'Method coverage alone does not prove field, response, event variant or Codex Desktop UI parity.',

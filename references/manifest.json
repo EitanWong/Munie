@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "verified_on": "2026-11-17",
-  "policy": "References are research inputs, not runtime dependencies. No third-party product source has been copied into Munie. Pins are review snapshots, not automatic upgrade targets.",
+  "policy": "Reference pins are review snapshots, not automatic upgrade targets. Remodex-derived source and fixed runtime dependencies are explicitly adopted under the bounded source/notice records; other research checkouts remain inspection-only.",
   "repositories": [
     {
       "name": "omi",
@@ -44,14 +44,14 @@
       "repository": "Emanuele-web04/remodex",
       "url": "https://github.com/Emanuele-web04/remodex.git",
       "commit": "c06dcb16a7059603a41e26a2cb4a81b6d4b5514d",
-      "verified_on": "2026-11-17",
+      "verified_on": "2026-11-18",
       "upstream_commit_date": "2026-11-03T09:19:50Z",
-      "role": "Optional remote Mac/Codex adapter, reconnect and push patterns",
-      "decision": "reference-only",
+      "role": "Adopted native Swift client, Node Mac bridge and self-host relay base",
+      "decision": "source-adoption",
       "license": {
         "id": "Apache-2.0",
         "snapshot": "licenses/remodex.txt",
-        "scope": "Root license only; inspect dependency, asset and SDK terms before reuse."
+        "scope": "Apache-2.0 source with retained license and modified-file notices. Excludes upstream branding, static art/fonts, unidentified Mermaid bundle and unverified Ghostty binary; dependency layers and distribution gates are separate."
       },
       "sources": [
         {
@@ -85,7 +85,28 @@
           "sha256": "73ee8b45ae27df4c965e02f336dbec884fd2e5146158768d0b97964fd3d17cc2"
         }
       ],
-      "shallow_checkout_default": true
+      "shallow_checkout_default": true,
+      "adoption": {
+        "record": "remodex-adoption.md",
+        "source_manifest": "licenses/remodex-source-manifest.json",
+        "dependency_manifest": "licenses/remodex-dependencies/manifest.json",
+        "checker": "../scripts/check-remodex-adoption.py",
+        "upstream_paths": [
+          "CodexMobile/CodexMobile/**/*.swift",
+          "CodexMobile/CodexMobileTests/**/*.swift",
+          "CodexMobile/CodexMobileUITests/**/*.swift",
+          "CodexMobile/RemodexWidget/*.swift",
+          "CodexMobile/CodexMobile/Assets.xcassets/*.colorset/*",
+          "phodex-bridge/",
+          "relay/"
+        ],
+        "destinations": [
+          "apps/MunieRemodex/",
+          "apps/MunieRemodexBridge/",
+          "apps/MunieRemodexRelay/"
+        ],
+        "distribution_status": "blocked-pending-individual-grammar-notices-and-packaged-notices"
+      }
     },
     {
       "name": "chums",

@@ -19,6 +19,12 @@ def require(condition, message):
         raise ValueError(message)
 
 
+def localized_or_recorded_debt(source, key, strings, debt):
+    # A path/key pair from the pinned upstream is a migration exception only.
+    # New text in that same file still requires the bilingual catalog.
+    return key in strings or key in debt.get(source, [])
+
+
 APPLE_PLATFORMS = {'ios', 'macos', 'tvos', 'watchos', 'visionos'}
 
 
@@ -99,12 +105,13 @@ def validate_documentation(root):
             ', '.join(str(path.relative_to(docs)) for path in sorted(orphans)))
 
 
-def validate_swift_package(package_root, manifest):
+def validate_swift_package(package_root, manifest, required_platforms=None):
     """Reject local packages that silently drop a shipping platform or conventional source roots."""
     platforms = {item['platformName'] for item in manifest.get('platforms', [])}
-    require(APPLE_PLATFORMS <= platforms,
+    required_platforms = APPLE_PLATFORMS if required_platforms is None else required_platforms
+    require(required_platforms <= platforms,
             f'{package_root.name} must declare every Apple platform: '
-            f'{", ".join(sorted(APPLE_PLATFORMS - platforms))}')
+            f'{", ".join(sorted(required_platforms - platforms))}')
     for target in manifest['targets']:
         # Local shipping packages use SwiftPM's standard Sources/Tests layout.
         # The root host-only presentation harness intentionally uses custom app paths.
@@ -122,7 +129,10 @@ def check_swift_packages(root):
     for manifest in manifests:
         result = subprocess.run(['swift', 'package', '--package-path', str(manifest.parent),
                                  'dump-package'], check=True, text=True, capture_output=True)
-        validate_swift_package(manifest.parent, json.loads(result.stdout))
+        # This shared pairing package is consumed only by the iPhone and Mac
+        # targets. Declaring Watch/TV/Vision would imply unimplemented support.
+        required = {'ios', 'macos'} if manifest.parent.name == 'MunieNearby' else APPLE_PLATFORMS
+        validate_swift_package(manifest.parent, json.loads(result.stdout), required)
 
 
 def validate_xcode_project(project):
@@ -202,24 +212,37 @@ def main():
                     '--validate-catalog', str(ROOT / 'references/codex-capabilities.json')], check=True)
     check_swift_packages(ROOT)
     check_xcode_project(ROOT)
+    subprocess.run([sys.executable, str(ROOT / 'scripts/check-remodex-adoption.py')], check=True)
+    debt_manifest = json.loads((ROOT / 'references/licenses/remodex-localization-debt.json').read_text())
+    source_manifest = json.loads((ROOT / 'references/licenses/remodex-source-manifest.json').read_text())
+    require(debt_manifest['revision'] == source_manifest['revision'], 'Localization debt pin changed')
+    adopted_paths = {item['destination'] for item in source_manifest['files']}
+    debt = debt_manifest['files']
+    require(set(debt).issubset(adopted_paths), 'Localization debt may only cover adopted source files')
 
-    catalog = json.loads((ROOT / 'apps/Munie/Resources/Localizable.xcstrings').read_text())
-    strings = catalog['strings']
-    for key, item in strings.items():
-        for language in ('en', 'zh-Hans'):
-            unit = item['localizations'][language]['stringUnit']
-            require(unit['state'] == 'translated' and bool(unit['value'].strip()),
-                    f'Missing {language} translation: {key}')
+    strings = {}
+    for catalog_path in sorted((ROOT / 'apps').rglob('*.xcstrings')):
+        catalog = json.loads(catalog_path.read_text())
+        for key, item in catalog['strings'].items():
+            for language in ('en', 'zh-Hans'):
+                unit = item['localizations'][language]['stringUnit']
+                require(unit['state'] == 'translated' and bool(unit['value'].strip()),
+                        f'Missing {language} translation in {catalog_path.name}: {key}')
+            strings[key] = item
     patterns = [
         r'\b(?:Text|TextField|SecureField|Button|Label|ContentUnavailableView)\(\s*"([^"\\\n]+)"',
         r'String\(localized:\s*"([^"\\\n]+)"',
         r'\.(?:navigationTitle|accessibilityLabel|alert|confirmationDialog)\(\s*"([^"\\]+)"',
         r'prompt:\s*"([^"\\]+)"',
+        r'\b(?:hostText|remoteString)\(\s*"([^"\\\n]+)"',
     ]
     for source in (ROOT / 'apps').rglob('*.swift'):
         for pattern in patterns:
             for key in re.findall(pattern, source.read_text()):
-                require(key in strings, f'Unlocalized string in {source.name}: {key}')
+                if not key.strip():
+                    continue
+                require(localized_or_recorded_debt(str(source.relative_to(ROOT)), key, strings, debt),
+                        f'Unlocalized string in {source.name}: {key}')
 
     for file in (ROOT / 'apps').rglob('*.xcprivacy'):
         plistlib.loads(file.read_bytes())
@@ -256,7 +279,8 @@ def main():
                     'ARGV.each { |p| YAML.load_file(p) }; puts "Workflow YAML parsed"',
                     *workflows], check=True)
     subprocess.run(['git', 'diff', '--check'], cwd=ROOT, check=True)
-    print(f'Repository checks passed; {len(strings)} UI strings cover en and zh-Hans.')
+    print(f'Repository checks passed; {len(strings)} catalog keys cover en and zh-Hans; '
+          f'{sum(map(len, debt.values()))} pinned upstream literals remain localization debt.')
 
 
 if __name__ == '__main__':

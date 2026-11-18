@@ -21,10 +21,12 @@ class SubmissionGateTests(unittest.TestCase):
             (root / 'scripts/check-repository.py').write_text('pass\n')
             programs = {
                 'scripts/bootstrap.sh': 'exit 0',
+                'scripts/lint-swift.sh': 'exit 0',
                 'scripts/check-submissions.sh': 'echo "Fixture: submission experiment rejected" >&2\nexit 31',
                 'scripts/benchmark-core.sh': 'touch benchmark-ran',
                 'scripts/build-apple-platforms.sh': 'touch build-ran',
-                '.tools/actionlint': 'exit 0', 'bin/swift': 'exit 0', 'bin/xcrun': 'exit 0',
+                '.tools/actionlint': 'exit 0', 'bin/python3': 'exit 0',
+                'bin/swift': 'exit 0', 'bin/xcrun': 'exit 0',
             }
             for name, body in programs.items():
                 path = root / name

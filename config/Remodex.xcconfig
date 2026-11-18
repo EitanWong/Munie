@@ -1,0 +1,5 @@
+// Munie self-hosted Remodex source fork. No upstream service or purchase key.
+#include? "Signing.xcconfig"
+PHODEX_CHATGPT_CALLBACK_SCHEME = munie
+PHODEX_DEFAULT_RELAY_URL =
+#include? "Remodex.local.xcconfig"

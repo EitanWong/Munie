@@ -3,6 +3,9 @@ import SwiftUI
 
 @main
 struct MunieApp: App {
+  #if os(iOS)
+    @UIApplicationDelegateAdaptor(MunieRemoteAppDelegate.self) private var remoteDelegate
+  #endif
   private let startup: Result<CaptureModel, Error>
 
   init() {
@@ -49,6 +52,16 @@ struct MunieApp: App {
     case .success(let model):
       #if os(watchOS)
         WatchCaptureView(model: model)
+      #elseif os(iOS)
+        #if DEBUG
+          if ProcessInfo.processInfo.arguments.contains("-munie-ui-testing") {
+            CaptureView(model: model)
+          } else {
+            RemoteView()
+          }
+        #else
+          RemoteView()
+        #endif
       #else
         CaptureView(model: model)
       #endif

@@ -1,0 +1,598 @@
+// FILE: desktop-handler.test.js
+// Purpose: Verifies explicit Mac handoff routing and errors for desktop bridge methods.
+// Layer: Unit test
+// Exports: node:test suite
+// Depends on: node:test, node:assert/strict, ../src/desktop-handler
+
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const path = require("node:path");
+
+const { handleDesktopRequest } = require("../src/desktop-handler");
+const { createDesktopIpcLiveOwner } = require("../src/desktop-ipc-live-owner");
+
+test("desktop handoff detects and relaunches the configured bundle's executable", async () => {
+  const appPath = "/test/Custom ChatGPT.app";
+  const infoPath = path.join(appPath, "Contents", "Info.plist");
+  const executablePath = path.join(appPath, "Contents", "MacOS", "ChatGPT");
+  const processPattern = executablePath + "([[:space:]].*)?";
+  let running = true;
+  const processCalls = [];
+  const openCalls = [];
+  const response = await new Promise((resolve) => {
+    handleDesktopRequest(JSON.stringify({
+      id: "current-app",
+      method: "desktop/continueOnMac",
+      params: { threadId: "thread-123" },
+    }), resolve, {
+      platform: "darwin",
+      appPath,
+      fsModule: { existsSync: (candidate) => [infoPath, executablePath].includes(candidate) },
+      executor: async (command, args) => {
+        if (command === "/usr/bin/plutil") return { stdout: "ChatGPT" };
+        if (command === "pgrep" || command === "pkill") {
+          processCalls.push([command, ...args]);
+          if (command === "pkill") running = false;
+          else if (!running) throw Object.assign(new Error("not running"), { code: 1 });
+        }
+        if (command === "open") openCalls.push(args);
+        return { stdout: "" };
+      },
+      sleepFn: async () => {},
+      threadMaterializeWaitMs: 0,
+    });
+  });
+  assert.equal(JSON.parse(response).result?.relaunched, true);
+  assert.deepEqual(openCalls, [
+    ["-a", appPath],
+    ["-a", appPath, "codex://threads/thread-123"],
+  ]);
+  assert.deepEqual(processCalls, [
+    ["pgrep", "-f", "-x", processPattern.replace(".app", "\\.app")],
+    ["pkill", "-f", "-x", processPattern.replace(".app", "\\.app")],
+    ["pgrep", "-f", "-x", processPattern.replace(".app", "\\.app")],
+  ]);
+});
+
+test("desktop handoff skips relaunch when the configured bundle cannot be verified", async () => {
+  const commands = [];
+  let running = true;
+  const response = await new Promise((resolve) => {
+    handleDesktopRequest(JSON.stringify({
+      id: "unavailable-bundle",
+      method: "desktop/continueOnMac",
+      params: { threadId: "thread-123" },
+    }), resolve, {
+      platform: "darwin",
+      appPath: "/missing/ChatGPT.app",
+      fsModule: { existsSync: () => false },
+      isAppRunning: async () => running,
+      executor: async (command, args) => {
+        commands.push([command, ...args]);
+        if (command === "pkill") running = false;
+        return { stdout: "" };
+      },
+      sleepFn: async () => {},
+      threadMaterializeWaitMs: 0,
+    });
+  });
+  assert.equal(JSON.parse(response).result?.relaunched, false);
+  assert.deepEqual(commands, [
+    ["open", "-b", "com.openai.codex"],
+    ["open", "-b", "com.openai.codex", "codex://threads/thread-123"],
+  ]);
+});
+
+for (const [status, unloads, description] of [
+  ["idle", true, "waits for only the target writer to unload"],
+  ["idle", false, "leaves Desktop running when the writer stays loaded"],
+  ["active", false, "leaves an active runtime subscribed"],
+]) {
+  test(`desktop handoff ${description}`, async () => {
+    const threadId = "thread-handoff";
+    const childId = "active-child";
+    const appPath = "/test/ChatGPT.app";
+    const bundleFiles = [path.join(appPath, "Contents", "Info.plist"), path.join(appPath, "Contents", "MacOS", "ChatGPT")];
+    const events = [];
+    let unsubscribed = false;
+    let running = true;
+    const owner = createDesktopIpcLiveOwner({
+      enabled: false,
+      handoffWriterWaitMs: 50,
+      handoffWriterPollMs: 1,
+      async sendCodexRequest(method, params) {
+        if (method === "thread/loaded/list") {
+          assert.equal(owner.isThreadHandoffInProgress(threadId), true);
+          assert.equal(owner.isThreadHandoffInProgress(childId), false);
+          if (unsubscribed && unloads) {
+            events.push("writer-unloaded");
+            return { data: [childId] };
+          }
+          return { data: [threadId, childId] };
+        }
+        assert.equal(params.threadId, threadId, "the active descendant must be untouched");
+        if (method === "thread/read") return { thread: { id: threadId, status: { type: status } } };
+        assert.equal(method, "thread/unsubscribe");
+        unsubscribed = true;
+        events.push("unsubscribe");
+        return { status: "unsubscribed" };
+      },
+    });
+
+    const response = await new Promise((resolve) => {
+      handleDesktopRequest(JSON.stringify({
+        id: "request-writer",
+        method: "desktop/continueOnMac",
+        params: { threadId },
+      }), (raw) => resolve(JSON.parse(raw)), {
+        platform: "darwin",
+        appPath,
+        fsModule: { existsSync: (candidate) => bundleFiles.includes(candidate) },
+        withThreadHandoff: owner.withThreadHandoff,
+        executor: async (command) => {
+          assert.equal(owner.isThreadHandoffInProgress(threadId), true);
+          if (command === "/usr/bin/plutil") return { stdout: "ChatGPT" };
+          if (command === "pkill") running = false;
+          events.push(command);
+          return { stdout: "", stderr: "" };
+        },
+        isAppRunning: async () => running,
+        sleepFn: async () => {},
+        threadMaterializeWaitMs: 0,
+      });
+    });
+
+    assert.equal(owner.isThreadHandoffInProgress(threadId), false);
+    if (unloads) {
+      assert.equal(response.result?.success, true);
+      assert.deepEqual(events, ["unsubscribe", "writer-unloaded", "pkill", "open", "open"]);
+    } else {
+      const active = status === "active";
+      assert.equal(response.error?.data?.errorCode, active ? "handoff_thread_busy" : "handoff_writer_release_failed");
+      assert.deepEqual(events, active ? [] : ["unsubscribe"]);
+      assert.equal(running, true);
+    }
+  });
+}
+
+test("desktop/continueOnMac boots Codex before deep-linking unknown threads", async () => {
+  const executorCalls = [];
+  const responses = [];
+
+  handleDesktopRequest(JSON.stringify({
+    id: "request-1b",
+    method: "desktop/continueOnMac",
+    params: {
+      threadId: "thread-closed-app",
+    },
+  }), (response) => {
+    responses.push(JSON.parse(response));
+  }, {
+    platform: "darwin",
+    bundleId: "com.openai.codex",
+    appPath: "/Applications/Codex.app",
+    executor: async (...args) => {
+      executorCalls.push(args);
+      return { stdout: "", stderr: "" };
+    },
+    isAppRunning: async () => false,
+    sleepFn: async () => {},
+    threadMaterializeWaitMs: 0,
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(executorCalls.length, 2);
+  assert.equal(executorCalls[0][0], "open");
+  assert.deepEqual(executorCalls[0][1], [
+    "-b",
+    "com.openai.codex",
+  ]);
+  assert.equal(executorCalls[1][0], "open");
+  assert.deepEqual(executorCalls[1][1], [
+    "-b",
+    "com.openai.codex",
+    "codex://threads/thread-closed-app",
+  ]);
+  assert.equal(responses[0].result?.relaunched, false);
+});
+
+test("desktop/continueOnMac relaunches when a desktop-known thread is requested and Codex is already open", async () => {
+  const executorCalls = [];
+  const responses = [];
+  let running = true;
+  const appPath = "/test/Legacy Codex.app";
+  const fakeFS = {
+    existsSync(targetPath) {
+      return /[\\/]sessions$/.test(targetPath) || [
+        path.join(appPath, "Contents", "Info.plist"),
+        path.join(appPath, "Contents", "MacOS", "Codex"),
+      ].includes(targetPath);
+    },
+    readdirSync() {
+      return [{
+        isDirectory: () => false,
+        isFile: () => true,
+        name: "rollout-2026-thread-desktop-known.jsonl",
+      }];
+    },
+    readFileSync() {
+      return JSON.stringify({
+        type: "session_meta",
+        payload: {
+          originator: "Codex Desktop",
+        },
+      }) + "\n";
+    },
+  };
+
+  handleDesktopRequest(JSON.stringify({
+    id: "request-1c",
+    method: "desktop/continueOnMac",
+    params: {
+      threadId: "thread-desktop-known",
+    },
+  }), (response) => {
+    responses.push(JSON.parse(response));
+  }, {
+    platform: "darwin",
+    bundleId: "com.openai.codex",
+    appPath,
+    env: { CODEX_HOME: "/tmp/codex-home" },
+    fsModule: fakeFS,
+    executor: async (...args) => {
+      if (args[0] === "/usr/bin/plutil") return { stdout: "Codex" };
+      executorCalls.push(args);
+      if (args[0] === "pkill") {
+        running = false;
+      }
+      return { stdout: "", stderr: "" };
+    },
+    isAppRunning: async () => running,
+    sleepFn: async () => {},
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(executorCalls.length, 3);
+  assert.equal(executorCalls[0][0], "pkill");
+  assert.deepEqual(executorCalls[0][1], [
+    "-f",
+    "-x",
+    "/test/Legacy Codex\\.app/Contents/MacOS/Codex([[:space:]].*)?",
+  ]);
+  assert.equal(executorCalls[1][0], "open");
+  assert.deepEqual(executorCalls[1][1], [
+    "-a",
+    appPath,
+  ]);
+  assert.equal(executorCalls[2][0], "open");
+  assert.deepEqual(executorCalls[2][1], [
+    "-a",
+    appPath,
+    "codex://threads/thread-desktop-known",
+  ]);
+  assert.equal(responses[0].result?.relaunched, true);
+  assert.equal(responses[0].result?.desktopKnown, true);
+});
+
+test("desktop/continueOnMac boots Codex before deep-linking when the thread already exists locally but Codex is closed", async () => {
+  const executorCalls = [];
+  const responses = [];
+  let running = false;
+  const fakeFS = {
+    existsSync(targetPath) {
+      return /[\\/]sessions$/.test(targetPath);
+    },
+    readdirSync() {
+      return [{
+        isDirectory: () => false,
+        isFile: () => true,
+        name: "rollout-2026-thread-phone-known.jsonl",
+      }];
+    },
+  };
+
+  handleDesktopRequest(JSON.stringify({
+    id: "request-1d",
+    method: "desktop/continueOnMac",
+    params: {
+      threadId: "thread-phone-known",
+    },
+  }), (response) => {
+    responses.push(JSON.parse(response));
+  }, {
+    platform: "darwin",
+    bundleId: "com.openai.codex",
+    appPath: "/Applications/Codex.app",
+    env: { CODEX_HOME: "/tmp/codex-home" },
+    fsModule: fakeFS,
+    executor: async (...args) => {
+      executorCalls.push(args);
+      return { stdout: "", stderr: "" };
+    },
+    isAppRunning: async () => running,
+    sleepFn: async () => {},
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(executorCalls.length, 2);
+  assert.equal(executorCalls[0][0], "open");
+  assert.deepEqual(executorCalls[0][1], [
+    "-b",
+    "com.openai.codex",
+  ]);
+  assert.equal(executorCalls[1][0], "open");
+  assert.deepEqual(executorCalls[1][1], [
+    "-b",
+    "com.openai.codex",
+    "codex://threads/thread-phone-known",
+  ]);
+  assert.equal(responses[0].result?.relaunched, false);
+  assert.equal(responses[0].result?.desktopKnown, true);
+});
+
+test("desktop/continueOnDesktop bounces Codex via deep links on Windows", async () => {
+  const executorCalls = [];
+  const responses = [];
+
+  handleDesktopRequest(JSON.stringify({
+    id: "request-win-1",
+    method: "desktop/continueOnDesktop",
+    params: {
+      threadId: "thread-win-123",
+    },
+  }), (response) => {
+    responses.push(JSON.parse(response));
+  }, {
+    platform: "win32",
+    env: { SystemRoot: "C:\\Windows" },
+    executor: async (...args) => {
+      executorCalls.push(args);
+      return { stdout: "", stderr: "" };
+    },
+    sleepFn: async () => {},
+    threadMaterializeWaitMs: 0,
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(executorCalls.length, 2);
+  assert.equal(executorCalls[0][0], path.join("C:\\Windows", "System32", "rundll32.exe"));
+  assert.deepEqual(executorCalls[0][1], [
+    "url.dll,FileProtocolHandler",
+    "codex://settings",
+  ]);
+  assert.equal(executorCalls[1][0], path.join("C:\\Windows", "System32", "rundll32.exe"));
+  assert.deepEqual(executorCalls[1][1], [
+    "url.dll,FileProtocolHandler",
+    "codex://threads/thread-win-123",
+  ]);
+  assert.deepEqual(responses, [{
+    id: "request-win-1",
+    result: {
+      success: true,
+      relaunched: false,
+      targetUrl: "codex://threads/thread-win-123",
+      threadId: "thread-win-123",
+      desktopKnown: false,
+    },
+  }]);
+});
+
+test("desktop/continueOnDesktop rejects unsafe thread ids before opening Windows links", async () => {
+  const executorCalls = [];
+  const responses = [];
+
+  handleDesktopRequest(JSON.stringify({
+    id: "request-win-injection",
+    method: "desktop/continueOnDesktop",
+    params: {
+      threadId: "thread-win-123 & calc.exe",
+    },
+  }), (response) => {
+    responses.push(JSON.parse(response));
+  }, {
+    platform: "win32",
+    executor: async (...args) => {
+      executorCalls.push(args);
+      return { stdout: "", stderr: "" };
+    },
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(executorCalls.length, 0);
+  assert.equal(responses.length, 1);
+  assert.equal(responses[0].id, "request-win-injection");
+  assert.equal(responses[0].error?.data?.errorCode, "invalid_thread_id");
+});
+
+test("desktop/continueOnMac returns a bridge error when thread id is missing", async () => {
+  const responses = [];
+
+  handleDesktopRequest(JSON.stringify({
+    id: "request-2",
+    method: "desktop/continueOnMac",
+    params: {},
+  }), (response) => {
+    responses.push(JSON.parse(response));
+  }, {
+    platform: "darwin",
+    executor: async () => ({ stdout: "", stderr: "" }),
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(responses.length, 1);
+  assert.equal(responses[0].id, "request-2");
+  assert.equal(responses[0].error?.data?.errorCode, "missing_thread_id");
+});
+
+test("desktop/continueOnMac refuses non-mac platforms", async () => {
+  const responses = [];
+
+  handleDesktopRequest(JSON.stringify({
+    id: "request-3",
+    method: "desktop/continueOnMac",
+    params: {
+      threadId: "thread-456",
+    },
+  }), (response) => {
+    responses.push(JSON.parse(response));
+  }, {
+    platform: "linux",
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(responses.length, 1);
+  assert.equal(responses[0].id, "request-3");
+  assert.equal(responses[0].error?.data?.errorCode, "unsupported_platform");
+});
+
+test("desktop/wakeDisplay sends a stronger caffeinate display wake pulse", async () => {
+  const executorCalls = [];
+  const responses = [];
+
+  handleDesktopRequest(JSON.stringify({
+    id: "request-4",
+    method: "desktop/wakeDisplay",
+    params: {},
+  }), (response) => {
+    responses.push(JSON.parse(response));
+  }, {
+    platform: "darwin",
+    executor: async (...args) => {
+      executorCalls.push(args);
+      return { stdout: "", stderr: "" };
+    },
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(executorCalls.length, 1);
+  assert.equal(executorCalls[0][0], "/usr/bin/caffeinate");
+  assert.deepEqual(executorCalls[0][1], ["-d", "-u", "-t", "30"]);
+  assert.deepEqual(responses, [{
+    id: "request-4",
+    result: {
+      success: true,
+      durationSeconds: 30,
+    },
+  }]);
+});
+
+test("desktop/preferences/update forwards bridge preference changes", async () => {
+  const responses = [];
+  const updates = [];
+
+  handleDesktopRequest(JSON.stringify({
+    id: "request-5",
+    method: "desktop/preferences/update",
+    params: {
+      keepMacAwake: false,
+    },
+  }), (response) => {
+    responses.push(JSON.parse(response));
+  }, {
+    platform: "darwin",
+    updateBridgePreferences(nextPreferences) {
+      updates.push(nextPreferences);
+      return {
+        success: true,
+        preferences: nextPreferences,
+        applied: false,
+      };
+    },
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.deepEqual(updates, [{
+    keepMacAwake: false,
+  }]);
+  assert.deepEqual(responses, [{
+    id: "request-5",
+    result: {
+      success: true,
+      preferences: {
+        keepMacAwake: false,
+      },
+      applied: false,
+    },
+  }]);
+});
+
+test("desktop/preferences/update rejects invalid bridge preference payloads", async () => {
+  const responses = [];
+
+  handleDesktopRequest(JSON.stringify({
+    id: "request-6",
+    method: "desktop/preferences/update",
+    params: {},
+  }), (response) => {
+    responses.push(JSON.parse(response));
+  }, {
+    platform: "darwin",
+    updateBridgePreferences() {
+      throw new Error("should not be called");
+    },
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(responses[0].error?.data?.errorCode, "invalid_bridge_preferences");
+});
+
+test("desktop/bridge/updateAndRestart forwards bridge package updates", async () => {
+  const responses = [];
+  let didUpdate = false;
+
+  handleDesktopRequest(JSON.stringify({
+    id: "request-7",
+    method: "desktop/bridge/updateAndRestart",
+    params: {},
+  }), (response) => {
+    responses.push(JSON.parse(response));
+  }, {
+    platform: "darwin",
+    async updateBridgePackageAndRestart() {
+      didUpdate = true;
+      return {
+        success: true,
+        restartScheduled: true,
+      };
+    },
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(didUpdate, true);
+  assert.deepEqual(responses, [{
+    id: "request-7",
+    result: {
+      success: true,
+      restartScheduled: true,
+    },
+  }]);
+});
+
+test("desktop/bridge/updateAndRestart reports unsupported bridges", async () => {
+  const responses = [];
+
+  handleDesktopRequest(JSON.stringify({
+    id: "request-8",
+    method: "desktop/bridge/updateAndRestart",
+    params: {},
+  }), (response) => {
+    responses.push(JSON.parse(response));
+  }, {
+    platform: "darwin",
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(responses[0].error?.data?.errorCode, "unsupported_bridge_update");
+});

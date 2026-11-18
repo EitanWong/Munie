@@ -1,6 +1,6 @@
 # Harness 集成与原生能力
 
-本页是执行框架集成的唯一规范入口；产品目标以[需求](../requirements.md)为准，信任、任务状态和恢复规则复用[远程 Agent 决策](../decisions/remote-agent-foundation.md)。当前完成设计、协议范围清单、离线工具、本机握手与确定性 provider 驱动的原生生命周期研究；没有产品远程 adapter，也没有实现下列产品原生能力。
+本页是执行框架集成的唯一规范入口；产品目标以[需求](../requirements.md)为准，信任、任务状态和恢复规则复用[远程 Agent 决策](../decisions/remote-agent-foundation.md)。当前产品 adapter 已接入固定版本 Codex 的文字任务、同会话继续、受限进展、单次命令审批、取消与已知 ID 恢复。完整方法清单与[产品子集覆盖](../../references/codex-product-coverage.json)分别维护；子集通过不表示方法所有字段/variant 或以下全部能力已实现。执行证据唯一见[项目状态](../project-status.md)。
 
 ## 开放边界与首发完整性
 
@@ -29,7 +29,7 @@ Munie 面向多种 Agent/Harness。Codex 是首个执行框架，目标是完整
 
 2026-11-17 在本机观察 `codex-cli 0.162.1`，分别执行默认和 `--experimental` JSON Schema 导出；未启动模型任务或远程连接。[机器清单](../../references/codex-capabilities.json)完整列出实际导出的每个方法、协议方向、Munie 分类、默认导出是否存在和当前实现状态。没有手写筛选只保留常用方法。
 
-| 协议联合类型 | 默认导出 | 含实验能力导出 | 当前实现 |
+| 协议联合类型 | 默认导出 | 含实验能力导出 | 全方法/variant 完整实现 |
 |---|---|---|---|
 | `ClientRequest` | 105 | 170 | 0 |
 | `ServerRequest` | 10 | 11 | 0 |
@@ -53,7 +53,7 @@ CI 无需安装 Codex；运行 `python3 scripts/catalog-codex.py --validate-cata
 
 升级时先在新的 ignored `build/` 目录导出，确认实际 CLI 版本，再运行检查。工具只读取已有文件，不调用 Codex、网络或模型；同样输入产生同样清单。`--check` 对新增/删除方法、方向、实现状态、版本和全 schema 指纹漂移退出非零；参数、响应或事件 variant 变了，即使方法名没变也会失败。新增分类未知时保留 `other_native`，要求 review；不得静默跳过新方法。
 
-清单保存默认 317 / 实验 447 个 JSON 文件的聚合 SHA-256：按相对路径排序，以“路径、NUL、排序键的规范 JSON、NUL”连接后哈希。完整 schema 留在 ignored 目录，不提交其大体积正文。核对差异与官方说明后，用相同参数将 `--check` 改为 `--output` 生成候选，再 review。当前生成器固定输出 `unimplemented`，防止把列出方法当成已支持；未来实现证据应逐项关联真实 adapter、功能测试和设备验收，再评审状态机制。
+清单保存默认 317 / 实验 447 个 JSON 文件的聚合 SHA-256：按相对路径排序，以“路径、NUL、排序键的规范 JSON、NUL”连接后哈希。完整 schema 留在 ignored 目录，不提交其大体积正文。核对差异与官方说明后，用相同参数将 `--check` 改为 `--output` 生成候选，再 review。当前生成器固定输出 `unimplemented`，防止把列出方法当成已支持；产品子集证据另在[版本化覆盖文件](../../references/codex-product-coverage.json)逐项关联真实 adapter、功能测试、已执行模式和限制；该文件不能把完整清单中的方法自动标成已实现。
 
 ## 完整原生支持的通过条件
 
@@ -80,4 +80,4 @@ Codex app-server 的版本化协议范围不等于 Codex Desktop 所有 UI、云
 
 ## 官方依据与使用边界
 
-2026-11-17 核对 [Codex app-server](https://learn.chatgpt.com/docs/app-server)的协议导出、初始化、实验协商与双向消息规则；真实方法范围来自本机 CLI 生成物。文档只保存链接、API 标识与本项目规范，不复制官方正文或第三方实现。协议来源与现有连接机制研究见[入口研究](../../references/entry-point-research.md)；新增运行时依赖仍须按[引用登记](../../references/README.md)复核。本轮增加仅供本机研究的固定版本 adapter 子集；未引入第三方运行时 SDK 或账号凭据。
+2026-11-17 核对 [Codex app-server](https://learn.chatgpt.com/docs/app-server)的协议导出、初始化、实验协商与双向消息规则；真实方法范围来自本机 CLI 生成物。文档只保存链接、API 标识与本项目规范，不复制官方正文或第三方实现。协议来源与现有连接机制研究见[入口研究](../../references/entry-point-research.md)；新增运行时依赖仍须按[引用登记](../../references/README.md)复核。当前固定版本 adapter 子集已供产品主机使用；未引入第三方运行时 SDK。Codex 账户凭据仅由 Mac 本地运行时读取，绝不进入移动协议或源码。

@@ -1,0 +1,746 @@
+{
+  "schemaVersion": 1,
+  "checkedOn": "2026-11-18",
+  "scope": "Fixed dependency source and notice evidence for the Remodex-derived development target; unresolved embedded-layer items are explicit in remodex-adoption.md. Not a blanket redistribution clearance.",
+  "swiftPackages": [
+    {
+      "identity": "bigint",
+      "repository": "https://github.com/attaswift/BigInt.git",
+      "state": {
+        "revision": "e07e00fa1fd435143a2dcf8b7eec9a7710b2fdfe",
+        "version": "5.7.0"
+      },
+      "archiveURL": "https://codeload.github.com/attaswift/BigInt/tar.gz/e07e00fa1fd435143a2dcf8b7eec9a7710b2fdfe",
+      "archiveSHA256": "c936d7c24780fc58abc3e7855fdb9b3534125422fe917bec0f6f7d338c2cc0c9"
+    },
+    {
+      "identity": "citadel",
+      "repository": "https://github.com/orlandos-nl/Citadel.git",
+      "state": {
+        "branch": "main",
+        "revision": "ae8562f895de06ccb86fdb1cbb65fd99c8976e12"
+      },
+      "archiveURL": "https://codeload.github.com/orlandos-nl/Citadel/tar.gz/ae8562f895de06ccb86fdb1cbb65fd99c8976e12",
+      "archiveSHA256": "920523e8ac8711e6ec7f339669fddeb1022bf15dc32d78fee605c5d45d4374cf"
+    },
+    {
+      "identity": "remodextextkit",
+      "repository": "https://github.com/Emanuele-web04/RemodexTextKit.git",
+      "state": {
+        "revision": "57c580f0c7cb8cb4fc2e73b5a841f85303235979",
+        "version": "0.4.2"
+      },
+      "archiveURL": "https://codeload.github.com/Emanuele-web04/RemodexTextKit/tar.gz/57c580f0c7cb8cb4fc2e73b5a841f85303235979",
+      "archiveSHA256": "a5ad8934404b234b64d1e549df7474b77b37f971ed87237c409859bf1226f82d"
+    },
+    {
+      "identity": "runestone",
+      "repository": "https://github.com/simonbs/Runestone",
+      "state": {
+        "revision": "592434a103a4d1ab83e14f87ac6eef569dd7a99d",
+        "version": "0.5.2"
+      },
+      "archiveURL": "https://codeload.github.com/simonbs/Runestone/tar.gz/592434a103a4d1ab83e14f87ac6eef569dd7a99d",
+      "archiveSHA256": "2ddd8c24829ee9d8a65d40fca0f77351b5cafbace7c2a20229b92908a56743dd"
+    },
+    {
+      "identity": "swift-asn1",
+      "repository": "https://github.com/apple/swift-asn1.git",
+      "state": {
+        "revision": "eb50cbd14606a9161cbc5d452f18797c90ef0bab",
+        "version": "1.7.0"
+      },
+      "archiveURL": "https://codeload.github.com/apple/swift-asn1/tar.gz/eb50cbd14606a9161cbc5d452f18797c90ef0bab",
+      "archiveSHA256": "2e5ed74463ca30a0bd1855d75d8bdb77e2bb4378a1d16bbba37a723b73ceac53"
+    },
+    {
+      "identity": "swift-atomics",
+      "repository": "https://github.com/apple/swift-atomics.git",
+      "state": {
+        "revision": "b601256eab081c0f92f059e12818ac1d4f178ff7",
+        "version": "1.3.0"
+      },
+      "archiveURL": "https://codeload.github.com/apple/swift-atomics/tar.gz/b601256eab081c0f92f059e12818ac1d4f178ff7",
+      "archiveSHA256": "0abae8e56d69b1208e6a44912d4080f2dbeb5447de7f2b55f2f8b6e1d01dc312"
+    },
+    {
+      "identity": "swift-collections",
+      "repository": "https://github.com/apple/swift-collections.git",
+      "state": {
+        "revision": "03cc312c2c933ed87abace34044a5dff7a3117c1",
+        "version": "1.5.0"
+      },
+      "archiveURL": "https://codeload.github.com/apple/swift-collections/tar.gz/03cc312c2c933ed87abace34044a5dff7a3117c1",
+      "archiveSHA256": "f97e7d3657228261ec13f3ecc0c0abd20e3471986e0fe36cc6f02e1a1e7d49a3"
+    },
+    {
+      "identity": "swift-concurrency-extras",
+      "repository": "https://github.com/pointfreeco/swift-concurrency-extras",
+      "state": {
+        "revision": "5a3825302b1a0d744183200915a47b508c828e6f",
+        "version": "1.3.2"
+      },
+      "archiveURL": "https://codeload.github.com/pointfreeco/swift-concurrency-extras/tar.gz/5a3825302b1a0d744183200915a47b508c828e6f",
+      "archiveSHA256": "58f95de29b4e2f2fa2fb7c94967c0e2195866eb030a515a3bf49b7625c2b3420"
+    },
+    {
+      "identity": "swift-crypto",
+      "repository": "https://github.com/apple/swift-crypto.git",
+      "state": {
+        "revision": "95ba0316a9b733e92bb6b071255ff46263bbe7dc",
+        "version": "3.15.1"
+      },
+      "archiveURL": "https://codeload.github.com/apple/swift-crypto/tar.gz/95ba0316a9b733e92bb6b071255ff46263bbe7dc",
+      "archiveSHA256": "7bcb83fa30b6f4050b2177bb8f5c9e4c91cbdacee44ac9881a452e18e7353ae2"
+    },
+    {
+      "identity": "swift-log",
+      "repository": "https://github.com/apple/swift-log.git",
+      "state": {
+        "revision": "5073617dac96330a486245e4c0179cb0a6fd2256",
+        "version": "1.12.0"
+      },
+      "archiveURL": "https://codeload.github.com/apple/swift-log/tar.gz/5073617dac96330a486245e4c0179cb0a6fd2256",
+      "archiveSHA256": "553d31aa1585e929caf747a58b94ce90185143fda7bbe55ce8fcedffd443d375"
+    },
+    {
+      "identity": "swift-nio",
+      "repository": "https://github.com/apple/swift-nio.git",
+      "state": {
+        "revision": "f71c8d2a5e74a2c6d11a0fbe324774b5d6084237",
+        "version": "2.99.0"
+      },
+      "archiveURL": "https://codeload.github.com/apple/swift-nio/tar.gz/f71c8d2a5e74a2c6d11a0fbe324774b5d6084237",
+      "archiveSHA256": "ef7aef4ee84666086ba5399d45f25f4dcce9e34a65ad6507f7bfb1c181d4cf3e"
+    },
+    {
+      "identity": "swift-nio-ssh",
+      "repository": "https://github.com/Wellz26/swift-nio-ssh.git",
+      "state": {
+        "revision": "a05e6bbe6b141ee68da3030e00275504c0595d4d",
+        "version": "0.3.6"
+      },
+      "archiveURL": "https://codeload.github.com/Wellz26/swift-nio-ssh/tar.gz/a05e6bbe6b141ee68da3030e00275504c0595d4d",
+      "archiveSHA256": "13a4ad5c5c2c4a8de758f89f9a8499089eaeb290bb9c17a7418323e5aabd1399"
+    },
+    {
+      "identity": "swift-system",
+      "repository": "https://github.com/apple/swift-system.git",
+      "state": {
+        "revision": "7c6ad0fc39d0763e0b699210e4124afd5041c5df",
+        "version": "1.6.4"
+      },
+      "archiveURL": "https://codeload.github.com/apple/swift-system/tar.gz/7c6ad0fc39d0763e0b699210e4124afd5041c5df",
+      "archiveSHA256": "28068186afbb66ea2032526d0b75a5c0fcda02eacdac2f11cf1c48c2f709231a"
+    },
+    {
+      "identity": "swiftui-math",
+      "repository": "https://github.com/gonzalezreal/swiftui-math",
+      "state": {
+        "revision": "0b5c2cfaaec8d6193db206f675048eeb5ce95f71",
+        "version": "0.1.0"
+      },
+      "archiveURL": "https://codeload.github.com/gonzalezreal/swiftui-math/tar.gz/0b5c2cfaaec8d6193db206f675048eeb5ce95f71",
+      "archiveSHA256": "6a9643dfd16d8a8b9d9687dfa6f64270957811603db8887ec3ca3f10a5d3a516"
+    },
+    {
+      "identity": "tree-sitter",
+      "repository": "https://github.com/tree-sitter/tree-sitter",
+      "state": {
+        "revision": "98be227227af10cc7a269cb3ffb23686c0610b17",
+        "version": "0.20.9"
+      },
+      "archiveURL": "https://codeload.github.com/tree-sitter/tree-sitter/tar.gz/98be227227af10cc7a269cb3ffb23686c0610b17",
+      "archiveSHA256": "d9cc66ab903371b4abd2c216b762ae8db291f3e959af5def8e2ca93a681e364a"
+    },
+    {
+      "identity": "treesitterlanguages",
+      "repository": "https://github.com/simonbs/TreeSitterLanguages",
+      "state": {
+        "revision": "15cf3a9ec3ab95e0d058b7df9f35619123c9e02d",
+        "version": "0.1.10"
+      },
+      "archiveURL": "https://codeload.github.com/simonbs/TreeSitterLanguages/tar.gz/15cf3a9ec3ab95e0d058b7df9f35619123c9e02d",
+      "archiveSHA256": "8108a70c0dbf5f1f89a7103758e6faaed9cc56c0a395ccaf40e4372ebc47c315"
+    }
+  ],
+  "npmPackages": [
+    {
+      "name": "ws",
+      "version": "8.21.0",
+      "integrity": "sha512-Vsp28b7DRcimFQvrqu2Wek3z1iYxDCWqHYB8Qsnk/S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH+g==",
+      "url": "https://registry.npmjs.org/ws/-/ws-8.21.0.tgz",
+      "archiveSHA256": "d08b726b3aae3a0fed5218a0d9a4b2ac8d75d4ad453a9271db55fe38e94eb4cf"
+    },
+    {
+      "name": "qrcode-terminal",
+      "version": "0.12.0",
+      "integrity": "sha512-EXtzRZmC+YGmGlDFbXKxQiMZNwCLEO6BANKXG4iCtSIM0yqc/pappSx3RIKr4r0uh5JsBckOXeKrB3Iz7mdQpQ==",
+      "url": "https://registry.npmjs.org/qrcode-terminal/-/qrcode-terminal-0.12.0.tgz",
+      "archiveSHA256": "3a6260c4e0d80bd527a3f930e90ea2348c03646621f25aa0bd960ee205a0a706"
+    }
+  ],
+  "files": [
+    {
+      "path": "citadel/LICENSE",
+      "bytes": 1065,
+      "sha256": "580a39b7c09cba3cd18a5b1e0d4376e9d1ac200d241bda87e95ed74917bc3b31",
+      "repository": "https://github.com/orlandos-nl/Citadel.git",
+      "revision": "ae8562f895de06ccb86fdb1cbb65fd99c8976e12",
+      "sourcePath": "LICENSE",
+      "copied": "verbatim complete file"
+    },
+    {
+      "path": "citadel/embedded-bcrypt-kdf.c.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "repository": "https://github.com/orlandos-nl/Citadel.git",
+      "revision": "ae8562f895de06ccb86fdb1cbb65fd99c8976e12",
+      "sourcePath": "Sources/CCitadelBcrypt/bcrypt-kdf.c",
+      "copied": "verbatim leading source comment block before first include"
+    },
+    {
+      "path": "citadel/embedded-bcrypt-kdf.h.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "repository": "https://github.com/orlandos-nl/Citadel.git",
+      "revision": "ae8562f895de06ccb86fdb1cbb65fd99c8976e12",
+      "sourcePath": "Sources/CCitadelBcrypt/bcrypt-kdf.h",
+      "copied": "verbatim leading source comment block before first include"
+    },
+    {
+      "path": "citadel/embedded-bcrypt.c.txt",
+      "bytes": 1367,
+      "sha256": "563e27d5521421453b011146b0acdde8d35a8406b0e13d0049c70f359a8a9d23",
+      "repository": "https://github.com/orlandos-nl/Citadel.git",
+      "revision": "ae8562f895de06ccb86fdb1cbb65fd99c8976e12",
+      "sourcePath": "Sources/CCitadelBcrypt/bcrypt.c",
+      "copied": "verbatim leading source comment block before first include"
+    },
+    {
+      "path": "citadel/embedded-bcrypt.h.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "repository": "https://github.com/orlandos-nl/Citadel.git",
+      "revision": "ae8562f895de06ccb86fdb1cbb65fd99c8976e12",
+      "sourcePath": "Sources/CCitadelBcrypt/bcrypt.h",
+      "copied": "verbatim leading source comment block before first include"
+    },
+    {
+      "path": "citadel/embedded-blf.c.txt",
+      "bytes": 2066,
+      "sha256": "655086522c45a819b6fd00224b176de36719ab5b208fc813f737c36c34e978be",
+      "repository": "https://github.com/orlandos-nl/Citadel.git",
+      "revision": "ae8562f895de06ccb86fdb1cbb65fd99c8976e12",
+      "sourcePath": "Sources/CCitadelBcrypt/blf.c",
+      "copied": "verbatim leading source comment block before first include"
+    },
+    {
+      "path": "citadel/embedded-blf.h.txt",
+      "bytes": 1853,
+      "sha256": "73c27f7ba8c70e2527eaaf82f146ffc261131d07b4aa062832c95de90b459779",
+      "repository": "https://github.com/orlandos-nl/Citadel.git",
+      "revision": "ae8562f895de06ccb86fdb1cbb65fd99c8976e12",
+      "sourcePath": "Sources/CCitadelBcrypt/blf.h",
+      "copied": "verbatim leading source comment block before first include"
+    },
+    {
+      "path": "bigint/LICENSE.md",
+      "bytes": 1067,
+      "sha256": "c3dfd0dca467f6d198bf365a954d4be6cb6b0e3d848ec724f86e5f579ca38d9e",
+      "repository": "https://github.com/attaswift/BigInt.git",
+      "revision": "e07e00fa1fd435143a2dcf8b7eec9a7710b2fdfe",
+      "sourcePath": "LICENSE.md",
+      "copied": "verbatim complete file"
+    },
+    {
+      "path": "swift-asn1/LICENSE.txt",
+      "bytes": 11359,
+      "sha256": "8c6db340475136df3c1201d458fa5755698eace76e510471ecc9d857d6083dac",
+      "repository": "https://github.com/apple/swift-asn1.git",
+      "revision": "eb50cbd14606a9161cbc5d452f18797c90ef0bab",
+      "sourcePath": "LICENSE.txt",
+      "copied": "verbatim complete file"
+    },
+    {
+      "path": "swift-asn1/NOTICE.txt",
+      "bytes": 1450,
+      "sha256": "11dd3b3b783e6ec26098dd38ebc962986ea109b85447e28e62867b83bd0f8c5b",
+      "repository": "https://github.com/apple/swift-asn1.git",
+      "revision": "eb50cbd14606a9161cbc5d452f18797c90ef0bab",
+      "sourcePath": "NOTICE.txt",
+      "copied": "verbatim complete file"
+    },
+    {
+      "path": "swift-atomics/LICENSE.txt",
+      "bytes": 11751,
+      "sha256": "770af8291f708538d8ff885a0bbc4e045cd700531741c4f99528d435c14d7f55",
+      "repository": "https://github.com/apple/swift-atomics.git",
+      "revision": "b601256eab081c0f92f059e12818ac1d4f178ff7",
+      "sourcePath": "LICENSE.txt",
+      "copied": "verbatim complete file"
+    },
+    {
+      "path": "remodextextkit/LICENSE",
+      "bytes": 1072,
+      "sha256": "9c9191ada6888f3da1a888b6c74dae46e98787b1150c734e3b1e5ec5bbf73b09",
+      "repository": "https://github.com/Emanuele-web04/RemodexTextKit.git",
+      "revision": "57c580f0c7cb8cb4fc2e73b5a841f85303235979",
+      "sourcePath": "LICENSE",
+      "copied": "verbatim complete file"
+    },
+    {
+      "path": "remodextextkit/LICENSE-3rdparty.csv",
+      "bytes": 349,
+      "sha256": "5b73e559874330f6d84e3e0d4193e4594a3aecd6842be912ad357a460804eab5",
+      "repository": "https://github.com/Emanuele-web04/RemodexTextKit.git",
+      "revision": "57c580f0c7cb8cb4fc2e73b5a841f85303235979",
+      "sourcePath": "LICENSE-3rdparty.csv",
+      "copied": "verbatim complete file"
+    },
+    {
+      "path": "swift-concurrency-extras/LICENSE",
+      "bytes": 1067,
+      "sha256": "72565151804cdc168937ccc70e4c30c5afff92ff314bb9d504780a3ad1c1f868",
+      "repository": "https://github.com/pointfreeco/swift-concurrency-extras",
+      "revision": "5a3825302b1a0d744183200915a47b508c828e6f",
+      "sourcePath": "LICENSE",
+      "copied": "verbatim complete file"
+    },
+    {
+      "path": "swift-collections/LICENSE.txt",
+      "bytes": 11751,
+      "sha256": "770af8291f708538d8ff885a0bbc4e045cd700531741c4f99528d435c14d7f55",
+      "repository": "https://github.com/apple/swift-collections.git",
+      "revision": "03cc312c2c933ed87abace34044a5dff7a3117c1",
+      "sourcePath": "LICENSE.txt",
+      "copied": "verbatim complete file"
+    },
+    {
+      "path": "swift-log/LICENSE.txt",
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "repository": "https://github.com/apple/swift-log.git",
+      "revision": "5073617dac96330a486245e4c0179cb0a6fd2256",
+      "sourcePath": "LICENSE.txt",
+      "copied": "verbatim complete file"
+    },
+    {
+      "path": "swift-log/NOTICE.txt",
+      "bytes": 1324,
+      "sha256": "879b241d49b407215a0ad8e1c6a71c358d7b29591b090cf379d37a5f50cff918",
+      "repository": "https://github.com/apple/swift-log.git",
+      "revision": "5073617dac96330a486245e4c0179cb0a6fd2256",
+      "sourcePath": "NOTICE.txt",
+      "copied": "verbatim complete file"
+    },
+    {
+      "path": "swift-nio/LICENSE.txt",
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "repository": "https://github.com/apple/swift-nio.git",
+      "revision": "f71c8d2a5e74a2c6d11a0fbe324774b5d6084237",
+      "sourcePath": "LICENSE.txt",
+      "copied": "verbatim complete file"
+    },
+    {
+      "path": "swift-nio/NOTICE.txt",
+      "bytes": 3266,
+      "sha256": "d25ed2452b3476c342082d11e4e8bf5459174d2836124f842b499850bcebc50e",
+      "repository": "https://github.com/apple/swift-nio.git",
+      "revision": "f71c8d2a5e74a2c6d11a0fbe324774b5d6084237",
+      "sourcePath": "NOTICE.txt",
+      "copied": "verbatim complete file"
+    },
+    {
+      "path": "swift-nio/Sources/CNIOLLHTTP/LICENSE",
+      "bytes": 1105,
+      "sha256": "ebca854e0134cd256d673627c20499f42577eb74bacf08b9f25b626a73c91277",
+      "repository": "https://github.com/apple/swift-nio.git",
+      "revision": "f71c8d2a5e74a2c6d11a0fbe324774b5d6084237",
+      "sourcePath": "Sources/CNIOLLHTTP/LICENSE",
+      "copied": "verbatim complete file"
+    },
+    {
+      "path": "swift-nio-ssh/LICENSE.txt",
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "repository": "https://github.com/Wellz26/swift-nio-ssh.git",
+      "revision": "a05e6bbe6b141ee68da3030e00275504c0595d4d",
+      "sourcePath": "LICENSE.txt",
+      "copied": "verbatim complete file"
+    },
+    {
+      "path": "swift-system/LICENSE.txt",
+      "bytes": 11750,
+      "sha256": "2245a990b635558be210fb3eb4f8a6f7a49aebc0fefbf5859146a65ddc7ddcf3",
+      "repository": "https://github.com/apple/swift-system.git",
+      "revision": "7c6ad0fc39d0763e0b699210e4124afd5041c5df",
+      "sourcePath": "LICENSE.txt",
+      "copied": "verbatim complete file"
+    },
+    {
+      "path": "swift-crypto/LICENSE.txt",
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "repository": "https://github.com/apple/swift-crypto.git",
+      "revision": "95ba0316a9b733e92bb6b071255ff46263bbe7dc",
+      "sourcePath": "LICENSE.txt",
+      "copied": "verbatim complete file"
+    },
+    {
+      "path": "swift-crypto/NOTICE.txt",
+      "bytes": 1563,
+      "sha256": "b3ddc2ae068e76b3beb71be03c0400f90090f9469aa491bf7b1ac42320af37b8",
+      "repository": "https://github.com/apple/swift-crypto.git",
+      "revision": "95ba0316a9b733e92bb6b071255ff46263bbe7dc",
+      "sourcePath": "NOTICE.txt",
+      "copied": "verbatim complete file"
+    },
+    {
+      "path": "tree-sitter/LICENSE",
+      "bytes": 1085,
+      "sha256": "70693cc2aedfa6505ddb40c4e5d6c5edf9ed58fc50c697c4065a49f834fca5ac",
+      "repository": "https://github.com/tree-sitter/tree-sitter",
+      "revision": "98be227227af10cc7a269cb3ffb23686c0610b17",
+      "sourcePath": "LICENSE",
+      "copied": "verbatim complete file"
+    },
+    {
+      "path": "tree-sitter/lib/src/unicode/LICENSE",
+      "bytes": 21001,
+      "sha256": "6a18c5fac70d7860b57f5b72b4e2c9a1ba6b3d2741eef7ff9767c5379364f10d",
+      "repository": "https://github.com/tree-sitter/tree-sitter",
+      "revision": "98be227227af10cc7a269cb3ffb23686c0610b17",
+      "sourcePath": "lib/src/unicode/LICENSE",
+      "copied": "verbatim complete file"
+    },
+    {
+      "path": "swiftui-math/LICENSE",
+      "bytes": 1163,
+      "sha256": "10023a3a8bab8cd2206023303aa8d104a9d1cfb184e18a2f7a48b5b34fc0bb8f",
+      "repository": "https://github.com/gonzalezreal/swiftui-math",
+      "revision": "0b5c2cfaaec8d6193db206f675048eeb5ce95f71",
+      "sourcePath": "LICENSE",
+      "copied": "verbatim complete file"
+    },
+    {
+      "path": "swiftui-math/Sources/SwiftUIMath/mathFonts.bundle/LICENSE",
+      "bytes": 1075,
+      "sha256": "431b2cb82b8a55977323598231f1baa44f32accac1231b4781a9a393d0bc29ed",
+      "repository": "https://github.com/gonzalezreal/swiftui-math",
+      "revision": "0b5c2cfaaec8d6193db206f675048eeb5ce95f71",
+      "sourcePath": "Sources/SwiftUIMath/mathFonts.bundle/LICENSE",
+      "copied": "verbatim complete file"
+    },
+    {
+      "path": "swiftui-math/Sources/SwiftUIMath/mathFonts.bundle/OFL.txt",
+      "bytes": 5104,
+      "sha256": "a96bed88f867f6a5bbe78ced4ca52a3ce6e002475363d86edd9097b2f8206d8d",
+      "repository": "https://github.com/gonzalezreal/swiftui-math",
+      "revision": "0b5c2cfaaec8d6193db206f675048eeb5ce95f71",
+      "sourcePath": "Sources/SwiftUIMath/mathFonts.bundle/OFL.txt",
+      "copied": "verbatim complete file"
+    },
+    {
+      "path": "runestone/LICENSE",
+      "bytes": 1072,
+      "sha256": "b34c869efe68c5082708d220ec01e7a4531a92b4ab96bf50b7b1e323bdea53c2",
+      "repository": "https://github.com/simonbs/Runestone",
+      "revision": "592434a103a4d1ab83e14f87ac6eef569dd7a99d",
+      "sourcePath": "LICENSE",
+      "copied": "verbatim complete file"
+    },
+    {
+      "path": "treesitterlanguages/LICENSE",
+      "bytes": 1072,
+      "sha256": "b34c869efe68c5082708d220ec01e7a4531a92b4ab96bf50b7b1e323bdea53c2",
+      "repository": "https://github.com/simonbs/TreeSitterLanguages",
+      "revision": "15cf3a9ec3ab95e0d058b7df9f35619123c9e02d",
+      "sourcePath": "LICENSE",
+      "copied": "verbatim complete file"
+    },
+    {
+      "path": "ws/LICENSE",
+      "bytes": 1183,
+      "sha256": "2b29dcfe0d6471f7e8c92c5fb38c9f93edee10330937055440192f1832b1ecef",
+      "repository": "https://registry.npmjs.org/ws",
+      "version": "8.21.0",
+      "sourcePath": "package/LICENSE",
+      "copied": "verbatim complete npm package license"
+    },
+    {
+      "path": "qrcode-terminal/LICENSE",
+      "bytes": 11962,
+      "sha256": "b3c7a2fadb2515b8106eae58439a4b9c0581a4eaa88d6a265701f8d4dd7dadb8",
+      "repository": "https://registry.npmjs.org/qrcode-terminal",
+      "version": "0.12.0",
+      "sourcePath": "package/LICENSE",
+      "copied": "verbatim complete npm package license"
+    },
+    {
+      "path": "swift-crypto/BoringSSL-LICENSE.txt",
+      "bytes": 13115,
+      "sha256": "827c8d8fc207c2392794eef9e00fe246f9f61fdcc132556c275be3dd8c3cd97f",
+      "repository": "https://github.com/google/boringssl.git",
+      "revision": "0226f30467f540a3f62ef48d453f93927da199b6",
+      "sourcePath": "LICENSE",
+      "copied": "verbatim complete file; exact revision recorded in SwiftCrypto Package.swift and vendor hash.txt"
+    },
+    {
+      "path": "swiftui-math/math-font-metadata.json",
+      "bytes": 18651,
+      "sha256": "5fffd744955915e861ff825bf07446d832af288dbcfcc77975f275e44e635935",
+      "repository": "https://github.com/gonzalezreal/swiftui-math",
+      "revision": "0b5c2cfaaec8d6193db206f675048eeb5ce95f71",
+      "sourcePath": "Sources/SwiftUIMath/mathFonts.bundle/*.otf",
+      "copied": "SFNT name records 0/1/5/7/8/9/13/14 decoded from exact font bytes; not a replacement font license"
+    },
+    {
+      "path": "swiftui-math/LPPL-1.3c.txt",
+      "bytes": 19036,
+      "sha256": "c1ae6e179a6d28bbd5c483fbacc744acc75e922d598281dc3390aab26126e163",
+      "url": "https://www.latex-project.org/lppl/lppl-1-3c.txt",
+      "copied": "verbatim complete version-specific primary license"
+    },
+    {
+      "path": "remodextextkit/Scripts/bundle-prism.sh",
+      "bytes": 7343,
+      "sha256": "b3e53d5ebd0af6ac26549b301a644906df730658fb376912a96329bad91f4a08",
+      "repository": "https://github.com/Emanuele-web04/RemodexTextKit",
+      "revision": "57c580f0c7cb8cb4fc2e73b5a841f85303235979",
+      "sourcePath": "Scripts/bundle-prism.sh",
+      "copied": "verbatim complete build-provenance data; not executed"
+    },
+    {
+      "path": "remodextextkit/Scripts/prism-checksums.sha256",
+      "bytes": 4680,
+      "sha256": "3ec16f19b3f778edd6e6d263d02457ab5aad89d8235b6d86c9b16cd6081a0140",
+      "repository": "https://github.com/Emanuele-web04/RemodexTextKit",
+      "revision": "57c580f0c7cb8cb4fc2e73b5a841f85303235979",
+      "sourcePath": "Scripts/prism-checksums.sha256",
+      "copied": "verbatim complete build-provenance data; not executed"
+    },
+    {
+      "path": "remodextextkit/prism-bundle.js-header.txt",
+      "bytes": 122,
+      "sha256": "391b3dc7bd629f9b044187d4bed7849a5e9c60db504572225dfa652e6f6177b3",
+      "repository": "https://github.com/Emanuele-web04/RemodexTextKit",
+      "revision": "57c580f0c7cb8cb4fc2e73b5a841f85303235979",
+      "sourcePath": "Sources/RemodexTextKit/Internal/Highlighter/Prism/prism-bundle.js",
+      "copied": "verbatim first two banner lines; provenance only"
+    },
+    {
+      "path": "remodextextkit/Prism-1.29.0-LICENSE",
+      "bytes": 1066,
+      "sha256": "2b947f0901a7ffcf08a89957da9783c0e9c6e72cb6ce8e959f501ab5409e4d2b",
+      "url": "https://registry.npmjs.org/prismjs/-/prismjs-1.29.0.tgz",
+      "archiveSHA256": "e3b4e4286835f6f01a2cfaf8d0545542dd3da9dcc904fd134d4aface3aef499c",
+      "sourcePath": "package/LICENSE",
+      "copied": "verbatim complete MIT license; bundle version identified by pinned build script/checksums"
+    },
+    {
+      "path": "remodextextkit/prism-components-verification.json",
+      "bytes": 23142,
+      "sha256": "691f1c7d691e8c4113f58e9f34a71515031ba96f004e302c168a6e1599d2d7d6",
+      "copied": "Recorded pinned checksum + CDN exact file hash and verbatim membership in TextKit bundled resource; no JavaScript executed"
+    }
+  ],
+  "distributionBlockers": [
+    {
+      "component": "TreeSitterLanguages/tree-sitter-astro",
+      "repository": "https://github.com/virchau13/tree-sitter-astro",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/tree-sitter-bash",
+      "repository": "https://github.com/tree-sitter/tree-sitter-bash",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/tree-sitter-c",
+      "repository": "https://github.com/tree-sitter/tree-sitter-c",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/tree-sitter-comment",
+      "repository": "https://github.com/stsewd/tree-sitter-comment",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/tree-sitter-c-sharp",
+      "repository": "https://github.com/tree-sitter/tree-sitter-c-sharp",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/tree-sitter-cpp",
+      "repository": "https://github.com/tree-sitter/tree-sitter-cpp",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/tree-sitter-css",
+      "repository": "https://github.com/tree-sitter/tree-sitter-css",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/tree-sitter-elixir",
+      "repository": "https://github.com/elixir-lang/tree-sitter-elixir",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/tree-sitter-elm",
+      "repository": "https://github.com/elm-tooling/tree-sitter-elm",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/tree-sitter-go",
+      "repository": "https://github.com/tree-sitter/tree-sitter-go",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/tree-sitter-haskell",
+      "repository": "https://github.com/tree-sitter/tree-sitter-haskell",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/tree-sitter-html",
+      "repository": "https://github.com/tree-sitter/tree-sitter-html",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/tree-sitter-java",
+      "repository": "https://github.com/tree-sitter/tree-sitter-java",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/tree-sitter-javascript",
+      "repository": "https://github.com/tree-sitter/tree-sitter-javascript",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/tree-sitter-jsdoc",
+      "repository": "https://github.com/tree-sitter/tree-sitter-jsdoc",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/tree-sitter-json",
+      "repository": "https://github.com/tree-sitter/tree-sitter-json",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/tree-sitter-json5",
+      "repository": "https://github.com/Joakker/tree-sitter-json5",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/tree-sitter-julia",
+      "repository": "https://github.com/tree-sitter/tree-sitter-julia",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/tree-sitter-latex",
+      "repository": "https://github.com/latex-lsp/tree-sitter-latex",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/tree-sitter-lua",
+      "repository": "https://github.com/tjdevries/tree-sitter-lua",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/tree-sitter-markdown",
+      "repository": "https://github.com/MDeiml/tree-sitter-markdown",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/tree-sitter-ocaml",
+      "repository": "https://github.com/tree-sitter/tree-sitter-ocaml",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/tree-sitter-perl",
+      "repository": "https://github.com/ganezdragon/tree-sitter-perl",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/tree-sitter-php",
+      "repository": "https://github.com/tree-sitter/tree-sitter-php",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/tree-sitter-python",
+      "repository": "https://github.com/tree-sitter/tree-sitter-python",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/tree-sitter-r",
+      "repository": "https://github.com/r-lib/tree-sitter-r",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/tree-sitter-regex",
+      "repository": "https://github.com/tree-sitter/tree-sitter-regex",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/tree-sitter-ruby",
+      "repository": "https://github.com/tree-sitter/tree-sitter-ruby",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/tree-sitter-rust",
+      "repository": "https://github.com/tree-sitter/tree-sitter-rust",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/tree-sitter-scss",
+      "repository": "https://github.com/serenadeai/tree-sitter-scss",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/tree-sitter-sql",
+      "repository": "https://github.com/DerekStride/tree-sitter-sql",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/tree-sitter-svelte",
+      "repository": "https://github.com/Himujjal/tree-sitter-svelte",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/tree-sitter-swift",
+      "repository": "https://github.com/alex-pinkus/tree-sitter-swift",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/tree-sitter-toml",
+      "repository": "https://github.com/ikatyang/tree-sitter-toml",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/tree-sitter-typescript",
+      "repository": "https://github.com/tree-sitter/tree-sitter-typescript",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/tree-sitter-yaml",
+      "repository": "https://github.com/ikatyang/tree-sitter-yaml",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "TreeSitterLanguages/nvim-treesitter",
+      "repository": "https://github.com/nvim-treesitter/nvim-treesitter",
+      "reason": "Pinned package acknowledges copied grammar/query code, but includes no separate source revision/license attribution for this origin. Match retained files to original sources and archive applicable notices before distribution."
+    },
+    {
+      "component": "packaged-third-party-notices",
+      "reason": "Archive is source evidence. Bundle readable notices in app and distribute complete applicable dependency notices with bridge/relay packages; verify built bundle/package contents before distribution."
+    }
+  ],
+  "combinedNotices": {
+    "path": "../remodex-third-party-notices.txt",
+    "bytes": 222488,
+    "sha256": "a0fa9d7fa09b434d1ff9df8fdb8ed64429fa1c0bf92f103582f274d1e6ed3efc",
+    "scope": "Readable aggregation of identified complete license/notice texts and exact font name records. Does not clear unresolved copied grammar/query attributions."
+  }
+}

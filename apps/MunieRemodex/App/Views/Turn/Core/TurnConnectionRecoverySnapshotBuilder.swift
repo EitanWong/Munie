@@ -1,0 +1,71 @@
+// Munie modification: localize the primary task journey in English and Simplified Chinese.
+// FILE: TurnConnectionRecoverySnapshotBuilder.swift
+// Purpose: Centralizes the turn recovery card decision so offline wake affordances stay testable.
+// Layer: View support
+// Exports: TurnConnectionRecoverySnapshotBuilder
+// Depends on: Foundation, ConnectionRecoveryCard, CodexSecureTransportModels
+
+import Foundation
+
+enum TurnConnectionRecoverySnapshotBuilder {
+    static func makeSnapshot(
+        hasReconnectCandidate: Bool,
+        isConnected: Bool,
+        secureConnectionState: CodexSecureConnectionState,
+        showsWakeSavedMacDisplayAction: Bool,
+        isWakingMacDisplayRecovery: Bool,
+        isConnecting: Bool,
+        shouldAutoReconnectOnForeground: Bool,
+        isRetryingConnectionRecovery: Bool,
+        lastErrorMessage: String?
+    ) -> ConnectionRecoverySnapshot? {
+        guard hasReconnectCandidate,
+              !isConnected else {
+            return nil
+        }
+
+        guard secureConnectionState != .rePairRequired || showsWakeSavedMacDisplayAction else {
+            return nil
+        }
+
+        let trimmedError = lastErrorMessage?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if isWakingMacDisplayRecovery {
+            return ConnectionRecoverySnapshot(
+                summary: trimmedError?.isEmpty == false
+                    ? trimmedError ?? ""
+                    : String(localized: "Trying to wake the device display."),
+                status: .reconnecting,
+                trailingStyle: .progress
+            )
+        }
+
+        // While foreground auto-recovery is still running, keep the card in progress
+        // instead of surfacing the manual wake fallback on every app switch.
+        if isConnecting || shouldAutoReconnectOnForeground || isRetryingConnectionRecovery {
+            return ConnectionRecoverySnapshot(
+                summary: String(localized: "Trying to reconnect to your device."),
+                status: .reconnecting,
+                trailingStyle: .progress
+            )
+        }
+
+        if showsWakeSavedMacDisplayAction {
+            return ConnectionRecoverySnapshot(
+                summary: trimmedError?.isEmpty == false
+                    ? trimmedError ?? ""
+                    : String(localized: "Your device is not reachable, so this chat is paused."),
+                status: .interrupted,
+                trailingStyle: .action(String(localized: "Wake Screen"))
+            )
+        }
+
+        return ConnectionRecoverySnapshot(
+            summary: trimmedError?.isEmpty == false
+                ? trimmedError ?? ""
+                : String(localized: "Reconnect to your device to keep this chat in sync."),
+            status: .interrupted,
+            trailingStyle: .action(String(localized: "Reconnect"))
+        )
+    }
+}

@@ -5,6 +5,35 @@ import Testing
 @testable import MunieExecutionHost
 
 struct CodexAppServerTests {
+  @Test func resumedHistoricalUsageCannotBecomeCurrentTurnEvidence() async throws {
+    let fixture = try ClientFixture()
+    try await fixture.start()
+    let previous = UUID().uuidString.lowercased()
+    let usage: CodexJSON = .object([
+      "threadId": .string(ClientFixture.threadID.uuidString.lowercased()),
+      "turnId": .string(previous), "tokenUsage": .object([:]),
+    ])
+    await fixture.peer.push(
+      .event(.object(["method": .string("thread/tokenUsage/updated"), "params": usage])))
+    let event = try await fixture.client.nextEvent()
+    #expect(event.kind == .progress)
+    #expect(event.threadID == ClientFixture.threadID)
+    #expect(event.turnID == nil && event.requestID == nil && event.itemID == nil)
+    #expect(event.payload == .object([:]))
+    await fixture.peer.push(
+      .event(
+        .object([
+          "method": .string("thread/tokenUsage/updated"),
+          "params": .object([
+            "threadId": .string(UUID().uuidString.lowercased()),
+            "turnId": .string(previous), "tokenUsage": .object([:]),
+          ]),
+        ])))
+    await #expect(throws: CodexClientError.identityMismatch) {
+      try await fixture.client.nextEvent()
+    }
+    _ = try await fixture.client.close()
+  }
   @Test func canonicallyEquivalentPathBytesCannotReplaceTheConfiguredDirectoryOrHome() async throws
   {
     let root = ClientFixture.directory.appendingPathComponent("munie-unicode-\(UUID().uuidString)")
@@ -142,6 +171,137 @@ struct CodexAppServerTests {
           "params": .object(["status": .string("disabled")]),
         ])))
     await #expect(throws: CodexClientError.malformedFrame) { try await fixture.client.nextEvent() }
+    _ = try await fixture.client.close()
+  }
+
+  @Test func globalAccountAndMCPStartupBeforeStartResponsesRemainSafeProgress() async throws {
+    let account: CodexJSON = .object([
+      "method": .string("account/updated"),
+      "params": .object(["authMode": .string("chatgpt"), "planType": .string("pro")]),
+    ])
+    let mcp: CodexJSON = .object([
+      "method": .string("mcpServer/startupStatus/updated"),
+      "params": .object([
+        "name": .string("PRIVATE host MCP identity"), "status": .string("failed"),
+        "threadId": .null, "error": .string("PRIVATE authentication context"),
+        "failureReason": .string("reauthenticationRequired"),
+      ]),
+    ])
+    let fixture = try ClientFixture(
+      threadFrames: [.event(account), .result(ClientFixture.thread())],
+      turnFrames: [.event(mcp), .result(ClientFixture.turn())])
+    try await fixture.start()
+    let updated = try await fixture.client.nextEvent()
+    #expect(updated.method == "account/updated")
+    #expect(updated.kind == .progress)
+    #expect(updated.requestID == nil && updated.threadID == nil && updated.turnID == nil)
+    #expect(updated.itemID == nil && updated.payload == .object([:]))
+    let startup = try await fixture.client.nextEvent()
+    #expect(startup.method == "mcpServer/startupStatus/updated")
+    #expect(startup.kind == .progress)
+    #expect(startup.requestID == nil && startup.threadID == nil && startup.turnID == nil)
+    #expect(startup.itemID == nil && startup.payload == .object(["status": .string("failed")]))
+    await fixture.peer.push(.event(ClientFixture.terminal()))
+    let completed = try await fixture.client.nextEvent()
+    #expect(completed.requestID == ClientFixture.requestID)
+    #expect(
+      completed.kind
+        == .terminal(CodexTurnSnapshot(upstream: ClientFixture.upstream, status: .completed)))
+    _ = try await fixture.client.close()
+  }
+
+  @Test func nullableAccountLifecycleAndThreadScopedMCPStatusesAreAccepted() async throws {
+    let fixture = try ClientFixture()
+    try await fixture.start()
+    for params in [CodexJSON.object([:]), .object(["authMode": .null, "planType": .null])] {
+      await fixture.peer.push(
+        .event(.object(["method": .string("account/updated"), "params": params])))
+      #expect(try await fixture.client.nextEvent().payload == .object([:]))
+    }
+    for status in ["starting", "ready", "failed", "cancelled"] {
+      await fixture.peer.push(
+        .event(
+          .object([
+            "method": .string("mcpServer/startupStatus/updated"),
+            "params": .object([
+              "name": .string("PRIVATE MCP"), "status": .string(status),
+              "threadId": .string(ClientFixture.threadID.uuidString.lowercased()),
+              "error": .null, "failureReason": .null,
+            ]),
+          ])))
+      let event = try await fixture.client.nextEvent()
+      #expect(event.threadID == ClientFixture.threadID)
+      #expect(event.turnID == nil && event.requestID == nil)
+      #expect(event.payload == .object(["status": .string(status)]))
+    }
+    _ = try await fixture.client.close()
+  }
+
+  @Test func malformedLifecycleAndUnknownThreadCannotBypassEventIdentityChecks() async throws {
+    let malformed: [(String, CodexJSON, CodexClientError)] = [
+      ("account/updated", .object(["authMode": .bool(true)]), .malformedFrame),
+      ("account/updated", .object(["planType": .object([:])]), .malformedFrame),
+      ("mcpServer/startupStatus/updated", .object(["status": .string("ready")]), .malformedFrame),
+      (
+        "mcpServer/startupStatus/updated", .object(["name": .null, "status": .string("ready")]),
+        .malformedFrame
+      ),
+      (
+        "mcpServer/startupStatus/updated",
+        .object(["name": .string("MCP"), "status": .string("unknown")]), .malformedFrame
+      ),
+      (
+        "mcpServer/startupStatus/updated",
+        .object(["name": .string("MCP"), "status": .string("ready"), "error": .integer(1)]),
+        .malformedFrame
+      ),
+      (
+        "mcpServer/startupStatus/updated",
+        .object([
+          "name": .string("MCP"), "status": .string("failed"), "failureReason": .string("unknown"),
+        ]), .malformedFrame
+      ),
+      (
+        "mcpServer/startupStatus/updated",
+        .object([
+          "name": .string("MCP"), "status": .string("ready"),
+          "threadId": .string(UUID().uuidString.lowercased()),
+        ]), .identityMismatch
+      ),
+    ]
+    for (method, params, error) in malformed {
+      let fixture = try ClientFixture()
+      try await fixture.start()
+      await fixture.peer.push(.event(.object(["method": .string(method), "params": params])))
+      await #expect(throws: error) { try await fixture.client.nextEvent() }
+      _ = try await fixture.client.close()
+    }
+    for method in ["account/updated", "mcpServer/startupStatus/updated"] {
+      let fixture = try ClientFixture()
+      try await fixture.start()
+      await fixture.peer.push(
+        .event(
+          .object([
+            "id": .integer(500), "method": .string(method), "params": .object([:]),
+          ])))
+      await #expect(throws: CodexClientError.unsupportedMethod) {
+        try await fixture.client.nextEvent()
+      }
+      _ = try await fixture.client.close()
+    }
+  }
+
+  @Test func globalLifecycleNotificationsStillConsumeTheBoundedEventQueue() async throws {
+    let event: CodexJSON = .object([
+      "method": .string("account/updated"), "params": .object([:]),
+    ])
+    let fixture = try ClientFixture(
+      threadFrames: [.event(event), .event(event), .result(ClientFixture.thread())],
+      maximumBufferedEvents: 1)
+    try await fixture.client.initialize()
+    await #expect(throws: CodexClientError.eventLimit) {
+      try await fixture.client.start(fixture.submission())
+    }
     _ = try await fixture.client.close()
   }
 

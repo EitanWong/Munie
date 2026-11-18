@@ -4,19 +4,29 @@
 
 [English](README.md) · [文档](docs/README.md) · [项目状态](docs/project-status.md)
 
-Munie 是随身的个人 Agent 助理前台：通过 iPhone、Apple Watch 的语音和原生设备交互，随时随地操控自己 Mac 上的 Codex，查看真实工作进展并接收结果。照片、视频及未来语音/眼镜助理延伸这一方向，文字作为补充。后端面向多种 harness 开放，首先以 Codex 原生完整支持为目标。这是[产品需求](docs/requirements.md)，不是已实现能力。
+Munie 是控制 Mac 上 Codex 的原生 Apple 前台。主要 iPhone 实现现已改为直接采用 [Remodex](https://github.com/Emanuele-web04/remodex) 源码，沿用其会话、Markdown、diff、项目/git、审批与恢复功能，产品名称仍为 Munie。此前原生客户端与主机保留为回退检查点。[需求基线](docs/requirements.md)继续约束语音、系统入口、隐私、中英双语及后续 Apple 平台能力。
 
-当前工程底座仅提供本地文字记录、原生 Apple 应用 target 和共享存储核心。远程 Codex、语音、媒体、通知与设备同步均未实现。Apple TV 使用可能被系统清理的缓存。范围、正式开发准入和剩余验证统一见[基础准入](docs/foundation-readiness.md)与[项目状态](docs/project-status.md)。
+新底座正在验收：主流程控件已加入中英双语，录音限制为 30 秒，通知可返回对应会话。高级界面翻译、真实音频与系统入口、通知送达仍需验收，见[项目状态](docs/project-status.md)。固定提交、排除的上游品牌/二进制和发行 notice 阻塞见[移植记录](references/remodex-adoption.md)。
+
+## 连接 iPhone 与 Mac
+
+产品安装方式是两个 App：Mac 上的 Munie 和 iPhone 上的 Munie。新的本地 Mac 构建采用以下流程：
+
+1. 打开 Mac 上的 Munie，按提示在浏览器登录 Codex，使用默认工作区或选择项目文件夹。
+2. 打开 iPhone 上的 Munie，选择自动发现的 Mac。
+3. 核对两端显示的数字并确认配对，然后在手机上发起任务。
+
+运行依赖、本地服务启动和连接配置由 Mac App 管理；普通引导没有终端命令、npm 安装或服务器地址输入。当前产品切片先实现附近连接，外出自动连接仍未完成。实际构建/验收与发行限制见[项目状态](docs/project-status.md)。目前尚无公开安装发行版；[开发说明](docs/development.md)单独保留开发者构建与旧网络诊断入口。
 
 ## 开始开发
 
-要求：macOS，以及支持 Swift 6 并安装各 Apple 平台 SDK 的 Xcode。最低系统版本为 iOS/iPadOS 18、macOS 15、watchOS 11、tvOS 18、visionOS 2。初始化脚本将校验和固定的 XcodeGen 2.46.0 与 actionlint 1.7.12 下载到忽略提交的 `.tools/`。模拟器测试还需要已安装的 iPhone 模拟器运行时。
+要求：macOS，以及支持 Swift 6 并安装各 Apple 平台 SDK 的 Xcode。新 iPhone target 最低为 iOS 18.6；保留基础的最低版本为 iOS/iPadOS 18、macOS 15、watchOS 11、tvOS 18、visionOS 2。初始化脚本将校验和固定的 XcodeGen 2.46.0 与 actionlint 1.7.12 下载到忽略提交的 `.tools/`。模拟器测试还需要已安装的 iPhone 模拟器运行时。
 
 ```sh
 ./scripts/bootstrap.sh
 open Munie.xcodeproj
 ./scripts/check.sh
-./scripts/test-ios.sh
+./scripts/test-remodex-ios.sh
 ```
 
 真机安装前在忽略提交的 `config/Signing.xcconfig` 中设置签名团队与唯一 Bundle ID。生成的 Xcode 工程不入库；修改 `project.yml`。单项检查和环境限制见[开发说明](docs/development.md)、[测试说明](docs/testing.md)。
@@ -29,15 +39,21 @@ open Munie.xcodeproj
 
 | 路径 | 职责 |
 |---|---|
-| `apps/Munie/` | 原生多平台 SwiftUI 应用、共享展示层和资源 |
+| `apps/MunieRemodex/` | 主要原生 iPhone 移植客户端、单元/UI 测试与许可文本 |
+| `apps/MunieDesktop/`、`apps/MunieDesktopTests/` | 原生 Mac 伴侣、内置执行生命周期与离线应用测试 |
+| `apps/MunieRemodexBridge/`、`apps/MunieRemodexRelay/` | 移植的 Mac bridge 与私有自托管 relay |
+| `apps/Munie/` | 保留的多平台原生回退检查点与资源 |
 | `apps/MunieWatch/` | 独立 watchOS target 中的 Watch 专属交互 |
 | `apps/MunieTests/`、`apps/MunieUITests/` | 应用单元测试和 iOS UI 测试 target |
+| `apps/MunieMacHost/`、`apps/MunieHost/` | 原生 Mac 主机 UI、受监督执行、账本与传输 |
+| `packages/MunieRemote/` | 跨端协议、有界传输与客户端恢复逻辑 |
+| `packages/MunieNearby/` | iPhone 与 Mac 共用的有界附近发现与两端明确确认配对 |
 | `packages/MunieCore/` | 可复用的记录模型、持久化和核心测试 |
 | `docs/` | 产品决策、架构、流程、调研和项目状态 |
 | `references/` | 固定版本的第三方索引与忽略提交的源码检出 |
 | `scripts/` | 可重复执行的本地与 CI 自动化 |
 | `.github/` | CI/CD 工作流与协作模板 |
-| `Package.swift` | 应用状态逻辑的 Mac 测试入口，不是发布库 |
+| `Package.swift` | 主机模块、服务/guardian 可执行文件及 Mac 测试入口 |
 | `config/` | 签名配置模板，个人值不入库 |
 | `project.yml` | Xcode 工程的唯一配置源 |
 
@@ -49,4 +65,4 @@ open Munie.xcodeproj
 
 ## 隐私与发行
 
-本地记录基础不要求模型账户或服务器。记录内容是敏感用户数据，处理原则见 [SECURITY](SECURITY.md)。项目尚未选择开源许可证或授予产品分发权；第三方项目保留各自许可证。
+远程任务需要 Mac 本地 Codex 账户；独立本地记录无需模型账户。记录内容是敏感用户数据，处理原则见 [SECURITY](SECURITY.md)。项目尚未选择开源许可证或授予产品分发权；第三方项目保留各自许可证。

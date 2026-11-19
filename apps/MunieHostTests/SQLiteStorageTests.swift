@@ -197,6 +197,37 @@ struct SQLiteStorageTests {
     #expect(try python(code, arguments: [lock.path]) == 0)
   }
 
+  @Test func closingStoreReleasesLockEvenWhileADuplicateDescriptorIsOpen() throws {
+    let fixture = try Fixture()
+    defer { fixture.remove() }
+    var store: SQLiteStorage? = try SQLiteStorage(directoryURL: fixture.directory)
+    let lock = fixture.directory.appendingPathComponent(".owner")
+    var owner = stat()
+    try #require(stat(lock.path, &owner) == 0)
+    // Model the short-lived reference inherited by a process between fork and exec.
+    let descriptor = try withExtendedLifetime(store) {
+      let candidates = try FileManager.default.contentsOfDirectory(atPath: "/dev/fd")
+      return try #require(
+        candidates.compactMap { name -> Int32? in
+          guard let descriptor = Int32(name) else { return nil }
+          var information = stat()
+          guard fstat(descriptor, &information) == 0,
+            information.st_dev == owner.st_dev, information.st_ino == owner.st_ino
+          else { return nil }
+          return descriptor
+        }.first)
+    }
+    let duplicate = fcntl(descriptor, F_DUPFD_CLOEXEC, 0)
+    try #require(duplicate >= 0)
+    defer { close(duplicate) }
+    #expect(throws: SubmissionError.storeBusy) {
+      try SQLiteStorage(directoryURL: fixture.directory)
+    }
+    store = nil
+    let reopened = try SQLiteStorage(directoryURL: fixture.directory)
+    #expect(try reopened.rows("SELECT 1") == [[.integer(1)]])
+  }
+
   @Test func separatelyOwnedLockReturnsBusyAndReleasesAfterProcessExit() throws {
     let fixture = try Fixture()
     defer { fixture.remove() }

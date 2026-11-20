@@ -6,7 +6,7 @@
 // Depends on: ws, crypto, os, ./bridge-status, ./codex-desktop-refresher, ./codex-transport, ./rollout-watch, ./voice-handler
 
 // Munie modification: constrain explicit launches before local handlers/native forwarding.
-const { configuredRoot, scopedPath, withinRoot, bindNativeRequest, assertNativeMethod, createPendingResponseGate } = require("./munie-project-policy");
+const { configuredRoot, scopedPath, withinRoot, bindNativeRequest, assertNativeMethod, assertFollowCodexPreview, createPendingResponseGate } = require("./munie-project-policy");
 const WebSocket = require("ws");
 const { constants: bufferConstants } = require("buffer");
 const { createHash, randomBytes } = require("crypto");
@@ -1406,6 +1406,13 @@ function startBridge({
     const projectRoot = configuredRoot();
     if (projectRoot) {
       const incoming = parseBridgeMessage(rawMessage);
+      if (config.followCodexAccount === true) {
+        try { assertFollowCodexPreview(incoming); }
+        catch (error) {
+          if (incoming?.id != null) sendApplicationResponse(createJsonRpcErrorResponse(incoming.id, error, "shared_codex_actions_unavailable"));
+          return;
+        }
+      }
       const requestedThread = incoming?.params?.threadId || incoming?.params?.thread_id
         || incoming?.params?.conversationId || incoming?.params?.conversation_id;
       // Munie modification: a caller-supplied cwd cannot rebind another project's existing thread.
@@ -1420,7 +1427,9 @@ function startBridge({
       }
       try {
         if (!incoming?.method && incoming?.id != null) projectResponseGate.consume(incoming.id);
-        rawMessage = JSON.stringify(bindNativeRequest(incoming, projectRoot));
+        rawMessage = JSON.stringify(bindNativeRequest(incoming, projectRoot, {
+          followCodexAccount: config.followCodexAccount === true,
+        }));
       } catch (error) {
         if (incoming?.id != null) sendApplicationResponse(createJsonRpcErrorResponse(incoming.id, error, "project_not_authorized"));
         return;
@@ -2001,6 +2010,7 @@ function startBridge({
 
     const method = typeof parsed?.method === "string" ? parsed.method.trim() : "";
     if (method !== "account/status/read"
+      && !(config.followCodexAccount && method === "account/read")
       && method !== "getAuthStatus"
       && method !== "account/login/openOnMac"
       && method !== "voice/resolveAuth") {
@@ -2028,6 +2038,7 @@ function startBridge({
   async function readBridgeManagedAccountResult(method, params) {
     switch (method) {
       case "account/status/read":
+      case "account/read":
       case "getAuthStatus":
         return readSanitizedAuthStatus();
       case "account/login/openOnMac":
@@ -2042,6 +2053,28 @@ function startBridge({
   // Combines account/read + getAuthStatus into one safe snapshot for the phone UI.
   // The two RPCs are settled independently so one transient failure does not hide the other.
   async function readSanitizedAuthStatus() {
+    if (config.followCodexAccount) {
+      // Read the native account manager's current state; do not request a credential.
+      // Where ChatGPT is signed in, voice still has its separate, bridge-private auth path.
+      let accountRead;
+      try {
+        accountRead = normalizeAccountRead(await sendCodexRequest("account/read", { refreshToken: false }));
+      } catch {
+        throw new Error("Could not read Codex account status on this Mac.");
+      }
+      const method = accountRead.account?.type;
+      const configured = method === "apiKey" || (!accountRead.requiresOpenaiAuth && method !== "chatgpt");
+      const snapshot = composeSanitizedAuthStatusFromSettledResults({
+        accountReadResult: { status: "fulfilled", value: accountRead },
+        allowPackageUpdates,
+        transportMode: codex.mode,
+      });
+      return { ...snapshot, email: null, planType: null, followsCodexAccount: true,
+        ...(configured ? { authMethod: method === "apiKey" ? "apiKey" : "customProvider",
+          status: "authenticated", needsReauth: false, tokenReady: false } : {}),
+        ...(method === "chatgpt" ? { status: "authenticated", needsReauth: false, tokenReady: true } : {}),
+      };
+    }
     const [accountReadResult, authStatusResult, bridgeVersionInfoResult] = await Promise.allSettled([
       sendCodexRequest("account/read", {
         refreshToken: false,
@@ -2773,6 +2806,7 @@ function startBridge({
     // Local process control only. These functions are never registered as relay RPC methods.
     localAccount: initializeForLocalAccount ? {
       async read() {
+        if (config.followCodexAccount) return readSanitizedAuthStatus();
         const [accountReadResult, authStatusResult] = await Promise.allSettled([
           sendCodexRequest("account/read", { refreshToken: false }, { timeoutMs: 10_000 }),
           sendCodexRequest("getAuthStatus", { includeToken: true, refreshToken: true }, { timeoutMs: 10_000 }),
@@ -2784,24 +2818,6 @@ function startBridge({
           allowPackageUpdates,
           transportMode: codex.mode,
         });
-      },
-      async startLogin() {
-        if (pendingAuthLogin.loginId) {
-          return { loginId: pendingAuthLogin.loginId, authUrl: pendingAuthLogin.authUrl };
-        }
-        const result = await sendCodexRequest("account/login/start", { type: "chatgpt" }, { timeoutMs: 10_000 });
-        if (result?.type !== "chatgpt" || typeof result.loginId !== "string" || typeof result.authUrl !== "string") {
-          throw new Error("Codex did not return a browser login flow.");
-        }
-        Object.assign(pendingAuthLogin, { loginId: result.loginId, authUrl: result.authUrl, startedAt: Date.now() });
-        return { loginId: result.loginId, authUrl: result.authUrl };
-      },
-      async cancelLogin() {
-        if (pendingAuthLogin.loginId) {
-          await sendCodexRequest("account/login/cancel", { loginId: pendingAuthLogin.loginId }, { timeoutMs: 10_000 });
-          clearPendingAuthLogin();
-        }
-        return { cancelled: true };
       },
     } : null,
   };

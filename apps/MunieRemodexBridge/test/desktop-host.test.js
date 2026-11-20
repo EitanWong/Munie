@@ -12,7 +12,7 @@ const { spawn, spawnSync } = require("node:child_process");
 const { setTimeout: delay } = require("node:timers/promises");
 const WebSocket = require("ws");
 const { nonceForDirection } = require("../src/secure-transport");
-const { createDesktopHost, readFrames, selectLanAddress, advertisedHost, safeLogin, publicError, groupExists, verifyCleanup, MAX_REQUEST_BYTES } = require("../src/desktop-host");
+const { createDesktopHost, readFrames, selectLanAddress, advertisedHost, resolveCodexHome, publicError, groupExists, verifyCleanup, MAX_REQUEST_BYTES } = require("../src/desktop-host");
 const entry = path.resolve(__dirname, "../src/desktop-host.js");
 const repository = path.resolve(__dirname, "../../..");
 
@@ -31,11 +31,17 @@ test("network choice uses an actual private IPv4 and prefers physical Apple inte
   assert.equal(advertisedHost("192.168.1.2", "https://invalid.local"), "192.168.1.2");
 });
 
-test("browser login only returns native HTTPS OpenAI URLs and never unrelated response fields", () => {
-  const safe = safeLogin({ loginId: "id", authUrl: "https://auth.openai.com/authorize?state=flow", authToken: "SECRET" });
-  assert.deepEqual(Object.keys(safe), ["loginId", "authUrl"]);
-  for (const authUrl of ["file:///tmp/private", "http://auth.openai.com", "https://evil.test/", "https://auth.openai.com:8443/authorize", "https://auth.openai.com.evil.test", "https://user:password@auth.openai.com"]) {
-    assert.throws(() => safeLogin({ loginId: "id", authUrl }), /sign-in flow/);
+test("Codex home follows the native default or an explicit existing directory without writing it", (t) => {
+  const root = temporary(t), home = path.join(root, "existing-codex-home");
+  assert.equal(resolveCodexHome({}, root), path.join(root, ".codex"));
+  assert.equal(fs.existsSync(path.join(root, ".codex")), false);
+  fs.mkdirSync(home, { mode: 0o755 });
+  const alias = path.join(root, "configured-home");
+  fs.symlinkSync(home, alias);
+  assert.equal(resolveCodexHome({ CODEX_HOME: alias }, root), home);
+  assert.equal(fs.statSync(home).mode & 0o777, 0o755);
+  for (const CODEX_HOME of ["relative", path.join(root, "missing")]) {
+    assert.throws(() => resolveCodexHome({ CODEX_HOME }, root), { code: "account_unavailable" });
   }
   assert.deepEqual(publicError({ code: "ENOTFOUND", message: "SECRET private path" }), {
     code: "runtime_failed", message: "The local runtime stopped unexpectedly. Retry the connection.",
@@ -150,7 +156,7 @@ test("corrupt saved state can confirm stop and quit without claiming startup suc
   assert.equal((await client.closed).code, 0);
 });
 
-test("bundled relay/native lifecycle, login redaction, trust reset, revoke and E2EE gate", { timeout: 30000, skip: process.platform !== "darwin" }, async (t) => {
+test("bundled relay follows Codex settings, keeps account mutations local, and preserves pairing ownership", { timeout: 30000, skip: process.platform !== "darwin" }, async (t) => {
   const fixture = setupRuntime(t), events = [];
   const host = createDesktopHost({ env: { ...fixture.env, NODE_OPTIONS: "--invalid-untrusted-option" }, emit: (event, data) => {
     events.push({ event, data });
@@ -166,7 +172,8 @@ test("bundled relay/native lifecycle, login redaction, trust reset, revoke and E
   assert.equal(started.bridge.connectionStatus, "connected");
   const runtimeEnvironment = JSON.parse(fs.readFileSync(fixture.runtimeRecord));
   assert.equal(runtimeEnvironment.cwd, fixture.project);
-  assert.equal(runtimeEnvironment.codexHome, path.join(fixture.env.MUNIE_HOST_STATE_DIR, "codex"));
+  assert.equal(runtimeEnvironment.codexHome, fixture.env.CODEX_HOME);
+  assert.equal(fs.existsSync(path.join(fixture.env.MUNIE_HOST_STATE_DIR, "codex")), false);
   assert.equal(runtimeEnvironment.endpoint, undefined);
   assert.equal(runtimeEnvironment.nodeOptions, undefined);
   const first = await host.run("pairing/get");
@@ -184,15 +191,26 @@ test("bundled relay/native lifecycle, login redaction, trust reset, revoke and E
   assert.deepEqual(fixture.pids(), initialPids, "refresh must preserve the native runtime and active work");
   const account = await host.run("account/read");
   assert.equal(account.status, "not_logged_in");
-  const login = await host.run("account/login/start");
-  assert.equal(login.authUrl, "https://auth.openai.com/authorize?state=synthetic");
-  await until(() => events.some((event) => event.event === "account" && event.data.status === "authenticated"));
+  assert.equal(account.followsCodexAccount, true);
+  await assert.rejects(host.run("account/login/start"), { code: "method_not_found" });
+  await assert.rejects(host.run("account/login/cancel"), { code: "method_not_found" });
+  await host.run("stop");
+  const nativeConfig = path.join(fixture.env.CODEX_HOME, "fixture-account");
+  fs.writeFileSync(nativeConfig, "apiKey");
+  await host.run("start");
+  const updated = await host.run("account/read");
+  assert.equal(updated.authMethod, "apiKey");
+  assert.equal(updated.status, "authenticated");
+  assert.equal(updated.tokenReady, false);
+  assert.equal(fs.readFileSync(nativeConfig, "utf8"), "apiKey");
+  assert.equal((await host.run("pairing/get")).payload.macDeviceId, first.payload.macDeviceId);
   assert.equal(JSON.stringify(events).includes("SECRET_TOKEN"), false);
-  assert.equal(JSON.stringify(login).includes("SECRET_TOKEN"), false);
+  assert.equal(JSON.stringify(updated).includes("SECRET_TOKEN"), false);
   // The LAN socket cannot bypass the pre-existing authenticated encrypted channel.
   // Synthetic peers use the loopback listener; this does not claim physical LAN acceptance.
-  const localRelay = new URL(first.payload.relay); localRelay.hostname = "127.0.0.1";
-  const socket = new WebSocket(`${localRelay.href}/${first.payload.sessionId}`, { headers: { "x-role": "iphone" } });
+  const activePairing = await host.run("pairing/get");
+  const localRelay = new URL(activePairing.payload.relay); localRelay.hostname = "127.0.0.1";
+  const socket = new WebSocket(`${localRelay.href}/${activePairing.payload.sessionId}`, { headers: { "x-role": "iphone" } });
   t.after(() => socket.terminate());
   const received = [];
   socket.on("message", (data) => received.push(JSON.parse(data.toString())));
@@ -204,7 +222,7 @@ test("bundled relay/native lifecycle, login redaction, trust reset, revoke and E
   const reset = await host.run("pairing/reset");
   assert.equal(reset.state, "running");
   const second = await host.run("pairing/get");
-  assert.notEqual(second.payload.sessionId, first.payload.sessionId);
+  assert.notEqual(second.payload.sessionId, activePairing.payload.sessionId);
   assert.equal(second.payload.macDeviceId, first.payload.macDeviceId);
   const stateFile = path.join(fixture.env.MUNIE_HOST_STATE_DIR, "bridge", "device-state.json");
   const trust = JSON.parse(fs.readFileSync(stateFile));
@@ -665,6 +683,8 @@ function setupRuntime(t) {
   assert.equal(process.platform, "darwin", "native guardian acceptance requires macOS");
   const temp = temporary(t), project = path.join(temp, "project");
   fs.mkdirSync(project);
+  const codexHome = path.join(temp, "existing-codex");
+  fs.mkdirSync(codexHome);
   if (!guardian) {
     const guardianDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "munie-desktop-guardian-"));
     guardian = path.join(guardianDirectory, "MunieCodexGuardian");
@@ -682,23 +702,25 @@ fs.appendFileSync(file,process.pid+'\\n');
 const descendant=spawn(process.execPath,['-e','process.on("SIGTERM",()=>{});setInterval(()=>{},1000)'],{stdio:'ignore'});
 fs.appendFileSync(file,descendant.pid+'\\n');
 console.error('SECRET_STDERR');
-let authenticated=false,buffer='',pendingModelList=null;
+const accountFile=require('node:path').join(process.env.CODEX_HOME,'fixture-account');
+const accountType=fs.existsSync(accountFile)?fs.readFileSync(accountFile,'utf8'):null;
+let buffer='',pendingModelList=null;
 process.stdin.on('data',chunk=>{buffer+=chunk;let end;while((end=buffer.indexOf('\\n'))>=0){const line=buffer.slice(0,end);buffer=buffer.slice(end+1);if(!line)continue;const r=JSON.parse(line);let result={};
 switch(r.method){
-case 'account/read': result={account:authenticated?{type:'chatgpt',email:'fixture@example.test',planType:'plus'}:null,requiresOpenaiAuth:true};break;
-case 'getAuthStatus':result=authenticated?{authMethod:'chatgpt',authToken:'SECRET_TOKEN'}:{};break;
+case 'account/read': result={account:accountType?{type:accountType,syntheticToken:'SECRET_TOKEN'}:null,requiresOpenaiAuth:true};break;
+case 'getAuthStatus':result={authToken:'SECRET_TOKEN'};break;
 case 'model/list':
  if(r.params?.limit===17){pendingModelList=r.id;console.log(JSON.stringify({method:'fixture/model-list-pending',params:{}}));continue;}
  if(r.params?.limit===18)result={data:'x'.repeat(900*1024)};
  if(r.params?.limit===19){if(pendingModelList)console.log(JSON.stringify({id:pendingModelList,result:{old:true}}));result={current:true};}
  break;
-case 'account/login/start':result={type:'chatgpt',loginId:'synthetic-login',authUrl:'https://auth.openai.com/authorize?state=synthetic',authToken:'SECRET_TOKEN'};setTimeout(()=>{authenticated=true;console.log(JSON.stringify({method:'account/login/completed',params:{loginId:'synthetic-login',success:true}}))},100);break;
+case 'account/login/start':case 'account/logout':process.exit(92);
 }
 if(r.id!==undefined)console.log(JSON.stringify({id:r.id,result}));
 }});
 `;
   fs.writeFileSync(codex, source, { mode: 0o700 });
-  return { project, runtimeRecord, env: { MUNIE_HOST_STATE_DIR: path.join(temp, "state"), MUNIE_CODEX_BINARY: codex, MUNIE_GUARDIAN_BINARY: guardian,
+  return { project, runtimeRecord, env: { CODEX_HOME: codexHome, MUNIE_HOST_STATE_DIR: path.join(temp, "state"), MUNIE_CODEX_BINARY: codex, MUNIE_GUARDIAN_BINARY: guardian,
     REMODEX_CODEX_ENDPOINT: "ws://untrusted.invalid" },
     pids: () => fs.existsSync(pidsFile) ? fs.readFileSync(pidsFile, "utf8").trim().split("\n").filter(Boolean).map(Number) : [] };
 }

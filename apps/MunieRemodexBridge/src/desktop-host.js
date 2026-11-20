@@ -25,8 +25,7 @@ const MESSAGES = {
   not_running: "Start the host before performing this operation.",
   runtime_failed: "The local runtime stopped unexpectedly. Retry the connection.",
   runtime_timeout: "The local runtime did not respond in time.",
-  account_unavailable: "The account status could not be read. Retry sign-in.",
-  login_unavailable: "The runtime could not begin a supported sign-in flow.",
+  account_unavailable: "The account status could not be read. Check Codex on this Mac.",
   pairing_unavailable: "A fresh pairing invitation is unavailable. Retry pairing.",
   device_not_found: "The paired device is no longer available.",
   cleanup_pending: "The host is still stopping. Retry before quitting.",
@@ -135,15 +134,15 @@ function advertisedHost(address, hostname = os.hostname()) {
   return /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.local$/i.test(hostname) ? hostname : address;
 }
 
-function safeLogin(result) {
+function resolveCodexHome(env, userHome = os.homedir()) {
+  if (!env.CODEX_HOME) return path.join(userHome, ".codex");
+  // Match the native override: an explicitly configured home must already exist.
   try {
-    const url = new URL(result?.authUrl);
-    if (url.protocol !== "https:" || (url.port && url.port !== "443") || url.username || url.password
-      || !["auth.openai.com", "auth0.openai.com", "chatgpt.com"].includes(url.hostname)
-      || typeof result.loginId !== "string" || !result.loginId || result.loginId.length > 512
-      || url.href.length > 16384) throw new Error();
-    return { loginId: result.loginId, authUrl: url.href };
-  } catch { throw hostError("login_unavailable"); }
+    if (!path.isAbsolute(env.CODEX_HOME)) throw new Error();
+    const canonical = fs.realpathSync(env.CODEX_HOME);
+    if (!fs.statSync(canonical).isDirectory()) throw new Error();
+    return canonical;
+  } catch { throw hostError("account_unavailable"); }
 }
 
 function groupExists(pid, { killImpl = process.kill, listImpl = spawnSync } = {}) {
@@ -215,7 +214,6 @@ function createDesktopHost({ env = process.env, emit = () => {}, spawnImpl = spa
     if (!env.MUNIE_HOST_STATE_DIR || !path.isAbsolute(env.MUNIE_HOST_STATE_DIR)) throw new Error();
     root = privateDirectory(env.MUNIE_HOST_STATE_DIR);
     privateDirectory(path.join(root, "bridge"));
-    privateDirectory(path.join(root, "codex"));
   } catch { throw hostError("state_unavailable"); }
   const configFile = path.join(root, "host.json");
   let project = null, initialProjectError = null, relayPort = null;
@@ -359,10 +357,13 @@ function createDesktopHost({ env = process.env, emit = () => {}, spawnImpl = spa
       HOME: os.homedir(), PATH: "/usr/bin:/bin:/usr/sbin:/sbin", TMPDIR: os.tmpdir(), LANG: "en_US.UTF-8",
       MUNIE_HOST_STATE_DIR: root, MUNIE_HOST_PROJECT_ROOT: project.path,
       MUNIE_HOST_RELAY_PORT: String(relayPort || 0),
+      MUNIE_FOLLOW_CODEX_ACCOUNT: "1",
       REMODEX_CODEX_BINARY: codex, REMODEX_PROJECT_ROOT: project.path,
       REMODEX_DEVICE_STATE_DIR: path.join(root, "bridge"), REMODEX_DEVICE_STATE_FILE: path.join(root, "bridge", "device-state.json"),
-      REMODEX_DISABLE_KEYCHAIN: "1", CODEX_HOME: path.join(root, "codex"),
+      REMODEX_DISABLE_KEYCHAIN: "1",
     };
+    // Leave Codex's native default unset, including on a fresh Mac where ~/.codex does not yet exist.
+    if (env.CODEX_HOME) childEnv.CODEX_HOME = resolveCodexHome(env);
     const { loopbackManagedRelayOrigin } = require("./managed-relay-client");
     const pilotOrigin = loopbackManagedRelayOrigin(env.MUNIE_DEVELOPER_MANAGED_RELAY);
     if (pilotOrigin) childEnv.MUNIE_DEVELOPER_MANAGED_RELAY = pilotOrigin;
@@ -418,8 +419,6 @@ function createDesktopHost({ env = process.env, emit = () => {}, spawnImpl = spa
       case "account/read": {
         account = await request(method); emit("account", account); publish(); return account;
       }
-      case "account/login/start": return safeLogin(await request(method));
-      case "account/login/cancel": return request(method);
       case "pairing/get": {
         // An explicit Mac approval requests a fresh invitation without restarting active work.
         if (state !== "running" || !lanAvailable) throw hostError("pairing_unavailable");
@@ -529,6 +528,7 @@ async function runWorker() {
   const config = { ...readBridgeConfig(), relayUrl: `ws://127.0.0.1:${port}/relay`, publicRelayUrl: "",
     codexEndpoint: "", pushServiceUrl: "", refreshEnabled: false, desktopAutoFollowEnabled: false,
     keepMacAwakeEnabled: false, desktopIpcLiveSyncEnabled: false, localAccountControlEnabled: true,
+    followCodexAccount: true,
   };
   const bridge = startBridge({ config, printPairingQr: false,
     desktopManagedRelay: pilotOrigin ? {
@@ -541,27 +541,10 @@ async function runWorker() {
       if (data.state === "error") queueMicrotask(() => process.exit(1));
     },
   });
-  let stopping = false, pending = 0, loginPoll = null, loginPollBusy = false;
-  function pollLogin() {
-    clearInterval(loginPoll);
-    const expires = Date.now() + 10 * 60_000;
-    loginPoll = setInterval(async () => {
-      if (loginPollBusy || stopping) return;
-      if (Date.now() >= expires) { clearInterval(loginPoll); return; }
-      loginPollBusy = true;
-      try {
-        const data = await bridge.localAccount.read();
-        send({ event: "account", data });
-        if (!data.loginInFlight) clearInterval(loginPoll);
-      } catch { /* Explicit account/read still reports failures to the GUI. */ }
-      finally { loginPollBusy = false; }
-    }, 1000);
-    loginPoll.unref();
-  }
+  let stopping = false, pending = 0;
   async function shutdown() {
     if (stopping) return;
     stopping = true;
-    clearInterval(loginPoll);
     lan.stop();
     bridge.stop();
     for (const client of relay.wss.clients) client.terminate();
@@ -584,14 +567,6 @@ async function runWorker() {
           return { ...session, pairingPayload: { ...session.pairingPayload, relay } };
         }
         case "account/read": return bridge.localAccount.read();
-        case "account/login/start": {
-          const result = safeLogin(await bridge.localAccount.startLogin());
-          pollLogin();
-          return result;
-        }
-        case "account/login/cancel":
-          clearInterval(loginPoll);
-          return bridge.localAccount.cancelLogin();
         default: throw hostError("method_not_found");
       }
     }).then((result) => send({ id: frame.id, result }), () => send({ id: frame.id,
@@ -671,4 +646,4 @@ if (require.main === module) {
   else runProtocol();
 }
 
-module.exports = { createDesktopHost, readFrames, runProtocol, selectLanAddress, advertisedHost, safeLogin, publicError, groupExists, verifyCleanup, MAX_REQUEST_BYTES, MAX_FRAME_BYTES };
+module.exports = { createDesktopHost, readFrames, runProtocol, selectLanAddress, advertisedHost, resolveCodexHome, publicError, groupExists, verifyCleanup, MAX_REQUEST_BYTES, MAX_FRAME_BYTES };

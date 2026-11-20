@@ -2,6 +2,25 @@
 // This is an application routing boundary; the Codex sandbox remains authoritative for tools.
 const fs = require("fs");
 const path = require("path");
+const SHARED_CODEX_PERMISSIONS = "munie_remote_shared_codex";
+const SHARED_CODEX_APPROVAL = Object.freeze({ granular: Object.freeze({
+  sandbox_approval: false, rules: true, mcp_elicitations: false,
+  request_permissions: false, skill_approval: false,
+}) });
+// The pinned runtime can start configured MCP outside the named tool sandbox.
+// Keep the shared-account candidate read-only until all execution paths are guarded.
+const FOLLOW_CODEX_PREVIEW_METHODS = new Set([
+  "initialize", "initialized", "account/read", "account/status/read", "getAuthStatus",
+  "model/list", "collaborationMode/list", "project/listDirectory", "project/recentDirectories",
+  "thread/list", "thread/read", "thread/turns/list", "thread/goal/get",
+]);
+
+function assertFollowCodexPreview(request) {
+  if (!FOLLOW_CODEX_PREVIEW_METHODS.has(request?.method)) {
+    throw Object.assign(new Error("Remote actions are unavailable while the Mac uses the Codex settings preview."),
+      { errorCode: "shared_codex_actions_unavailable" });
+  }
+}
 
 // The imported client's ordinary native workflow. New native methods need an explicit policy.
 const NATIVE_METHODS = new Set([
@@ -81,12 +100,18 @@ function validatePathParameters(params, root = configuredRoot()) {
   }
 }
 
-function bindNativeRequest(request, root = configuredRoot()) {
+function bindNativeRequest(request, root = configuredRoot(), { followCodexAccount = false } = {}) {
   if (!root || !request?.method) return request;
   if (request.method.startsWith('desktop/') && request.method !== 'desktop/preferences/read') {
     throw new Error('This foreground launch does not authorize Desktop handoff, power changes or package updates.');
   }
   const params = { ...(request.params || {}) };
+  if (followCodexAccount && (request.method.startsWith("account/login/") || request.method === "account/logout")) {
+    throw new Error("Manage the account in Codex on this Mac.");
+  }
+  if (followCodexAccount && (Object.hasOwn(params, "modelProvider") || Object.hasOwn(params, "model_provider"))) {
+    throw new Error("Munie follows the model provider configured in Codex on this Mac.");
+  }
   for (const field of ['config', 'permissionProfile', 'permission_profile']) {
     if (Object.prototype.hasOwnProperty.call(params, field)) {
       throw new Error('Client configuration overrides are not authorized: ' + field);
@@ -100,11 +125,15 @@ function bindNativeRequest(request, root = configuredRoot()) {
   if (request.method === 'skills/list') params.cwds = [root];
   if (["thread/start", "thread/resume", "thread/fork", "turn/start", "thread/settings/update"].includes(request.method)) {
     params.cwd = scopedPath(params.cwd || root, { root });
-    params.approvalPolicy = "on-request";
+    params.approvalPolicy = followCodexAccount ? SHARED_CODEX_APPROVAL : "on-request";
     params.approvalsReviewer = "user";
     delete params.permissions;
     delete params.sandbox_policy;
-    if (["thread/start", "thread/resume", "thread/fork"].includes(request.method)) {
+    if (followCodexAccount) {
+      if (request.method !== "thread/settings/update") params.permissions = SHARED_CODEX_PERMISSIONS;
+      delete params.sandbox;
+      delete params.sandboxPolicy;
+    } else if (["thread/start", "thread/resume", "thread/fork"].includes(request.method)) {
       params.sandbox = "workspace-write";
       delete params.sandboxPolicy;
     } else {
@@ -117,4 +146,4 @@ function bindNativeRequest(request, root = configuredRoot()) {
 }
 
 module.exports = { configuredRoot, scopedPath, withinRoot, validatePathParameters, bindNativeRequest,
-  assertNativeMethod, createPendingResponseGate };
+  assertNativeMethod, createPendingResponseGate, assertFollowCodexPreview, SHARED_CODEX_PERMISSIONS, SHARED_CODEX_APPROVAL };

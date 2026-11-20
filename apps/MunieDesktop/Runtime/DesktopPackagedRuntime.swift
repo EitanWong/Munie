@@ -82,6 +82,11 @@ actor DesktopPackagedRuntime: DesktopHostRuntime {
     self.configuration = configuration
   }
 
+  static func inheritedHelperEnvironment(_ inherited: [String: String]) -> [String: String] {
+    let allowed = ["HOME", "TMPDIR", "LANG", "LC_ALL", "USER", "LOGNAME", "CODEX_HOME"]
+    return inherited.filter { allowed.contains($0.key) }
+  }
+
   func launch() async throws -> AsyncStream<DesktopHostEvent> {
     guard process == nil else { throw DesktopHostFailure.alreadyRunning }
     let child = Process()
@@ -91,11 +96,7 @@ actor DesktopPackagedRuntime: DesktopHostRuntime {
     child.executableURL = configuration.node
     child.arguments = [configuration.entryPoint.path]
     child.currentDirectoryURL = configuration.defaultProject
-    let inherited = ProcessInfo.processInfo.environment
-    var environment: [String: String] = [:]
-    for key in ["HOME", "TMPDIR", "LANG", "LC_ALL", "USER", "LOGNAME"] {
-      environment[key] = inherited[key]
-    }
+    var environment = Self.inheritedHelperEnvironment(ProcessInfo.processInfo.environment)
     environment["PATH"] = "/usr/bin:/bin:/usr/sbin:/sbin"
     environment["MUNIE_HOST_STATE_DIR"] = configuration.stateDirectory.path
     environment["MUNIE_CODEX_BINARY"] = configuration.codex.path

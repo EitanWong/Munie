@@ -97,6 +97,33 @@ final class CodexGPTAccountTests: XCTestCase {
         XCTAssertNil(service.gptAccountErrorMessage)
     }
 
+    func testFollowedMacAccountDoesNotOfferLogoutOrVoiceLogin() async {
+        let service = makeService()
+        service.isConnected = true
+        service.gptAccountSnapshot.needsReauth = true
+        service.requestTransportOverride = { method, _ in
+            XCTAssertEqual(method, "account/status/read")
+            return RPCMessage(
+                id: .string("fixture"),
+                result: .object([
+                    "status": .string("authenticated"),
+                    "authMethod": .string("customProvider"),
+                    "tokenReady": .bool(false),
+                    "needsReauth": .bool(false),
+                    "followsCodexAccount": .bool(true),
+                ]),
+                includeJSONRPC: false
+            )
+        }
+        await service.refreshGPTAccountState()
+        XCTAssertEqual(service.gptAccountSnapshot.followsCodexAccount, true)
+        XCTAssertTrue(service.gptAccountSnapshot.isAuthenticated)
+        XCTAssertFalse(service.gptAccountSnapshot.canLogout)
+        XCTAssertFalse(service.gptVoiceRequiresLogin)
+        XCTAssertFalse(service.gptVoiceTemporarilyUnavailable)
+        XCTAssertFalse(service.canUseGPTVoiceTranscription)
+    }
+
     func testRefreshGPTAccountStateFallsBackToLegacyGetAuthStatusPayload() async {
         let service = makeService()
         service.isConnected = true

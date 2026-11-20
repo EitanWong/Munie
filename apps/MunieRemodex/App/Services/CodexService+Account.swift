@@ -39,6 +39,7 @@ struct CodexGPTAccountSnapshot: Codable, Equatable, Sendable {
     var expiresAt: Date?
     var tokenReady: Bool? = nil
     var tokenUnavailableSince: Date? = nil
+    var followsCodexAccount: Bool? = nil
     var updatedAt: Date
 
     var hasActiveLogin: Bool {
@@ -50,7 +51,7 @@ struct CodexGPTAccountSnapshot: Codable, Equatable, Sendable {
     }
 
     var canLogout: Bool {
-        isAuthenticated || needsReauth
+        followsCodexAccount != true && (isAuthenticated || needsReauth)
     }
 
     var isVoiceTokenReady: Bool {
@@ -85,7 +86,7 @@ struct CodexGPTAccountSnapshot: Codable, Equatable, Sendable {
         if let expiresAt {
             parts.append(Self.expiryFormatter.string(from: expiresAt))
         }
-        if isAuthenticated && !isVoiceTokenReady {
+        if followsCodexAccount != true && isAuthenticated && !isVoiceTokenReady {
             parts.append("Voice syncing")
         }
         return parts.isEmpty ? nil : parts.joined(separator: " • ")
@@ -491,12 +492,14 @@ extension CodexService {
 
     // Determines whether the mic button should nudge the user into login instead of recording.
     var gptVoiceRequiresLogin: Bool {
-        !gptAccountSnapshot.isAuthenticated || gptAccountSnapshot.hasActiveLogin
+        gptAccountSnapshot.followsCodexAccount != true
+            && (!gptAccountSnapshot.isAuthenticated || gptAccountSnapshot.hasActiveLogin)
     }
 
     // Separates signed-in state from bridge token readiness so the mic does not appear ready too early.
     var gptVoiceTemporarilyUnavailable: Bool {
         isConnected
+            && gptAccountSnapshot.followsCodexAccount != true
             && gptAccountSnapshot.isAuthenticated
             && !gptAccountSnapshot.hasActiveLogin
             && !gptAccountSnapshot.isVoiceTokenReady
@@ -680,7 +683,8 @@ extension CodexService {
         if resolvedSnapshot.status == .authenticated || resolvedSnapshot.status == .expired {
             resolvedSnapshot.loginInFlight = false
         }
-        if (resolvedSnapshot.isAuthenticated && resolvedSnapshot.isVoiceTokenReady)
+        if resolvedSnapshot.followsCodexAccount == true
+            || (resolvedSnapshot.isAuthenticated && resolvedSnapshot.isVoiceTokenReady)
             || resolvedSnapshot.status == .expired {
             clearGPTLoginState()
             clearGPTLoginCallbackState()
@@ -998,12 +1002,13 @@ extension CodexService {
             needsReauth: needsReauth,
             hasLegacyAuthToken: hasLegacyAuthToken
         )
-        let tokenUnavailableSince = resolvedTokenUnavailableSince(
+        let followsCodexAccount = firstBoolValue(in: payloadObject, keys: ["followsCodexAccount"])
+        let tokenUnavailableSince = followsCodexAccount == true ? nil : resolvedTokenUnavailableSince(
             status: resolvedStatus,
             needsReauth: needsReauth,
             tokenReady: tokenReady
         )
-        let escalatedNeedsReauth = resolvedNeedsReauth(
+        let escalatedNeedsReauth = followsCodexAccount == true ? needsReauth : resolvedNeedsReauth(
             baseNeedsReauth: needsReauth,
             status: resolvedStatus,
             tokenReady: tokenReady,
@@ -1028,6 +1033,7 @@ extension CodexService {
             expiresAt: firstDateValue(in: payloadObject, keys: ["expiresAt", "expires_at"]),
             tokenReady: tokenReady,
             tokenUnavailableSince: tokenUnavailableSince,
+            followsCodexAccount: followsCodexAccount,
             updatedAt: .now
         )
     }

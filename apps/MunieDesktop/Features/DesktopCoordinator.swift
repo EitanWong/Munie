@@ -79,17 +79,4 @@ final class DesktopCoordinator {
     await controller.setProject(directory)
   }
 
-  func signIn() async {
-    guard let url = await controller.beginLogin() else { return }
-    openLogin(url)
-  }
-
-  func reopenLogin() {
-    guard let url = controller.loginURL else { return }
-    openLogin(url)
-  }
-
-  private func openLogin(_ url: URL) {
-    if !NSWorkspace.shared.open(url) { controller.loginBrowserFailed() }
-  }
 }

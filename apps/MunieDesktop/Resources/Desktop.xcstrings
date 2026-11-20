@@ -1,6 +1,86 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Codex": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codex"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codex"
+          }
+        }
+      }
+    },
+    "Codex status not checked": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codex status not checked"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未检查 Codex 状态"
+          }
+        }
+      }
+    },
+    "Using Codex settings": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Using Codex settings"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在使用 Codex 的设置"
+          }
+        }
+      }
+    },
+    "Check sign-in or provider in Codex": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check sign-in or provider in Codex"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请在 Codex 中检查登录或模型服务"
+          }
+        }
+      }
+    },
+    "Codex status unavailable": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codex status unavailable"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂时无法读取 Codex 状态"
+          }
+        }
+      }
+    },
     "Mac service stopped": {
       "localizations": {
         "en": {
@@ -161,38 +241,6 @@
         }
       }
     },
-    "Sign-in could not start. Try again.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sign-in could not start. Try again."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "无法开始登录，请重试。"
-          }
-        }
-      }
-    },
-    "Sign-in could not be cancelled. Try again.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sign-in could not be cancelled. Try again."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "无法取消登录，请重试。"
-          }
-        }
-      }
-    },
     "This project could not be selected. Try another folder.": {
       "localizations": {
         "en": {
@@ -221,22 +269,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "配对未完成。请保持两端 App 打开并重试。"
-          }
-        }
-      }
-    },
-    "The sign-in page could not open. Try opening it again.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The sign-in page could not open. Try opening it again."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "无法打开登录页面，请重试。"
           }
         }
       }
@@ -289,38 +321,6 @@
         }
       }
     },
-    "Your account": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Your account"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "你的账户"
-          }
-        }
-      }
-    },
-    "Your Codex account stays on this Mac. Munie never sends account credentials to your iPhone.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Your Codex account stays on this Mac. Munie never sends account credentials to your iPhone."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Codex 账户保留在这台 Mac 上。Munie 不会向 iPhone 发送账户凭据。"
-          }
-        }
-      }
-    },
     "Signed in to Codex": {
       "localizations": {
         "en": {
@@ -333,86 +333,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "已登录 Codex"
-          }
-        }
-      }
-    },
-    "Finish signing in in your browser, then return to Munie.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Finish signing in in your browser, then return to Munie."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "请在浏览器中完成登录，然后返回 Munie。"
-          }
-        }
-      }
-    },
-    "Open Sign-In Page": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open Sign-In Page"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "打开登录页面"
-          }
-        }
-      }
-    },
-    "Cancel Sign-In": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cancel Sign-In"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "取消登录"
-          }
-        }
-      }
-    },
-    "Sign in to use Codex from your iPhone.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sign in to use Codex from your iPhone."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "登录后，即可从 iPhone 使用 Codex。"
-          }
-        }
-      }
-    },
-    "Sign In to Codex": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sign In to Codex"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "登录 Codex"
           }
         }
       }
@@ -701,22 +621,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "请将这台 Mac 接入 Wi-Fi 或以太网，然后重试。"
-          }
-        }
-      }
-    },
-    "Account status is unavailable. You can try signing in again.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Account status is unavailable. You can try signing in again."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "暂时无法获取账户状态，你可以尝试重新登录。"
           }
         }
       }

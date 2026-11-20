@@ -173,6 +173,28 @@ function createSpawnTransport({ env, appPath, platform, spawnImpl = spawn }) {
 // only unsubscribed, inactive threads, and this override stays in our child.
 const LOCAL_APP_SERVER_ARGS = ["app-server", "-c", "thread_unload_delay_secs=1"];
 
+function sharedCodexPermissionArgs(env, fsImpl, pathImpl) {
+  const { SHARED_CODEX_PERMISSIONS, SHARED_CODEX_APPROVAL, withinRoot } = require("./munie-project-policy");
+  function canonical(file) {
+    if (!pathImpl.isAbsolute(file)) throw new Error("Expected an absolute local directory.");
+    return fsImpl.existsSync(file) ? fsImpl.realpathSync(file) : file;
+  }
+  // Inline TOML keys are quoted so owner-controlled paths cannot inject CLI settings.
+  const home = canonical(env.CODEX_HOME || pathImpl.join(env.HOME, ".codex"));
+  const state = canonical(env.MUNIE_HOST_STATE_DIR);
+  const project = canonical(env.REMODEX_PROJECT_ROOT);
+  if ([home, state].some((directory) => withinRoot(project, directory) || withinRoot(directory, project))) {
+    throw new Error("The authorized project cannot overlap private runtime data.");
+  }
+  const rules = new Map([[":minimal", "read"], [project, "write"], [home, "deny"], [state, "deny"]]);
+  const filesystem = [...rules].map(([key, value]) => `${JSON.stringify(key)}=${JSON.stringify(value)}`).join(",");
+  const approval = Object.entries(SHARED_CODEX_APPROVAL.granular).map(([key, value]) => `${key}=${value}`).join(",");
+  return ["-c", `approval_policy={granular={${approval}}}`,
+    "-c", `default_permissions=${JSON.stringify(SHARED_CODEX_PERMISSIONS)}`,
+    "-c", `permissions={${SHARED_CODEX_PERMISSIONS}={filesystem={${filesystem}},network={enabled=false}}}`,
+    "-c", 'shell_environment_policy.inherit="core"'];
+}
+
 // Builds a single, platform-aware launch path so the bridge never "guesses"
 // between multiple commands and accidentally starts duplicate runtimes.
 function createCodexLaunchPlans({
@@ -206,8 +228,10 @@ function createCodexLaunchPlans({
       throw new Error("REMODEX_CODEX_BINARY must name an absolute executable file.");
     }
     fsImpl.accessSync(command, fs.constants.X_OK);
-    return [{ command, args: [...LOCAL_APP_SERVER_ARGS, "-c", 'approval_policy="on-request"',
-      "-c", 'sandbox_mode="workspace-write"'],
+    const sandboxArgs = env.MUNIE_FOLLOW_CODEX_ACCOUNT === "1"
+      ? sharedCodexPermissionArgs(env, fsImpl, pathImpl)
+      : ["-c", 'approval_policy="on-request"', "-c", 'sandbox_mode="workspace-write"'];
+    return [{ command, args: [...LOCAL_APP_SERVER_ARGS, ...sandboxArgs],
       options: { ...sharedOptions, ...(env.REMODEX_PROJECT_ROOT ? { cwd: fsImpl.realpathSync(env.REMODEX_PROJECT_ROOT) } : {}) },
       description: `explicit Codex ${command}` }];
   }

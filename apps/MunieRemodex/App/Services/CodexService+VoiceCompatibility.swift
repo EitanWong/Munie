@@ -1,3 +1,4 @@
+// Munie modification: account recovery follows the existing Mac Codex configuration.
 // FILE: CodexService+VoiceCompatibility.swift
 // Purpose: Maps voice-mode runtime failures into stable recovery reasons the UI can present cleanly.
 // Layer: Service
@@ -121,6 +122,9 @@ extension CodexService {
     }
 
     private func classifyMissingVoiceTokenState() -> CodexVoiceFailureReason {
+        if gptAccountSnapshot.followsCodexAccount == true {
+            return .chatGPTRequired
+        }
         if gptAccountSnapshot.needsReauth || gptAccountSnapshot.status == .expired {
             return .macReauthenticationRequired
         }
@@ -155,7 +159,7 @@ extension CodexService {
         case .macLoginRequired, .macReauthenticationRequired, .voiceSyncInProgress:
             return resolveAuthSensitiveVoiceRecoveryReason()
         case .providerAuthenticationRejected:
-            return reason
+            return gptAccountSnapshot.followsCodexAccount == true ? .chatGPTRequired : reason
         default:
             return reason
         }

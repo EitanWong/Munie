@@ -171,6 +171,10 @@ function bindNativeRequest(request, root = configuredRoot(), { followCodexAccoun
   if (followCodexAccount && (Object.hasOwn(params, "modelProvider") || Object.hasOwn(params, "model_provider"))) {
     throw new Error("Munie follows the model provider configured in Codex on this Mac.");
   }
+  if (request.method === 'account/login/start'
+      && (params.type !== 'chatgpt' || Object.keys(params).length !== 1)) {
+    throw new Error("API keys and authentication tokens can only be set on this Mac.");
+  }
   for (const field of ['config', 'permissionProfile', 'permission_profile']) {
     if (Object.prototype.hasOwnProperty.call(params, field)) {
       throw new Error('Client configuration overrides are not authorized: ' + field);

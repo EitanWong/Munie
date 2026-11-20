@@ -1,6 +1,6 @@
 # 产品需求基线 / Requirements
 
-确认日期：2026-11-18。依据：项目所有者本轮明确的目标。本页定义要做什么；[项目状态](project-status.md)单独说明已经做到什么，研究和计划不能替代实现。
+确认日期：2026-11-20。依据：项目所有者确认的双 App 目标与自定义 Codex provider 需求。本页定义要做什么；[项目状态](project-status.md)单独说明已经做到什么，研究和计划不能替代实现。
 
 ## 核心目标与主链路
 
@@ -41,6 +41,7 @@ P0 是首个远程闭环的必要条件；P1 逐步形成日常助理；P2 是�
 | R17 / P0 架构 / 后续适配 | 可接不同 harness，保留各自特性 | 公共语义 + capability 协商 + 原生能力扩展；Codex 特性不被最小公共接口抹掉。Claude Code、Pi、Hermes、OpenClaw、WorkBuddy、Qoder 等分别调研官方接口，不假设协议相同或当前已支持 |
 | R18 / P0 设计 / P1 设备验收 | 充分利用 Apple 硬件，随时有掌控感 | iPhone Action button、Watch 系统快捷入口/支持机型的按键快捷指令、AirPods Siri/听筒与系统通知播报分别设计；一句话发任务并取得接受/进度/完成反馈。实测前台、后台、锁屏、耳机切换与通知关闭；无对应公开能力时提供同目标的系统替代入口 |
 | R19 / P0 架构 / 分平台验收 | Apple 各类产品尽可能兼容通用，交互最直接 | 共享任务、权限、能力协商和接续语义；iPhone/iPad/Mac/Watch/TV/Vision 分别适配输入/导航与反馈。AirPods、Pencil、HomePod、CarPlay 等按公开接口/硬件/地区/审批条件评估，不能将“不支持”藏在静默空实现；完整复杂操作可明确接续到适合的设备 |
+| R20 / P0 | Munie 自动跟随 Mac 上的 Codex 配置，不重复设置 | 不提供账号、API Key、Provider 或地址设置表单。现有 Codex 的 ChatGPT、官方 Key 和兼容自定义 Provider 由原生运行时读取；更新设置后，新会话按 Codex 原生行为加载生效。配对独立于模型服务；异常只显示脱敏状态并指向 Codex，凭据不能进入手机、relay 或任务工具。 |
 
 ## 体验与成功标准
 

@@ -36,6 +36,10 @@
 
 本轮通过 metadata-only `thread/read` 加 `thread/turns/list(itemsView:"full")` 读取持久历史。直接 `thread/read(includeTurns:true)` 在运行时触发 deprecation notice；full/summary/notLoaded 及 `thread/items/list` 支持须按实际 history backing store 判断，不能把空摘要解释为丢失，或将某个 Unsupported 分支泛化为全版本不支持。参见[固定历史测试](https://github.com/openai/codex/blob/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs/app-server/tests/suite/v2/thread_read.rs#L457)。
 
+### 官方 Key 与自定义 provider
+
+2026-11-20 核对 Codex 0.162.1 的[固定版本配置 schema](https://github.com/openai/codex/blob/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs/core/config.schema.json)、[原生 account 协议](https://github.com/openai/codex/blob/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs/app-server-protocol/src/protocol/v2/account.rs)和[历史恢复实现](https://github.com/openai/codex/blob/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs/app-server/src/request_processors/thread_processor.rs)。官方 Key 可用 `account/login/start(type: apiKey)`；成功回应不证明 Key 能调用模型。自定义描述符的 `base_url`、`env_key` 和 `wire_api: responses` 通过本地回环探针验证；官方内置 ID 不用自定义项覆写。冷恢复会读取保存的 provider 与 model；将同一个 ID 静默绑定至另一个服务不是安全的切换方式。[产品边界](../docs/decisions/remote-agent-foundation.md#codex-provider-与设备配对)单独维护。
+
 ## 账本集成与观察到的协议差异
 
 固定 0.162.1 实际 notification envelope 附带整数 `emittedAtMs`，但生成 schema 未描述该 envelope 扩展。第一次 strict Swift 握手因未知字段拒绝；只读隔离握手核对后，client 显式接受该字段类型，未知 envelope 字段仍拒绝。不能把这个特例扩展成忽略任意消息差异。

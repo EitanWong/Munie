@@ -3542,7 +3542,12 @@ test("live owner runs Desktop queued follow-ups between turns", async (t) => {
       turn: { id: "turn-queue-1", items: [], status: "inProgress", startedAt: 1 },
     },
   }));
-  await waitFor(() => serverSocket);
+  // The accepted socket may still be initializing; this owner broadcast proves the ACK was consumed.
+  await waitForMessage(frames, (frame) => (
+    frame.type === "broadcast"
+    && frame.method === "thread-stream-following-status-requested"
+    && frame.params?.conversationId === "thread-queue"
+  ));
 
   // Desktop queues a follow-up while the turn is running.
   writeFrame(serverSocket, {

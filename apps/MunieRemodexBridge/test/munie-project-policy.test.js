@@ -94,6 +94,7 @@ test('following the local Codex account permits status but not phone login, logo
   assert.deepEqual(bindNativeRequest(browserLogin, root), browserLogin);
   for (const method of ['thread/start', 'thread/resume', 'thread/fork', 'turn/start']) {
     const request = bindNativeRequest({ method, params: {
+      threadId: 'fixture-thread', input: [{ type: 'text', text: 'fixture text' }],
       cwd: root, permissions: ':danger-full-access', sandbox: 'danger-full-access',
       sandboxPolicy: { type: 'dangerFullAccess' }, approvalPolicy: 'never',
     } }, root, options);

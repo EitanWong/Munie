@@ -71,6 +71,8 @@ The signed native preview completed an identical command and turn with and witho
 
 The signed preview's backend connected to the Swift iPhone 17 simulator via an encrypted local managed route after a refused LAN connection. The simulator listed the authorized disposable project, received a typed read-only denial of thread creation, and reconnected with its LAN hint intact. Existing phone and Mac trust were not used. This is simulator interoperability for the read-only package; paired model execution, physical code confirmation and cellular remain open.
 
+The future task path now projects start, resume, plain-text turn, and interrupt requests onto an explicit field set. The Mac fixes the project, approval profile and default runtime settings. Four regression cases failed on the earlier source, passed on the candidate and failed again on byte-identical rollback. The existing read-only veto still runs before this path. Attachments and historical threads with a different working directory are not covered by this text-only fixture.
+
 The iPhone readiness probe selected the unlocked iPhone 17 and the signed preview iOS build from `2338642` was installed in place. The candidate did not change iPhone build inputs relative to that build. The live Mac still showed existing saved trust, which was left unchanged. No fresh matching-code exchange, physical project load or real third-party request was observed.
 
 ## Adopted foundation checkpoint

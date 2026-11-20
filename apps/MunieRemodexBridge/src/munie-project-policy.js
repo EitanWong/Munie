@@ -100,6 +100,65 @@ function validatePathParameters(params, root = configuredRoot()) {
   }
 }
 
+const SHARED_CODEX_TASK_METHODS = new Set(["thread/start", "thread/resume", "turn/start", "turn/interrupt"]);
+
+function requireTaskID(value, field) {
+  if (typeof value !== "string" || !value || value.length > 256 || value.trim() !== value) {
+    throw new Error(`Invalid ${field}.`);
+  }
+  return value;
+}
+
+function bindSharedCodexTask(method, params, root) {
+  if (method === "turn/interrupt") {
+    const id = (field, alias) => {
+      if (Object.hasOwn(params, field) && Object.hasOwn(params, alias)) {
+        if (params[field] !== params[alias]) throw new Error(`Conflicting ${field}.`);
+      }
+      return requireTaskID(params[field] ?? params[alias], field);
+    };
+    return {
+      threadId: id("threadId", "thread_id"),
+      turnId: id("turnId", "turn_id"),
+    };
+  }
+  if (params.cwd != null && scopedPath(params.cwd, { root }) !== root) {
+    throw new Error("Select the requested project on the Mac before starting or resuming a task.");
+  }
+  // Project, effective model, and execution policy come from the Mac, not a stale phone selection.
+  const bound = {
+    cwd: root, approvalPolicy: SHARED_CODEX_APPROVAL,
+    approvalsReviewer: "user", permissions: SHARED_CODEX_PERMISSIONS,
+  };
+  if (method === "thread/start") {
+    if (typeof params.ephemeral === "boolean") bound.ephemeral = params.ephemeral;
+    return bound;
+  }
+  bound.threadId = requireTaskID(params.threadId, "threadId");
+  if (method === "thread/resume") {
+    if (typeof params.excludeTurns === "boolean") bound.excludeTurns = params.excludeTurns;
+    return bound;
+  }
+  if (!Array.isArray(params.input) || params.input.length === 0 || params.input.length > 128) {
+    throw new Error("A shared Codex task requires bounded plain text input.");
+  }
+  let inputBytes = 0;
+  bound.input = params.input.map((item) => {
+    if (item?.type !== "text" || typeof item.text !== "string") {
+      throw new Error("Shared Codex tasks accept plain text only.");
+    }
+    inputBytes += Buffer.byteLength(item.text, "utf8");
+    if (inputBytes > 128 * 1024) throw new Error("Shared Codex task text exceeds its limit.");
+    return { type: "text", text: item.text, text_elements: [] };
+  });
+  if (params.clientUserMessageId != null) {
+    bound.clientUserMessageId = requireTaskID(params.clientUserMessageId, "clientUserMessageId");
+  }
+  // Inherit the native service tier even for older clients; do not inject the legacy default.
+  bound.remodexRuntimeSettingsVersion = 2;
+  return bound;
+}
+
 function bindNativeRequest(request, root = configuredRoot(), { followCodexAccount = false } = {}) {
   if (!root || !request?.method) return request;
   if (request.method.startsWith('desktop/') && request.method !== 'desktop/preferences/read') {
@@ -119,6 +178,9 @@ function bindNativeRequest(request, root = configuredRoot(), { followCodexAccoun
   }
   if (params.runtimeProvider && params.runtimeProvider !== "codex") {
     throw new Error("This explicit launch authorizes the selected Codex runtime only.");
+  }
+  if (followCodexAccount && SHARED_CODEX_TASK_METHODS.has(request.method)) {
+    return { ...request, params: bindSharedCodexTask(request.method, params, root) };
   }
   validatePathParameters(params, root);
   if (request.method === 'fuzzyFileSearch') params.roots = [root];

@@ -28,8 +28,10 @@ The existing upstream UI literals detected by the repository checker are enumera
 ## Daily workflow
 
 ```sh
-git switch dev
-git worktree add ../.munie-worktrees/feat_capture_search -b feat_capture_search dev
+# Run from the primary Munie checkout.
+git fetch origin
+mkdir -p .munie-local/worktrees
+git worktree add --no-track -b feat_capture_search .munie-local/worktrees/feat_capture_search origin/dev
 ```
 
 Work inside the new checkout, keep its scope focused, and run the relevant checks before a PR to `dev`. Each worktree needs its own generated Xcode project and local build products. Shared branch history does not share uncommitted files. Use `git worktree list` to inspect checkouts.

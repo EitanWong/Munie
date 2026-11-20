@@ -32,4 +32,4 @@
 
 用实际证据更新状态：改了哪个行为/target、执行命令、精确提交、结果、仍缺的设备/运行时、下一步。行为变化同步架构或 ADR；新增第三方能力同步来源与许可证。将长日志留在 ignored `build/` 或 CI artifacts，文档只保留可追溯结论。
 
-先检查 `git status` 和已存在 worktree，再在 `dev` 派生的 sibling `feat_<module>_<purpose>` worktree 工作。按 [AGENTS](../../AGENTS.md) 完成 review、CI 和集成；不能用“已有目录”或“声明支持”替代平台构建及运行证据。
+先检查 `git status` 和已存在 worktree；需要新建时放在主工程的 `.munie-local/worktrees/`，从 `dev` 派生 `feat_<module>_<purpose>` 分支。按 [AGENTS](../../AGENTS.md) 完成 review、CI、集成和清理；不能用“已有目录”或“声明支持”替代平台构建及运行证据。

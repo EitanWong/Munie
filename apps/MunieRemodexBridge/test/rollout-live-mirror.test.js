@@ -1,3 +1,4 @@
+// Munie modification: exercise capped rollout attachment with a controlled poll clock.
 // FILE: rollout-live-mirror.test.js
 // Purpose: Verifies desktop-origin rollout replay/live tailing emits thinking and tool-call notifications for iPhone only.
 // Layer: Unit test
@@ -2615,7 +2616,7 @@ test("desktop-origin bootstrap represents an image-only response user opener", a
   assert.equal(outbound.find((m) => m.method === "codex/event/user_message")?.params.message, "Image attachment");
 });
 
-test("capped bootstrap attaches mid-turn growth under a synthetic turn without replaying the tail", async (t) => {
+test("capped bootstrap attaches mid-turn growth under a synthetic turn without replaying the tail", (t) => {
   const threadId = "thread-capped-attach";
   const { homeDir, rolloutPath } = createTemporaryRolloutHome({
     threadId, originator: "Codex Desktop", source: "desktop",
@@ -2629,10 +2630,32 @@ test("capped bootstrap attaches mid-turn growth under a synthetic turn without r
   let bytesRead = 0;
   const trackedFs = { ...fs, readSync(...args) { const count = fs.readSync(...args); bytesRead += count; return count; } };
   const outbound = [];
-  const controller = createRolloutLiveMirrorController({ sendApplicationResponse: (m) => outbound.push(JSON.parse(m)), fsModule: trackedFs, pollIntervalMs: 5, idleTimeoutMs: 200 });
+  const pollIntervalMs = 5;
+  let now = Date.now();
+  let initialize;
+  let poll;
+  // Keep the idle budget independent of host time spent reading the 64 MiB bootstrap.
+  const controller = createRolloutLiveMirrorController({
+    sendApplicationResponse: (m) => outbound.push(JSON.parse(m)),
+    fsModule: trackedFs,
+    pollIntervalMs,
+    idleTimeoutMs: 200,
+    now: () => now,
+    setImmediateFn(callback) { initialize = callback; return 1; },
+    clearImmediateFn() { initialize = undefined; },
+    setIntervalFn(callback) { poll = callback; return 2; },
+    clearIntervalFn() { poll = undefined; },
+  });
+  function advancePolls(durationMs) {
+    for (let elapsed = 0; elapsed < durationMs; elapsed += pollIntervalMs) {
+      now += pollIntervalMs;
+      poll?.();
+    }
+  }
   t.after(() => controller.stopAll());
   controller.observeInbound(JSON.stringify({ method: "thread/resume", params: { threadId } }));
-  await wait(80);
+  initialize();
+  advancePolls(80);
   // The unreachable tail is never replayed, but the attach announces the run
   // as live under a synthetic turn immediately.
   assert.equal(outbound.some((m) => m.params?.message === "OLD ORPHAN"), false);
@@ -2643,13 +2666,13 @@ test("capped bootstrap attaches mid-turn growth under a synthetic turn without r
   assert.equal(controller.getActiveTurnId(threadId), null);
   const afterBootstrap = bytesRead;
   appendRolloutLines(rolloutPath, [agentMessage("mid-turn delta after attach")]);
-  await wait(30);
+  advancePolls(30);
   assert.ok(bytesRead - afterBootstrap < 16 * 1024, "attached mode reads only the appended delta");
   const midTurnDelta = outbound.find((m) => m.params?.message === "mid-turn delta after attach");
   assert.ok(midTurnDelta, "growth after the attach point must mirror live");
   assert.ok(midTurnDelta.params.turnId.startsWith("rollout-turn:"));
   appendRolloutLines(rolloutPath, [userMessage("Recovered opener"), taskStarted("turn-recovered"), agentMessage("Recovered assistant")]);
-  await wait(50);
+  advancePolls(50);
   const methods = outbound.filter((m) => m.method === "codex/event/user_message" || m.method === "codex/event/agent_message");
   assert.deepEqual(methods.map((m) => m.params.message), ["mid-turn delta after attach", "Recovered opener", "Recovered assistant"]);
   assert.equal(methods[2].params.turnId, "turn-recovered");

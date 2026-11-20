@@ -59,7 +59,7 @@ open Munie.xcodeproj
 
 `packages/` 是仓库分组约定，并非 Apple 强制目录名。每个包遵循标准的 `Package.swift`、`Sources/<Target>/`、`Tests/<Target>Tests/` 结构。当前本地 Swift Package 可直接由一个生成的 `.xcodeproj` 管理，无需额外创建 `.xcworkspace`。
 
-`main` 是发布主分支，日常开发汇入 `dev`；功能使用 `feat_<module>_<purpose>` 分支和仓库旁的独立 worktree。见[贡献规范](CONTRIBUTING.md)。
+`main` 是发布主分支，日常开发汇入 `dev`；功能使用 `feat_<module>_<purpose>` 分支。见[工作树流程](docs/development.md#daily-workflow)和[贡献规范](CONTRIBUTING.md)。
 
 优先采用原生能力、成熟且完成许可证审查的组件。出现真实的共享需求后再抽成 package，避免为尚未验证的设备接入提前建空层。当前运行时依赖与参考源码见[架构](docs/architecture.md)和[参考索引](references/README.md)。
 

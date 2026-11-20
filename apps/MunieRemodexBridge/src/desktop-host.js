@@ -6,7 +6,7 @@ const path = require("node:path");
 const http = require("node:http");
 const { isIPv4 } = require("node:net");
 const { spawn, spawnSync } = require("node:child_process");
-const { createHash } = require("node:crypto");
+const { createHash, randomBytes } = require("node:crypto");
 const { setTimeout: delay } = require("node:timers/promises");
 
 const MAX_REQUEST_BYTES = 32 * 1024;
@@ -26,6 +26,8 @@ const MESSAGES = {
   runtime_failed: "The local runtime stopped unexpectedly. Retry the connection.",
   runtime_timeout: "The local runtime did not respond in time.",
   account_unavailable: "The account status could not be read. Retry sign-in.",
+  api_key_unavailable: "The local runtime could not configure the OpenAI API key.",
+  custom_provider_unavailable: "The local runtime could not configure the custom provider.",
   login_unavailable: "The runtime could not begin a supported sign-in flow.",
   pairing_unavailable: "A fresh pairing invitation is unavailable. Retry pairing.",
   device_not_found: "The paired device is no longer available.",
@@ -41,10 +43,28 @@ function publicError(error) {
   return { code, message: MESSAGES[code] };
 }
 
+function readOpenAiApiKey(value) {
+  if (typeof value !== "string" || value.length < 1 || value.length > 512
+    || /[^\x21-\x7e]/u.test(value)) throw hostError("api_key_unavailable");
+  return value;
+}
+
+function readCustomProvider(value) {
+  try {
+    if (!value || typeof value !== "object" || Array.isArray(value)
+      || Object.keys(value).length !== 3 || typeof value.model !== "string"
+      || !/^[A-Za-z0-9._:/-]{1,128}$/u.test(value.model)) throw new Error();
+    const { providerEndpoint } = require("./custom-provider-broker");
+    const endpoint = providerEndpoint(value.baseURL);
+    const namespace = createHash("sha256").update(JSON.stringify([endpoint.href, value.model])).digest("hex");
+    return { baseURL: value.baseURL, model: value.model, apiKey: readOpenAiApiKey(value.apiKey), namespace };
+  } catch { throw hostError("custom_provider_unavailable"); }
+}
+
 // Retains at most one frame, including when a peer never sends a newline.
 function readFrames(stream, maxBytes, receive, fail) {
   let buffer = Buffer.alloc(0), failed = false;
-  stream.on("data", (chunk) => {
+  function onData(chunk) {
     if (failed) return;
     let offset = 0;
     while (offset < chunk.length) {
@@ -68,10 +88,14 @@ function readFrames(stream, maxBytes, receive, fail) {
         fail(hostError("invalid_request"));
       }
     }
-  });
-  stream.on("end", () => {
-    if (buffer.length && !failed) fail(hostError("invalid_request"));
-  });
+  }
+  function onEnd() { if (buffer.length && !failed) fail(hostError("invalid_request")); }
+  stream.on("data", onData);
+  stream.on("end", onEnd);
+  return () => {
+    stream.off("data", onData);
+    stream.off("end", onEnd);
+  };
 }
 
 function writeFrame(stream, frame) {
@@ -241,6 +265,7 @@ function createDesktopHost({ env = process.env, emit = () => {}, spawnImpl = spa
   const trust = require("./secure-device-state");
   let state = "stopped", worker = null, ownedGroup = null, stopping = false, cleanupTask = null;
   let bridge = null, account = null, lastError = initialProjectError;
+  let apiKey = null, customProvider = null, workerAccountReady = true, workerKeySent = false;
   // The host owns the revision, not any of its replaceable workers.
   let lanAvailable = false, lanRevision = 0;
   let requestCounter = 0, readyResolve = null, readyReject = null;
@@ -269,6 +294,15 @@ function createDesktopHost({ env = process.env, emit = () => {}, spawnImpl = spa
     for (const entry of pending.values()) { clearTimeout(entry.timer); entry.reject(hostError("runtime_failed")); }
     pending.clear();
   }
+  function finishStartup() {
+    if (!readyResolve || bridge?.codexLaunchState !== "connected"
+      || bridge.connectionStatus !== "connected") return;
+    if (workerAccountReady) readyResolve();
+    else if (!workerKeySent) {
+      workerKeySent = true;
+      writeFrame(worker.stdin, { method: "account/api-key/configure", apiKey });
+    }
+  }
   function receive(frame) {
     if (frame?.event === "relay") {
       const port = frame.data?.port;
@@ -279,8 +313,12 @@ function createDesktopHost({ env = process.env, emit = () => {}, spawnImpl = spa
       readyReject?.(hostError(frame.data?.code));
     } else if (frame?.event === "bridge") {
       bridge = bridgeSnapshot(frame.data);
-      if (bridge.codexLaunchState === "connected" && bridge.connectionStatus === "connected") readyResolve?.();
+      finishStartup();
       publish();
+    } else if (frame?.event === "api-key-ready") {
+      if (!workerKeySent || workerAccountReady) throw hostError("runtime_failed");
+      workerAccountReady = true;
+      finishStartup();
     } else if (frame?.event === "lan") {
       if (typeof frame.data !== "boolean") throw hostError("runtime_failed");
       if (!stopping && updateLanAvailability(frame.data)) publish();
@@ -352,7 +390,12 @@ function createDesktopHost({ env = process.env, emit = () => {}, spawnImpl = spa
     project = projectFolder(project.path);
     const codex = executable(env.MUNIE_CODEX_BINARY || path.resolve(__dirname, "../../../Runtime/bin/codex"));
     const guardian = executable(env.MUNIE_GUARDIAN_BINARY || path.resolve(__dirname, "../../../Runtime/bin/MunieCodexGuardian"));
+    const profileDirectory = customProvider ? `codex-custom-${customProvider.namespace}`
+      : apiKey === null ? "codex" : "codex-openai-api";
+    const codexHome = privateDirectory(path.join(root, profileDirectory));
     state = "starting"; lastError = null; bridge = null; account = null;
+    workerAccountReady = apiKey === null;
+    workerKeySent = false;
     updateLanAvailability(false);
     publish();
     const childEnv = {
@@ -361,11 +404,13 @@ function createDesktopHost({ env = process.env, emit = () => {}, spawnImpl = spa
       MUNIE_HOST_RELAY_PORT: String(relayPort || 0),
       REMODEX_CODEX_BINARY: codex, REMODEX_PROJECT_ROOT: project.path,
       REMODEX_DEVICE_STATE_DIR: path.join(root, "bridge"), REMODEX_DEVICE_STATE_FILE: path.join(root, "bridge", "device-state.json"),
-      REMODEX_DISABLE_KEYCHAIN: "1", CODEX_HOME: path.join(root, "codex"),
+      REMODEX_DISABLE_KEYCHAIN: "1", CODEX_HOME: codexHome,
     };
+    if (apiKey !== null) childEnv.MUNIE_DESKTOP_OPENAI_API = "1";
+    if (customProvider !== null) childEnv.MUNIE_DESKTOP_CUSTOM_PROVIDER = "1";
     const { loopbackManagedRelayOrigin } = require("./managed-relay-client");
     const pilotOrigin = loopbackManagedRelayOrigin(env.MUNIE_DEVELOPER_MANAGED_RELAY);
-    if (pilotOrigin) childEnv.MUNIE_DEVELOPER_MANAGED_RELAY = pilotOrigin;
+    if (pilotOrigin && apiKey === null && customProvider === null) childEnv.MUNIE_DEVELOPER_MANAGED_RELAY = pilotOrigin;
     const child = spawnImpl(guardian, [String(process.pid), process.execPath, __filename, "--worker"], {
       env: childEnv, cwd: project.path, detached: true, stdio: ["pipe", "pipe", "ignore"],
     });
@@ -393,6 +438,10 @@ function createDesktopHost({ env = process.env, emit = () => {}, spawnImpl = spa
     readFrames(child.stdout, MAX_FRAME_BYTES, (frame) => { if (worker === child) receive(frame); }, () => failChild());
     publish();
     try {
+      if (customProvider) {
+        const { baseURL, model, apiKey: providerKey } = customProvider;
+        writeFrame(child.stdin, { method: "provider/configure", provider: { baseURL, model, apiKey: providerKey } });
+      }
       await ready;
       state = "running"; publish();
       return status();
@@ -404,8 +453,23 @@ function createDesktopHost({ env = process.env, emit = () => {}, spawnImpl = spa
   async function run(method, params = {}) {
     switch (method) {
       case "status": return status();
-      case "start": return start();
-      case "stop": return stop();
+      case "start": {
+        const selectedKey = Object.hasOwn(params, "apiKey") ? readOpenAiApiKey(params.apiKey) : null;
+        const selectedProvider = Object.hasOwn(params, "customProvider") ? readCustomProvider(params.customProvider) : null;
+        if (selectedKey !== null && selectedProvider !== null) throw hostError("invalid_request");
+        if (state === "running" && (apiKey !== selectedKey
+          || customProvider?.namespace !== selectedProvider?.namespace
+          || customProvider?.apiKey !== selectedProvider?.apiKey)) {
+          throw hostError(customProvider || selectedProvider ? "custom_provider_unavailable" : "api_key_unavailable");
+        }
+        apiKey = selectedKey;
+        customProvider = selectedProvider;
+        return start();
+      }
+      case "stop": {
+        try { return await stop(); }
+        finally { apiKey = null; customProvider = null; }
+      }
       case "retry": await stop(); return start();
       case "project/set": {
         const selected = projectFolder(params.path);
@@ -418,7 +482,10 @@ function createDesktopHost({ env = process.env, emit = () => {}, spawnImpl = spa
       case "account/read": {
         account = await request(method); emit("account", account); publish(); return account;
       }
-      case "account/login/start": return safeLogin(await request(method));
+      case "account/login/start": {
+        if (apiKey !== null || customProvider !== null) throw hostError("login_unavailable");
+        return safeLogin(await request(method));
+      }
       case "account/login/cancel": return request(method);
       case "pairing/get": {
         // An explicit Mac approval requests a fresh invitation without restarting active work.
@@ -507,6 +574,29 @@ function monitorLanRelay(loopbackServer, port, onAvailability) {
   };
 }
 
+function readProviderStartup(input) {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => finish(null), 5000);
+    function finish(profile) {
+      clearTimeout(timeout);
+      input.off("end", onEnd);
+      input.pause();
+      detach();
+      if (profile) resolve(profile); else reject(hostError("custom_provider_unavailable"));
+    }
+    const onEnd = () => finish(null);
+    const detach = readFrames(input, MAX_REQUEST_BYTES, (frame) => {
+      if (frame?.method !== "provider/configure") return finish(null);
+      let profile;
+      try { profile = readCustomProvider(frame.provider); }
+      catch { return finish(null); }
+      finish(profile);
+    }, onEnd);
+    input.once("end", onEnd);
+    input.resume();
+  });
+}
+
 async function runWorker() {
   // Imported bridge/relay log text may contain paths or upstream details: discard, never forward it.
   for (const key of ["log", "info", "warn", "error", "debug"]) console[key] = () => {};
@@ -516,6 +606,8 @@ async function runWorker() {
   const { MOBILE_ROUTE_FRAME } = require("../../MunieRemodexRelay/relay");
   const { loopbackManagedRelayOrigin } = require("./managed-relay-client");
   const { startBridge, readBridgeConfig } = require("./index");
+  const apiKeyMode = process.env.MUNIE_DESKTOP_OPENAI_API === "1";
+  const customMode = process.env.MUNIE_DESKTOP_CUSTOM_PROVIDER === "1";
   const pilotOrigin = loopbackManagedRelayOrigin(process.env.MUNIE_DEVELOPER_MANAGED_RELAY);
   const relay = createRelayServer({ enablePushService: false, maxPayload: MAX_FRAME_BYTES,
     relayOptions: { enableManagedRoutes: Boolean(pilotOrigin) } });
@@ -525,12 +617,25 @@ async function runWorker() {
   });
   const port = relay.server.address().port;
   send({ event: "relay", data: { port } });
-  const lan = monitorLanRelay(relay.server, port, (available) => send({ event: "lan", data: available }));
+  let broker = null, customLaunch = null;
+  if (customMode) {
+    try {
+      const { startCustomProviderBroker } = require("./custom-provider-broker");
+      const provider = await readProviderStartup(process.stdin);
+      broker = await startCustomProviderBroker(provider);
+      customLaunch = { model: provider.model, origin: broker.baseURL, capability: broker.capability,
+        environmentKey: "MUNIE_LOCAL_PROVIDER_" + randomBytes(16).toString("hex").toUpperCase() };
+    } catch { throw hostError("custom_provider_unavailable"); }
+  }
+  const startLan = () => monitorLanRelay(relay.server, port, (available) => send({ event: "lan", data: available }));
+  let lan = apiKeyMode ? null : startLan(), configuringApiKey = false;
   const config = { ...readBridgeConfig(), relayUrl: `ws://127.0.0.1:${port}/relay`, publicRelayUrl: "",
     codexEndpoint: "", pushServiceUrl: "", refreshEnabled: false, desktopAutoFollowEnabled: false,
     keepMacAwakeEnabled: false, desktopIpcLiveSyncEnabled: false, localAccountControlEnabled: true,
+    localOpenAiApiKeyMode: apiKeyMode,
   };
   const bridge = startBridge({ config, printPairingQr: false,
+    desktopCustomProvider: customLaunch,
     desktopManagedRelay: pilotOrigin ? {
       origin: pilotOrigin, audience: "munie-loopback.invalid", encodeChallenge: managedAdmissionTranscript,
       attachPhone: relay.attachManagedPhone, routeFrame: MOBILE_ROUTE_FRAME,
@@ -562,8 +667,9 @@ async function runWorker() {
     if (stopping) return;
     stopping = true;
     clearInterval(loginPoll);
-    lan.stop();
+    lan?.stop();
     bridge.stop();
+    await broker?.stop();
     for (const client of relay.wss.clients) client.terminate();
     relay.wss.close();
     relay.server.close();
@@ -571,12 +677,26 @@ async function runWorker() {
     process.exit(0);
   }
   readFrames(process.stdin, MAX_REQUEST_BYTES, (frame) => {
+    if (frame?.method === "account/api-key/configure") {
+      if (!apiKeyMode || configuringApiKey || stopping) return;
+      configuringApiKey = true;
+      Promise.resolve().then(async () => {
+        await bridge.localAccount.setOpenAiApiKey(readOpenAiApiKey(frame.apiKey));
+        if (stopping) return;
+        lan = startLan();
+        send({ event: "api-key-ready" });
+      }).catch(() => {
+        send({ event: "fatal", data: publicError(hostError("api_key_unavailable")) });
+        void shutdown();
+      });
+      return;
+    }
     if (pending >= 32) { send({ id: frame?.id, error: publicError(hostError("busy")) }); return; }
     pending++;
     Promise.resolve().then(async () => {
       switch (frame.method) {
         case "pairing/get": {
-          if (!lan.address) throw hostError("pairing_unavailable");
+          if (!lan?.address) throw hostError("pairing_unavailable");
           const session = bridge.localPairing.refresh();
           // Only the local handoff URL changes. The bridge's session, key and relay
           // registration stay owned by the original loopback transport.
@@ -585,6 +705,7 @@ async function runWorker() {
         }
         case "account/read": return bridge.localAccount.read();
         case "account/login/start": {
+          if (apiKeyMode || customMode) throw hostError("login_unavailable");
           const result = safeLogin(await bridge.localAccount.startLogin());
           pollLogin();
           return result;
@@ -665,7 +786,8 @@ function runProtocol({ input = process.stdin, output = process.stdout, env = pro
 if (require.main === module) {
   if (process.argv[2] === "--verify-cleanup") void runCleanupVerification(process.argv.slice(3));
   else if (process.argv.includes("--worker")) runWorker().catch((error) => {
-    writeFrame(process.stdout, { event: "fatal", data: publicError(hostError(error?.code === "EADDRINUSE" ? "relay_port_unavailable" : "runtime_failed")) });
+    const code = error?.code === "EADDRINUSE" ? "relay_port_unavailable" : error?.code;
+    writeFrame(process.stdout, { event: "fatal", data: publicError(hostError(code)) });
     process.exit(1);
   });
   else runProtocol();

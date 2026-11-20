@@ -29,7 +29,10 @@ SPEC.loader.exec_module(probe)
 require = probe.require
 MODEL = 'munie-fixture'
 MARKER = 'MUNIE_FIXTURE_COMPLETE'
+PROVIDER_KEY_ENV = 'MUNIE_FIXTURE_PROVIDER_TOKEN'
+APPROVAL_COMMAND = '/usr/bin/touch approval-marker'
 MAX_REQUEST = 256 * 1024
+KEY_GUARD_SCRIPT = 'provider-key-guard.sh'
 CASES = ('text', 'approval-cancel', 'approval-accept', 'interrupt')
 EVENTS = frozenset((
     'thread/started', 'thread/status/changed', 'warning', 'turn/started', 'turn/completed',
@@ -60,8 +63,10 @@ def sse(item, response_id):
 class FixtureServer(http.server.HTTPServer):
     """One bounded, loopback-only HTTP/1.0 fixture, never a public/model service."""
 
-    def __init__(self, workspace):
+    def __init__(self, workspace, synthetic_key=None):
         self.workspace = workspace
+        self.synthetic_key = synthetic_key
+        self.command = fixture_command(synthetic_key is not None)
         self.path = '/fixture-' + secrets.token_hex(24) + '/responses'
         self.case = None
         self.count = 0
@@ -134,9 +139,10 @@ class FixtureHandler(http.server.BaseHTTPRequestHandler):
         try:
             require(self.path == server.path and self.client_address[0] == '127.0.0.1',
                     'Invalid fixture endpoint')
-            require(self.headers.get_all('Authorization') is None and
+            expected = None if server.synthetic_key is None else ['Bearer ' + server.synthetic_key]
+            require(self.headers.get_all('Authorization') == expected and
                     self.headers.get_all('Cookie') is None,
-                    'Credentials are forbidden in the fixture')
+                    'Unexpected fixture authentication')
             require(self.headers.get_all('Transfer-Encoding') is None,
                     'Chunked requests are forbidden')
             require(len(self.headers.get_all('Content-Length', [])) == 1,
@@ -145,6 +151,9 @@ class FixtureHandler(http.server.BaseHTTPRequestHandler):
             require(0 < length <= MAX_REQUEST, 'Provider request size limit exceeded')
             data = self.rfile.read(length)
             require(len(data) == length, 'Truncated provider request')
+            if server.synthetic_key is not None:
+                require(server.synthetic_key.encode('ascii') not in data,
+                        'Provider key reached the request body')
             body = probe.strict_json(data)
             require(type(body) is dict and body.get('model') == MODEL and
                     body.get('stream') is True and type(body.get('input')) is list,
@@ -161,7 +170,7 @@ class FixtureHandler(http.server.BaseHTTPRequestHandler):
                         'Native command tool is unavailable')
                 item = {'type': 'function_call', 'id': 'fc_' + case, 'call_id': 'call_' + case,
                         'name': 'exec_command', 'arguments': json.dumps({
-                            'cmd': '/usr/bin/touch approval-marker', 'shell': '/bin/sh',
+                            'cmd': server.command, 'shell': '/bin/sh',
                             'login': False, 'workdir': str(server.workspace),
                             'yield_time_ms': 1000, 'max_output_tokens': 1000,
                             'sandbox_permissions': 'require_escalated',
@@ -194,12 +203,23 @@ class FixtureHandler(http.server.BaseHTTPRequestHandler):
             self.close_connection = True
 
 
+def fixture_command(check_key_environment):
+    return '/bin/sh ' + KEY_GUARD_SCRIPT if check_key_environment else APPROVAL_COMMAND
+
+
+def key_guard_source():
+    # Test presence, not value. A rejected launch must not log the synthetic key.
+    return f'[ -z "${{{PROVIDER_KEY_ENV}+set}}" ] || exit 87\n{APPROVAL_COMMAND}\n'
+
+
 class LifecyclePeer(probe.JsonLinePeer):
     """Validate native identities and state before replying to a single fixed approval."""
 
-    def __init__(self, command, cwd, environment):
+    def __init__(self, command, cwd, environment, check_key_environment=False):
         super().__init__(command, cwd, environment, total_seconds=60)
         self.workspace = cwd
+        self.approval_command = fixture_command(check_key_environment)
+        self.synthetic_key = environment.get(PROVIDER_KEY_ENV) if check_key_environment else None
         self.thread_id = None
         self.turn_id = None
         self.case = None
@@ -219,7 +239,19 @@ class LifecyclePeer(probe.JsonLinePeer):
                 'Native lifecycle RPC failed')
         return frame['result']
 
+    def read_frame(self, deadline):
+        frame = super().read_frame(deadline)
+        self.reject_key_in_frame(frame)
+        return frame
+
+    def reject_key_in_frame(self, frame):
+        if self.synthetic_key is not None:
+            require(self.synthetic_key not in json.dumps(frame),
+                    'Provider key reached native protocol output')
+
     def accept_notification(self, frame):
+        # The final drain dispatches notifications without going through read_frame.
+        self.reject_key_in_frame(frame)
         method, params = frame.get('method'), frame.get('params')
         require(type(params) is dict, 'Invalid native event parameters')
         if method == 'remoteControl/status/changed':
@@ -233,13 +265,13 @@ class LifecyclePeer(probe.JsonLinePeer):
             require(params.get('threadId') == self.thread_id and
                     params.get('turnId') == self.turn_id and
                     params.get('itemId') == 'call_' + self.case and
-                    params.get('command') == "/bin/sh -c '/usr/bin/touch approval-marker'" and
+                    params.get('command') == "/bin/sh -c '" + self.approval_command + "'" and
                     params.get('cwd') == str(self.workspace) and
                     params.get('kind') == 'command' and
                     params.get('reason') == 'Munie synthetic fixture approval' and
                     params.get('availableDecisions') == [
                         'accept', {'acceptWithExecpolicyAmendment': {
-                            'execpolicy_amendment': ['/usr/bin/touch', 'approval-marker']}}, 'cancel'],
+                            'execpolicy_amendment': self.approval_command.split(' ')}}, 'cancel'],
                     'Approval differs from the bound fixture action')
             self.approval = frame['id']
         else:
@@ -329,7 +361,7 @@ def experiment(args, report):
     report['runnerSHA256'] = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     report['transportRunnerSHA256'] = hashlib.sha256(Path(probe.__file__).read_bytes()).hexdigest()
     report['scope'] = ('Actual native Codex lifecycle with synthetic local Responses API output; '
-                       'no real model, credentials, external network, mobile gateway or adapter.')
+                       'no real model, user credentials, external network, mobile gateway or adapter.')
     with tempfile.TemporaryDirectory(prefix='munie-codex-turns-') as temporary:
         root = Path(temporary).resolve()
         fixture, protected = root / 'fixture', root / 'protected'
@@ -340,7 +372,10 @@ def experiment(args, report):
         for name in ('codex-data', 'workspace', 'tmp'):
             (fixture / name).mkdir()
         workspace, home = fixture / 'workspace', fixture / 'codex-data'
-        provider = FixtureServer(workspace)
+        synthetic_key = secrets.token_hex(32) if args.synthetic_provider_key else None
+        if synthetic_key is not None:
+            (workspace / KEY_GUARD_SCRIPT).write_text(key_guard_source(), encoding='utf-8')
+        provider = FixtureServer(workspace, synthetic_key=synthetic_key)
         peers = []
         report['checks'] = []
         try:
@@ -351,6 +386,7 @@ def experiment(args, report):
                 '[model_providers.munie_fixture]\nname = "Munie deterministic fixture"\n'
                 f'base_url = "http://127.0.0.1:{port}{provider.path.removesuffix("/responses")}"\n'
                 'wire_api = "responses"\nrequires_openai_auth = false\n'
+                + (f'env_key = "{PROVIDER_KEY_ENV}"\n' if synthetic_key is not None else '') +
                 'request_max_retries = 0\nstream_max_retries = 0\n'
                 '[analytics]\nenabled = false\n[feedback]\nenabled = false\n')
             environment = {'PATH': '/usr/bin:/bin:/usr/sbin:/sbin', 'HOME': str(Path.home()),
@@ -371,9 +407,11 @@ def experiment(args, report):
                                      env=environment, capture_output=True, timeout=5, check=True)
             require(version.stdout.decode().strip() == probe.VERSION, 'Native version mismatch')
             report['cliVersion'] = probe.VERSION
+            if synthetic_key is not None:
+                environment[PROVIDER_KEY_ENV] = synthetic_key
             command = sandbox + [str(args.codex), 'app-server', '--stdio']
             report['phase'] = 'native-lifecycle'
-            peer = LifecyclePeer(command, workspace, environment)
+            peer = LifecyclePeer(command, workspace, environment, synthetic_key is not None)
             peers.append(peer)
             peer.initialize(home)
             marker = workspace / 'approval-marker'
@@ -416,7 +454,7 @@ def experiment(args, report):
             peer.close()
             require(peer.cleanup['exitStatus'] == 0, 'Native lifecycle server exited unsuccessfully')
             report['phase'] = 'persisted-history'
-            resumed = LifecyclePeer(command, workspace, environment)
+            resumed = LifecyclePeer(command, workspace, environment, synthetic_key is not None)
             peers.append(resumed)
             resumed.initialize(home)
             for thread_id, turn_id, status in history:
@@ -483,6 +521,12 @@ def experiment(args, report):
                 require(provider.failure is None, 'Loopback provider failed during cleanup')
                 require(provider.total == provider.connections == 6,
                         'Unexpected final provider connection/request count')
+                if synthetic_key is not None:
+                    report['syntheticProviderAuth'] = {
+                        'exactBearerRequests': provider.total,
+                        'keyAbsentFromBodies': True,
+                        'keyAbsentFromObservedNativeFrames': True,
+                        'keyAbsentFromApprovedShellEnvironment': True}
 
 
 def main():
@@ -493,6 +537,8 @@ def main():
     parser.add_argument('--catalog', type=Path, default=Path(__file__).resolve().parent.parent /
                         'references/codex-capabilities.json')
     parser.add_argument('--output', type=Path, default=Path('build/codex-turn-probe.json'))
+    parser.add_argument('--synthetic-provider-key', action='store_true',
+                        help='Generate a fixture-only key and check native authorization and shell isolation.')
     args = parser.parse_args()
     report = {'reportVersion': 1, 'status': 'failed', 'phase': 'starting',
               'capturedAtUTC': datetime.now(timezone.utc).isoformat()}

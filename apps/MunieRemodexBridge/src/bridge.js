@@ -6,7 +6,7 @@
 // Depends on: ws, crypto, os, ./bridge-status, ./codex-desktop-refresher, ./codex-transport, ./rollout-watch, ./voice-handler
 
 // Munie modification: constrain explicit launches before local handlers/native forwarding.
-const { configuredRoot, scopedPath, withinRoot, bindNativeRequest, assertNativeMethod, createPendingResponseGate } = require("./munie-project-policy");
+const { configuredRoot, scopedPath, withinRoot, bindNativeRequest, configuredModelList, assertNativeMethod, createPendingResponseGate } = require("./munie-project-policy");
 const WebSocket = require("ws");
 const { constants: bufferConstants } = require("buffer");
 const { createHash, randomBytes } = require("crypto");
@@ -48,6 +48,7 @@ const { createNotificationsHandler } = require("./notifications-handler");
 const { createVoiceHandler, resolveVoiceAuth } = require("./voice-handler");
 const {
   composeSanitizedAuthStatusFromSettledResults,
+  redactNativeProviderError,
 } = require("./account-status");
 const { createBridgePackageVersionStatusReader } = require("./package-version-status");
 const { createPushNotificationServiceClient } = require("./push-notification-service-client");
@@ -727,6 +728,7 @@ function startBridge({
   onPairingSession = null,
   onBridgeStatus = null,
   desktopManagedRelay = null,
+  desktopCustomProvider = null,
 } = {}) {
   const config = explicitConfig || readBridgeConfig();
   const projectResponseGate = createPendingResponseGate();
@@ -1014,6 +1016,7 @@ function startBridge({
     endpoint: config.codexEndpoint,
     env: process.env,
     appPath: config.codexAppPath,
+    desktopCustomProvider,
     logPrefix: "[remodex]",
   });
   const openCodeRuntime = createOpenCodeRuntime({
@@ -1334,7 +1337,14 @@ function startBridge({
   function handleCodexMessage(message) {
     // Streaming deltas make this the hottest path in the bridge: parse the
     // envelope once and share the read-only object with every observer.
-    const parsedMessage = parseBridgeMessage(message);
+    let parsedMessage = parseBridgeMessage(message);
+    if (config.localOpenAiApiKeyMode === true || desktopCustomProvider) {
+      const sanitized = redactNativeProviderError(parsedMessage);
+      if (sanitized !== parsedMessage) {
+        parsedMessage = sanitized;
+        message = JSON.stringify(sanitized);
+      }
+    }
     if (turnCancellation.observe(parsedMessage)) return;
     if (configuredRoot() && parsedMessage?.id != null && isRelayBoundServerRequestMethod(parsedMessage.method)) {
       projectResponseGate.remember(parsedMessage.id);
@@ -1420,7 +1430,10 @@ function startBridge({
       }
       try {
         if (!incoming?.method && incoming?.id != null) projectResponseGate.consume(incoming.id);
-        rawMessage = JSON.stringify(bindNativeRequest(incoming, projectRoot));
+        rawMessage = JSON.stringify(bindNativeRequest(incoming, projectRoot, {
+          openAiApiKeyMode: config.localOpenAiApiKeyMode === true,
+          customProviderModel: desktopCustomProvider?.model,
+        }));
       } catch (error) {
         if (incoming?.id != null) sendApplicationResponse(createJsonRpcErrorResponse(incoming.id, error, "project_not_authorized"));
         return;
@@ -1428,6 +1441,11 @@ function startBridge({
     }
     rawMessage = normalizePhoneRuntimeRequest(rawMessage);
     const parsedMessage = parseBridgeMessage(rawMessage);
+    const modelListReply = configuredModelList(parsedMessage, desktopCustomProvider?.model);
+    if (modelListReply) {
+      sendApplicationResponse(JSON.stringify(modelListReply), modelListReply);
+      return;
+    }
     // Scope this stronger cancellation contract to explicit Munie foreground launches.
     if (projectRoot && parsedMessage?.method !== "turn/interrupt"
       && turnCancellation.handle(parsedMessage)) return;
@@ -2042,13 +2060,14 @@ function startBridge({
   // Combines account/read + getAuthStatus into one safe snapshot for the phone UI.
   // The two RPCs are settled independently so one transient failure does not hide the other.
   async function readSanitizedAuthStatus() {
+    if (desktopCustomProvider) return configuredCustomProviderStatus();
     const [accountReadResult, authStatusResult, bridgeVersionInfoResult] = await Promise.allSettled([
       sendCodexRequest("account/read", {
         refreshToken: false,
       }),
       sendCodexRequest("getAuthStatus", {
-        includeToken: true,
-        refreshToken: true,
+        includeToken: config.localOpenAiApiKeyMode !== true,
+        refreshToken: config.localOpenAiApiKeyMode !== true,
       }),
       readBridgePackageVersionStatus(),
     ]);
@@ -2068,6 +2087,17 @@ function startBridge({
       allowPackageUpdates,
       transportMode: codex.mode,
       hostPlatform: process.platform,
+    });
+  }
+
+  function configuredCustomProviderStatus() {
+    return composeSanitizedAuthStatusFromSettledResults({
+      accountReadResult: {
+        status: "fulfilled",
+        value: { account: { type: "customProvider", loggedIn: true }, requiresOpenaiAuth: false },
+      },
+      allowPackageUpdates: false,
+      transportMode: codex.mode,
     });
   }
 
@@ -2772,10 +2802,19 @@ function startBridge({
     } : null,
     // Local process control only. These functions are never registered as relay RPC methods.
     localAccount: initializeForLocalAccount ? {
+      async setOpenAiApiKey(apiKey) {
+        if (config.localOpenAiApiKeyMode !== true) throw new Error("The Mac is not using an API key.");
+        const result = await sendCodexRequest("account/login/start", { type: "apiKey", apiKey }, { timeoutMs: 10_000 });
+        if (result?.type !== "apiKey") throw new Error("Codex did not accept the API key.");
+      },
       async read() {
+        if (desktopCustomProvider) return configuredCustomProviderStatus();
         const [accountReadResult, authStatusResult] = await Promise.allSettled([
           sendCodexRequest("account/read", { refreshToken: false }, { timeoutMs: 10_000 }),
-          sendCodexRequest("getAuthStatus", { includeToken: true, refreshToken: true }, { timeoutMs: 10_000 }),
+          sendCodexRequest("getAuthStatus", {
+            includeToken: config.localOpenAiApiKeyMode !== true,
+            refreshToken: config.localOpenAiApiKeyMode !== true,
+          }, { timeoutMs: 10_000 }),
         ]);
         return composeSanitizedAuthStatusFromSettledResults({
           accountReadResult, authStatusResult,

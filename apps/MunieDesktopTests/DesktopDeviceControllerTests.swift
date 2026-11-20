@@ -185,7 +185,8 @@ struct DesktopDeviceControllerTests {
   private func makeController(_ runtime: DesktopDeviceRuntimeFixture) -> DesktopHostController {
     DesktopHostController(
       makeRuntime: { runtime },
-      defaultProject: { URL(filePath: "/fixture/Project", directoryHint: .isDirectory) })
+      defaultProject: { URL(filePath: "/fixture/Project", directoryHint: .isDirectory) },
+      providerStore: DesktopProviderStoreFixture())
   }
 
   private func waitUntil(_ condition: () -> Bool) async {

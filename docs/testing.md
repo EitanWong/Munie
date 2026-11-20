@@ -198,6 +198,10 @@ Provider HTTP bodies are capped at 256 KiB, each socket operation at two seconds
 
 The private atomic `build/codex-turn-probe.json` uses the same failed/starting invalidation. It records synthetic thread/turn IDs, observed states and sanitized event types, runner/transport/binary/schema hashes, stream counts/hashes and both process cleanups. It omits raw paths, provider request bodies, host/account metadata and stderr. Ordinary CI runs only local fake-peer/provider regressions; the native opt-in command must be rerun after runner changes and its provenance checked separately.
 
+Add `--synthetic-provider-key --output build/codex-turn-key-probe.json` to test the native custom-provider Bearer flow. The runner generates a fresh in-memory key; there is no user key input. The same loopback fixture enforces exactly one authorization header, rejects the key in request bodies, and the runner checks observed native protocol frames. The bound one-time approval runs a fixed shell script that fails without printing anything if the variable exists, even if empty. These observations do not cover production credential storage, MCP, redirects, any hosted provider or the shipping app.
+
+The Mac provider choice has separate configuration/storage tests, native startup tests and [broker tests](../apps/MunieRemodexBridge/test/custom-provider-broker.test.js). The broker fixture covers the exact model, bounded streaming, redirect denial, typed authentication/quota failures and literal/escaped credential echo controls; it does not use an external provider. A real acceptance run must still save, restart and remove a disposable Key using the Mac app; then use the paired iPhone to send one bounded task per authorized provider and confirm approval, cancellation and same-thread recovery. Record only result categories, never the Key or full request bodies.
+
 ## Host submission authorization and crash windows
 
 ```sh

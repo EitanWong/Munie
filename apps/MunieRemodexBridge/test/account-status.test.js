@@ -13,7 +13,34 @@ const {
   composeAccountStatus,
   composeSanitizedAuthStatusFromSettledResults,
   redactAuthStatus,
+  redactNativeProviderError,
 } = require("../src/account-status");
+
+test("native provider failure preserves turn identity but removes reflected upstream diagnostics", () => {
+  const secret = 'fixture-"\\-key';
+  const error = { message: secret, additionalDetails: secret, codexErrorInfo: "unauthorized", unexpected: secret };
+  const frame = { method: "turn/completed", params: { threadId: "thread-1", turn: { id: "turn-1", status: "failed", error } } };
+  const result = redactNativeProviderError(frame);
+  assert.equal(result.params.threadId, "thread-1");
+  assert.equal(result.params.turn.id, "turn-1");
+  assert.equal(result.params.turn.status, "failed");
+  assert.equal(result.params.turn.error.codexErrorInfo, "unauthorized");
+  assert.equal(JSON.stringify(result).includes(JSON.stringify(secret).slice(1, -1)), false);
+  assert.equal(frame.params.turn.error.message, secret);
+  assert.equal(redactNativeProviderError({ id: 1, error: { code: -32000, message: secret, data: { secret } } }).error.data, undefined);
+  for (const [status, expected] of [
+    [401, /rejected the API credentials/u], [403, /denied this request/u], [429, /rate or quota limit/u],
+  ]) {
+    const statusFrame = { method: "error", params: { error: {
+      message: secret, additionalDetails: secret, codexErrorInfo: {
+        responseStreamConnectionFailed: { httpStatusCode: status, unexpected: secret },
+      },
+    } } };
+    const clean = redactNativeProviderError(statusFrame).params.error;
+    assert.match(clean.message, expected);
+    assert.deepEqual(clean.codexErrorInfo, { responseStreamConnectionFailed: { httpStatusCode: status } });
+  }
+});
 
 const macHostMetadata = {
   codexTransportMode: null,

@@ -24,6 +24,10 @@ enum CodexGPTAccountStatus: String, Codable, Sendable {
 
 enum CodexGPTAuthMethod: String, Codable, Sendable {
     case chatgpt
+    case apiKey
+    case customProvider
+
+    var usesMacProvider: Bool { self != .chatgpt }
 }
 
 struct CodexGPTAccountSnapshot: Codable, Equatable, Sendable {
@@ -50,11 +54,11 @@ struct CodexGPTAccountSnapshot: Codable, Equatable, Sendable {
     }
 
     var canLogout: Bool {
-        isAuthenticated || needsReauth
+        authMethod?.usesMacProvider != true && (isAuthenticated || needsReauth)
     }
 
     var isVoiceTokenReady: Bool {
-        tokenReady ?? isAuthenticated
+        authMethod?.usesMacProvider != true && (tokenReady ?? isAuthenticated)
     }
 
     var statusLabel: String {
@@ -68,6 +72,9 @@ struct CodexGPTAccountSnapshot: Codable, Equatable, Sendable {
         case .loginPending:
             return "Login pending"
         case .authenticated:
+            if authMethod?.usesMacProvider == true {
+                return String(localized: "Model provider configured on Mac")
+            }
             return needsReauth ? "Needs reauth" : "Authenticated"
         case .expired:
             return "Expired"
@@ -85,7 +92,7 @@ struct CodexGPTAccountSnapshot: Codable, Equatable, Sendable {
         if let expiresAt {
             parts.append(Self.expiryFormatter.string(from: expiresAt))
         }
-        if isAuthenticated && !isVoiceTokenReady {
+        if authMethod?.usesMacProvider != true && isAuthenticated && !isVoiceTokenReady {
             parts.append("Voice syncing")
         }
         return parts.isEmpty ? nil : parts.joined(separator: " • ")
@@ -497,6 +504,7 @@ extension CodexService {
     // Separates signed-in state from bridge token readiness so the mic does not appear ready too early.
     var gptVoiceTemporarilyUnavailable: Bool {
         isConnected
+            && gptAccountSnapshot.authMethod?.usesMacProvider != true
             && gptAccountSnapshot.isAuthenticated
             && !gptAccountSnapshot.hasActiveLogin
             && !gptAccountSnapshot.isVoiceTokenReady
@@ -680,7 +688,8 @@ extension CodexService {
         if resolvedSnapshot.status == .authenticated || resolvedSnapshot.status == .expired {
             resolvedSnapshot.loginInFlight = false
         }
-        if (resolvedSnapshot.isAuthenticated && resolvedSnapshot.isVoiceTokenReady)
+        if resolvedSnapshot.authMethod?.usesMacProvider == true
+            || (resolvedSnapshot.isAuthenticated && resolvedSnapshot.isVoiceTokenReady)
             || resolvedSnapshot.status == .expired {
             clearGPTLoginState()
             clearGPTLoginCallbackState()
@@ -992,18 +1001,19 @@ extension CodexService {
         let hasPendingLogin = bridgeReportedPendingLogin
             || (currentPendingGPTLogin() != nil && resolvedStatus != .authenticated && resolvedStatus != .expired)
 
-        let tokenReady = resolvedTokenReady(
+        let usesMacProvider = legacyAuthMethod?.usesMacProvider == true
+        let tokenReady = !usesMacProvider && resolvedTokenReady(
             from: payloadObject,
             status: resolvedStatus,
             needsReauth: needsReauth,
             hasLegacyAuthToken: hasLegacyAuthToken
         )
-        let tokenUnavailableSince = resolvedTokenUnavailableSince(
+        let tokenUnavailableSince = usesMacProvider ? nil : resolvedTokenUnavailableSince(
             status: resolvedStatus,
             needsReauth: needsReauth,
             tokenReady: tokenReady
         )
-        let escalatedNeedsReauth = resolvedNeedsReauth(
+        let escalatedNeedsReauth = usesMacProvider ? needsReauth : resolvedNeedsReauth(
             baseNeedsReauth: needsReauth,
             status: resolvedStatus,
             tokenReady: tokenReady,
@@ -1197,6 +1207,10 @@ extension CodexService {
         switch value {
         case "chatgpt", "chat_gpt", "chatgptauthtokens":
             return .chatgpt
+        case "apikey", "api_key":
+            return .apiKey
+        case "customprovider", "custom_provider":
+            return .customProvider
         default:
             return nil
         }

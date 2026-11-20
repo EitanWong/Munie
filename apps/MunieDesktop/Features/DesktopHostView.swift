@@ -6,6 +6,8 @@ struct DesktopHostView: View {
   @ObservedObject var nearby: NearbyPairingHost
   @State private var showingRemovePairing = false
   @State private var deviceToRemove: DesktopPairedDevice?
+  @State private var providerEditor: DesktopProviderEditor.Mode?
+  @State private var confirmingChatGPT = false
 
   private var controller: DesktopHostController { coordinator.controller }
 
@@ -43,6 +45,22 @@ struct DesktopHostView: View {
         "This removes all current iPhone pairings and disconnects them. The Mac service restarts and active work may stop. Pair again to reconnect.",
         tableName: "Desktop")
     }
+    .sheet(item: $providerEditor) { mode in
+      DesktopProviderEditor(controller: controller, mode: mode)
+    }
+    .confirmationDialog(
+      String(localized: "Switch to ChatGPT?", table: "Desktop"),
+      isPresented: $confirmingChatGPT,
+      titleVisibility: .visible
+    ) {
+      Button(String(localized: "Switch to ChatGPT", table: "Desktop"), role: .destructive) {
+        Task { await controller.switchToChatGPT() }
+      }
+    } message: {
+      Text(
+        "This removes the current provider’s saved key. Previous conversations and pairings are kept.",
+        tableName: "Desktop")
+    }
   }
 
   private var header: some View {
@@ -68,7 +86,29 @@ struct DesktopHostView: View {
     GroupBox {
       VStack(alignment: .leading, spacing: 10) {
         Text("Your account", tableName: "Desktop").font(.headline)
-        accountContent
+        switch controller.modelProvider {
+        case .openAIAPIKey:
+          Label(
+            String(localized: "OpenAI API key configured", table: "Desktop"),
+            systemImage: "key")
+          Text("A configured key has not been verified with OpenAI.", tableName: "Desktop")
+            .font(.caption).foregroundStyle(.secondary)
+        case .custom(let baseURL, let model):
+          Label(
+            String(localized: "Custom provider configured", table: "Desktop"),
+            systemImage: "network")
+          DesktopProviderDestination(
+            endpoint: DesktopCustomProvider.responsesEndpoint(baseURL), model: model)
+          Text("This provider has not been verified.", tableName: "Desktop")
+            .font(.caption).foregroundStyle(.secondary)
+        case .chatGPT:
+          Label(String(localized: "ChatGPT", table: "Desktop"), systemImage: "person.crop.circle")
+          accountContent
+        case .unknown:
+          Text("Provider status unavailable", tableName: "Desktop")
+            .foregroundStyle(.secondary)
+        }
+        modelProviderControls
         Text(
           "Your Codex account stays on this Mac. Munie never sends account credentials to your iPhone.",
           tableName: "Desktop"
@@ -77,6 +117,38 @@ struct DesktopHostView: View {
       }
       .frame(maxWidth: .infinity, alignment: .leading)
       .padding(8)
+    }
+  }
+
+  private var modelProviderControls: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Menu {
+        Button(String(localized: "ChatGPT", table: "Desktop")) {
+          confirmingChatGPT = true
+        }
+        .disabled(controller.modelProvider == .chatGPT)
+        Button(String(localized: "OpenAI API Key…", table: "Desktop")) {
+          providerEditor = .openAI
+        }
+        Button(String(localized: "Custom Provider…", table: "Desktop")) {
+          providerEditor = .custom
+        }
+      } label: {
+        Label(
+          String(localized: "Model Provider", table: "Desktop"), systemImage: "slider.horizontal.3")
+      }
+      .disabled(!controller.canChangeModelProvider)
+      .accessibilityIdentifier("desktop.modelProvider")
+      if controller.changingModelProvider {
+        ProgressView().controlSize(.small)
+      } else if controller.ready {
+        Text("Stop Munie before changing the sign-in method.", tableName: "Desktop")
+          .font(.caption).foregroundStyle(.secondary)
+      }
+      if let error = controller.modelProviderError, providerEditor == nil {
+        Label(String(localized: error, table: "Desktop"), systemImage: "exclamationmark.triangle")
+          .foregroundStyle(.red)
+      }
     }
   }
 
@@ -246,6 +318,140 @@ struct DesktopHostView: View {
       }
     }
     .disabled(controller.busy)
+  }
+}
+
+private struct DesktopProviderEditor: View {
+  enum Mode: String, Identifiable {
+    case openAI, custom
+
+    var id: String { rawValue }
+
+    var title: String.LocalizationValue {
+      switch self {
+      case .openAI: "OpenAI API key"
+      case .custom: "Custom Provider"
+      }
+    }
+  }
+
+  let controller: DesktopHostController
+  let mode: Mode
+  @Environment(\.dismiss) private var dismiss
+  @State private var key = ""
+  @State private var baseURL: String
+  @State private var model: String
+  @FocusState private var field: Field?
+
+  private enum Field { case baseURL, key }
+
+  init(controller: DesktopHostController, mode: Mode) {
+    self.controller = controller
+    self.mode = mode
+    if case .custom(let baseURL, let model) = controller.modelProvider, mode == .custom {
+      _baseURL = State(initialValue: baseURL)
+      _model = State(initialValue: model)
+    } else {
+      _baseURL = State(initialValue: "")
+      _model = State(initialValue: "")
+    }
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      Text(String(localized: mode.title, table: "Desktop")).font(.headline)
+      VStack(alignment: .leading, spacing: 8) {
+        if mode == .custom {
+          VStack(alignment: .leading, spacing: 4) {
+            Text("HTTPS base URL", tableName: "Desktop")
+            TextField(text: $baseURL) { Text("HTTPS base URL", tableName: "Desktop") }
+              .labelsHidden()
+              .focused($field, equals: .baseURL)
+              .accessibilityIdentifier("desktop.customBaseURL")
+          }
+          VStack(alignment: .leading, spacing: 4) {
+            Text("Model ID", tableName: "Desktop")
+            TextField(text: $model) { Text("Model ID", tableName: "Desktop") }
+              .labelsHidden()
+              .accessibilityIdentifier("desktop.customModel")
+          }
+          if DesktopCustomProvider.isValidBaseURL(baseURL) {
+            DesktopProviderDestination(
+              endpoint: DesktopCustomProvider.responsesEndpoint(baseURL), model: nil)
+          }
+          Text(
+            "Model requests are sent to this provider. Verify the destination before saving.",
+            tableName: "Desktop"
+          )
+          .font(.caption).foregroundStyle(.secondary)
+        }
+        SecureField(text: $key) { Text("API key", tableName: "Desktop") }
+          .focused($field, equals: .key)
+          .accessibilityIdentifier("desktop.providerKey")
+      }
+      .disabled(controller.changingModelProvider)
+      if let error = controller.modelProviderError {
+        Label(String(localized: error, table: "Desktop"), systemImage: "exclamationmark.triangle")
+          .foregroundStyle(.red)
+      }
+      HStack {
+        if controller.changingModelProvider { ProgressView().controlSize(.small) }
+        Spacer()
+        Button(String(localized: "Cancel", table: "Desktop"), role: .cancel) { dismiss() }
+          .disabled(controller.changingModelProvider)
+        Button(String(localized: "Save Provider", table: "Desktop"), action: save)
+          .keyboardShortcut(.defaultAction)
+          .disabled(key.isEmpty || !controller.canChangeModelProvider)
+          .accessibilityIdentifier("desktop.saveProvider")
+      }
+    }
+    .padding(22)
+    .frame(width: 440)
+    .defaultFocus($field, mode == .custom ? .baseURL : .key)
+    .interactiveDismissDisabled(controller.changingModelProvider)
+    .onDisappear { key = "" }
+  }
+
+  private func save() {
+    Task {
+      let saved =
+        switch mode {
+        case .openAI: await controller.saveOpenAIAPIKey(key)
+        case .custom:
+          await controller.saveCustomProvider(baseURL: baseURL, model: model, apiKey: key)
+        }
+      if saved { dismiss() }
+    }
+  }
+}
+
+private struct DesktopProviderDestination: View {
+  let endpoint: String
+  let model: String?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 4) {
+      Text("Responses endpoint", tableName: "Desktop").font(.caption)
+      ViewThatFits(in: .vertical) {
+        endpointText
+        ScrollView { endpointText }
+      }
+      .frame(maxHeight: 62, alignment: .topLeading)
+      if let model {
+        LabeledContent {
+          Text(verbatim: model).textSelection(.enabled)
+        } label: {
+          Text("Model ID", tableName: "Desktop")
+        }
+      }
+    }
+  }
+
+  private var endpointText: some View {
+    Text(verbatim: endpoint)
+      .font(.caption.monospaced())
+      .textSelection(.enabled)
+      .fixedSize(horizontal: false, vertical: true)
   }
 }
 

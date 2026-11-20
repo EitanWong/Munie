@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { configuredRoot, scopedPath, bindNativeRequest, assertNativeMethod,
+const { configuredRoot, scopedPath, bindNativeRequest, configuredModelList, assertNativeMethod,
   createPendingResponseGate } = require('../src/munie-project-policy');
 const { createCodexLaunchPlans } = require('../src/codex-transport');
 const { readBridgeConfig } = require('../src/codex-desktop-refresher');
@@ -74,6 +74,59 @@ test('native mutations keep fixed cwd and user approvals while replacing client 
       assert.throws(() => bindNativeRequest({ method, params: {} }, root));
     }
   } finally { fs.rmSync(temporary, { recursive: true, force: true }); }
+});
+
+test('the phone may start browser login but may not set credential material', () => {
+  const login = { id: 1, method: 'account/login/start' };
+  assert.deepEqual(bindNativeRequest({ ...login, params: { type: 'chatgpt' } }, '/fixture'),
+    { ...login, params: { type: 'chatgpt' } });
+  for (const params of [
+    { type: 'apiKey', apiKey: 'fixture-secret' },
+    { type: 'chatgptAuthTokens', accessToken: 'fixture-secret' },
+    { type: 'chatgpt', apiKey: 'fixture-secret' },
+    { type: 'futureLogin' },
+    null,
+  ]) {
+    assert.throws(() => bindNativeRequest({ ...login, params }, '/fixture'), (error) => {
+      assert.match(error.message, /only be set on this Mac/);
+      assert.doesNotMatch(error.message, /fixture-secret/);
+      return true;
+    });
+  }
+  const legacy = { ...login, params: { type: 'apiKey', apiKey: 'fixture-secret' } };
+  assert.equal(bindNativeRequest(legacy, null), legacy);
+});
+
+test('OpenAI API mode permits read-only status but binds account and provider changes to the Mac', () => {
+  const options = { openAiApiKeyMode: true };
+  const root = fs.realpathSync(os.tmpdir());
+  for (const method of ['account/read', 'account/status/read', 'account/rateLimits/read', 'getAuthStatus']) {
+    assert.equal(bindNativeRequest({ method }, root, options).method, method);
+  }
+  for (const method of ['account/login/start', 'account/login/cancel', 'account/logout']) {
+    assert.throws(() => bindNativeRequest({ method, params: { type: 'chatgpt' } }, root, options),
+      /Change the account on this Mac/);
+  }
+  assert.throws(() => bindNativeRequest({
+    method: 'thread/start', params: { modelProvider: 'fixture-unselected' },
+  }, root, options), /Change the model provider on this Mac/);
+  assert.equal(bindNativeRequest({
+    method: 'thread/start', params: { modelProvider: 'openai' },
+  }, root, options).params.modelProvider, 'openai');
+});
+
+test('the custom model catalog exposes only the selected model and has no second page', () => {
+  const request = { id: 14, method: 'model/list' };
+  assert.equal(configuredModelList(request, null), null);
+  const actual = configuredModelList(request, 'selected/model');
+  assert.equal(actual.id, 14);
+  assert.equal(actual.result.nextCursor, null);
+  assert.deepEqual(actual.result.data, [{
+    id: 'selected/model', model: 'selected/model', displayName: 'selected/model',
+    isDefault: true, supportedReasoningEfforts: [], supportsFastMode: false,
+  }]);
+  assert.deepEqual(configuredModelList({ ...request, params: { cursor: 'stale-native-page' } },
+    'selected/model').result.data, []);
 });
 
 test('the public QR endpoint is independent of the bridge loopback connection', () => {

@@ -28,6 +28,21 @@ enum DesktopAccountState: Equatable {
   case signedIn
 }
 
+enum DesktopModelProvider: Equatable {
+  case unknown
+  case chatGPT
+  case openAIAPIKey
+  case custom(baseURL: String, model: String)
+
+  fileprivate init(credentials: DesktopProviderCredentials?) {
+    switch credentials {
+    case nil: self = .chatGPT
+    case .openAI: self = .openAIAPIKey
+    case .custom(let profile): self = .custom(baseURL: profile.baseURL, model: profile.model)
+    }
+  }
+}
+
 struct DesktopPairedDevice: Equatable, Sendable, Identifiable {
   let id: String
 }
@@ -47,6 +62,9 @@ final class DesktopHostController {
     }
   }
   private(set) var accountState: DesktopAccountState = .unknown
+  private(set) var modelProvider: DesktopModelProvider = .unknown
+  private(set) var changingModelProvider = false
+  private(set) var modelProviderError: String.LocalizationValue?
   private(set) var projectName = ""
   private(set) var pairedDevices: [DesktopPairedDevice] = []
   private(set) var hasPairingStatus = false
@@ -57,7 +75,10 @@ final class DesktopHostController {
   private(set) var loginURL: URL?
 
   var busy: Bool { starting != nil || stopping != nil }
-  var canStart: Bool { runtime == nil && !busy }
+  var canStart: Bool { runtime == nil && !busy && !changingModelProvider }
+  var canChangeModelProvider: Bool {
+    canStart && (serviceState == .stopped || serviceState == .failed)
+  }
   var canStop: Bool { runtime != nil && stopping == nil }
   var ready: Bool { serviceState == .running }
   var nearbyReady: Bool { ready && lanAvailable }
@@ -72,6 +93,7 @@ final class DesktopHostController {
 
   @ObservationIgnored private let makeRuntime: RuntimeFactory
   @ObservationIgnored private let defaultProject: @Sendable () async throws -> URL
+  @ObservationIgnored private let providerStore: any DesktopProviderStore
   @ObservationIgnored var onNearbyAvailabilityChange: (() -> Void)?
   // These handles also drive the observable start, stop and busy controls.
   private var runtime: (any DesktopHostRuntime)?
@@ -89,16 +111,19 @@ final class DesktopHostController {
     },
     defaultProject: @escaping @Sendable () async throws -> URL = {
       try await DesktopRuntimeConfiguration.bundled().defaultProject
-    }
+    },
+    providerStore: any DesktopProviderStore
   ) {
     self.makeRuntime = makeRuntime
     self.defaultProject = defaultProject
+    self.providerStore = providerStore
   }
 
   func start() async {
     guard canStart else { return }
     serviceState = .starting
     error = nil
+    accountState = .unknown
     let task = Task { await startService() }
     starting = task
     await task.value
@@ -107,6 +132,16 @@ final class DesktopHostController {
 
   private func startService() async {
     do {
+      let credentials: DesktopProviderCredentials?
+      do {
+        credentials = try await providerStore.read()
+        modelProvider = DesktopModelProvider(credentials: credentials)
+        modelProviderError = nil
+      } catch {
+        modelProviderError = "Munie could not read the API key from the Keychain."
+        throw DesktopProviderStoreFailure.unavailable
+      }
+      guard stopping == nil else { return }
       let owned = try await makeRuntime()
       runtime = owned
       let activeGeneration = UUID()
@@ -125,7 +160,9 @@ final class DesktopHostController {
         _ = try await owned.request(
           "project/set", params: .object(["path": .string(project.path)]))
       }
-      let status = try await owned.request("start", params: .object([:]))
+      guard stopping == nil else { return }
+      let status = try await owned.request(
+        "start", params: credentials?.startParameters ?? .object([:]))
       apply(status)
       guard status["state"]?.string == "running" else {
         throw DesktopHostFailure.notRunning
@@ -133,22 +170,89 @@ final class DesktopHostController {
       // A stop requested during startup owns the next transition.
       if stopping == nil {
         serviceState = .running
-        await refreshAccount(using: owned)
+        if modelProvider == .chatGPT { await refreshAccount(using: owned) }
       }
     } catch {
       if await closeResources() {
         serviceState = .failed
-        self.error =
-          (error as? DesktopHostControlError)?.code == "network_unavailable"
-          ? "Connect this Mac to Wi-Fi or Ethernet, then try again."
-          : "Munie could not start. Try again."
+        switch (error as? DesktopHostControlError)?.code {
+        case "network_unavailable":
+          self.error = "Connect this Mac to Wi-Fi or Ethernet, then try again."
+        case "api_key_unavailable":
+          modelProviderError = "Munie could not load the official API key into Codex."
+        case "custom_provider_unavailable":
+          modelProviderError = "Munie could not configure the custom provider."
+        default:
+          if !(error is DesktopProviderStoreFailure) {
+            self.error = "Munie could not start. Try again."
+          }
+        }
       }
+    }
+  }
+
+  @discardableResult
+  func saveOpenAIAPIKey(_ value: String) async -> Bool {
+    guard canChangeModelProvider else { return false }
+    guard let key = DesktopProviderKey(validating: value) else {
+      modelProviderError = "Enter an API key without spaces or line breaks."
+      return false
+    }
+    return await changeModelProvider(to: .openAI(key))
+  }
+
+  @discardableResult
+  func saveCustomProvider(baseURL: String, model: String, apiKey: String) async -> Bool {
+    guard canChangeModelProvider else { return false }
+    guard DesktopCustomProvider.isValidBaseURL(baseURL) else {
+      modelProviderError = "Enter a valid HTTPS base URL without credentials, query, or fragment."
+      return false
+    }
+    guard DesktopCustomProvider.isValidModel(model) else {
+      modelProviderError = "Enter a model ID using letters, numbers, or ._:/-."
+      return false
+    }
+    guard let key = DesktopProviderKey(validating: apiKey),
+      let profile = DesktopCustomProvider(baseURL: baseURL, model: model, apiKey: key)
+    else {
+      modelProviderError = "Enter an API key without spaces or line breaks."
+      return false
+    }
+    return await changeModelProvider(to: .custom(profile))
+  }
+
+  @discardableResult
+  func switchToChatGPT() async -> Bool {
+    guard canChangeModelProvider else { return false }
+    return await changeModelProvider(to: nil)
+  }
+
+  private func changeModelProvider(to credentials: DesktopProviderCredentials?) async -> Bool {
+    changingModelProvider = true
+    modelProviderError = nil
+    defer { changingModelProvider = false }
+    do {
+      if let credentials {
+        try await providerStore.save(credentials)
+      } else {
+        try await providerStore.remove()
+      }
+      modelProvider = DesktopModelProvider(credentials: credentials)
+      accountState = .unknown
+      loginURL = nil
+      return true
+    } catch {
+      // Do not show or retain an error's payload, which may contain credential data.
+      modelProviderError = "Munie could not update the API key in the Keychain."
+      return false
     }
   }
 
   /// Coalesces callers and waits for startup ownership to settle before cleanup.
   @discardableResult
   func stop() async -> Bool {
+    // The quit path must not abandon an active Keychain update.
+    guard !changingModelProvider else { return false }
     if let stopping { return await stopping.value }
     invalidateDeviceOperation()
     serviceState = .stopping
@@ -191,7 +295,7 @@ final class DesktopHostController {
       let status = try await runtime.request("status", params: .object([:]))
       guard operationGeneration == generation, revision == statusRevision else { return }
       apply(status)
-      await refreshAccount(using: runtime)
+      if modelProvider == .chatGPT { await refreshAccount(using: runtime) }
     } catch {
       guard operationGeneration == generation, revision == statusRevision else { return }
       self.error = "Munie could not refresh its status. Try again."
@@ -199,7 +303,7 @@ final class DesktopHostController {
   }
 
   func beginLogin() async -> URL? {
-    guard ready, !accountBusy, let runtime else { return nil }
+    guard ready, modelProvider == .chatGPT, !accountBusy, let runtime else { return nil }
     let operationGeneration = generation
     accountBusy = true
     defer { if operationGeneration == generation { accountBusy = false } }
@@ -222,7 +326,7 @@ final class DesktopHostController {
   }
 
   func cancelLogin() async {
-    guard ready, !accountBusy, let runtime else { return }
+    guard ready, modelProvider == .chatGPT, !accountBusy, let runtime else { return }
     let operationGeneration = generation
     accountBusy = true
     defer { if operationGeneration == generation { accountBusy = false } }
@@ -409,7 +513,7 @@ final class DesktopHostController {
       }
     }
     if let project = value["project"]?["name"]?.string { projectName = project }
-    if let account = value["account"] {
+    if modelProvider == .chatGPT, let account = value["account"] {
       if account["status"]?.string == "authenticated" {
         accountState = .signedIn
         loginURL = nil

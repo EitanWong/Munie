@@ -223,6 +223,99 @@ test("bundled relay/native lifecycle, login redaction, trust reset, revoke and E
   assert.equal((await host.run("stop")).cleanupConfirmed, true);
 });
 
+test("official API mode configures native memory before LAN, preserves trust and keeps browser history separate", { timeout: 30000, skip: process.platform !== "darwin" }, async (t) => {
+  const fixture = setupRuntime(t), events = [];
+  const host = createDesktopHost({ env: fixture.env, emit: (event, data) => events.push({ event, data }) });
+  t.after(() => host.stop());
+  await host.run("project/set", { path: fixture.project });
+  await host.run("start");
+  assert.match(JSON.parse(fs.readFileSync(fixture.runtimeRecord)).codexHome, /\/codex$/);
+  const state = fixture.env.MUNIE_HOST_STATE_DIR;
+  const trustFile = path.join(state, "bridge", "device-state.json");
+  const trust = JSON.parse(fs.readFileSync(trustFile));
+  const port = JSON.parse(fs.readFileSync(path.join(state, "host.json"))).relayPort;
+  await host.run("stop");
+  await assert.rejects(host.run("start", { apiKey: "invalid\nkey" }), { code: "api_key_unavailable" });
+  await assert.rejects(host.run("start", { apiKey: "synthetic-refused-key" }), { code: "api_key_unavailable" });
+  assert.ok(fixture.pids().every((pid) => !alive(pid)));
+
+  const apiKey = "synthetic-test-openai-key";
+  const starting = host.run("start", { apiKey });
+  const configured = path.join(fixture.project, "api-configuration-started");
+  await until(() => fs.existsSync(configured));
+  const pending = host.status();
+  assert.equal(pending.state, "starting");
+  assert.equal(pending.lanAvailable, false);
+  assert.equal(pending.pairingAvailable, false);
+  fs.writeFileSync(path.join(fixture.project, "allow-api-configuration"), "");
+  assert.equal((await starting).state, "running");
+  const native = JSON.parse(fs.readFileSync(fixture.runtimeRecord));
+  assert.match(native.codexHome, /\/codex-openai-api$/);
+  assert.ok(native.args.includes('cli_auth_credentials_store="ephemeral"'));
+  assert.ok(native.args.includes('model_provider="openai"'));
+  assert.ok(native.args.includes('openai_base_url="https://api.openai.com/v1"'));
+  assert.equal(native.inheritedFixtureKey, false);
+  assert.doesNotMatch(JSON.stringify(native), /synthetic-test-openai-key/);
+  const account = await host.run("account/read");
+  assert.equal(account.authMethod, "apiKey");
+  assert.equal(account.needsReauth, false);
+  assert.equal(account.tokenReady, false);
+  assert.equal(account.status, "authenticated");
+  await assert.rejects(host.run("account/login/start"), { code: "login_unavailable" });
+  await assert.rejects(host.run("start"), { code: "api_key_unavailable" });
+  assert.doesNotMatch(JSON.stringify(events), /synthetic-test-openai-key|synthetic-refused-key/);
+  assert.deepEqual(JSON.parse(fs.readFileSync(trustFile)), trust);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(state, "host.json"))).relayPort, port);
+
+  await host.run("stop");
+  await host.run("start");
+  const restored = JSON.parse(fs.readFileSync(fixture.runtimeRecord));
+  assert.match(restored.codexHome, /\/codex$/);
+  assert.ok(!restored.args.some((arg) => arg.includes("ephemeral")));
+  await host.run("stop");
+  assert.ok(fixture.pids().every((pid) => !alive(pid)));
+});
+
+test("custom provider keeps the user key out of native launch and separates endpoint/model history", { timeout: 30000, skip: process.platform !== "darwin" }, async (t) => {
+  const fixture = setupRuntime(t), events = [];
+  const host = createDesktopHost({ env: fixture.env, emit: (event, data) => events.push({ event, data }) });
+  t.after(() => host.stop());
+  await host.run("project/set", { path: fixture.project });
+  const apiKey = "synthetic-custom-upstream-key";
+  const model = "fixture/model";
+  const baseURL = "https://provider-fixture.invalid/v1";
+  const customProvider = { baseURL, model, apiKey };
+  await assert.rejects(host.run("start", { customProvider: { ...customProvider, baseURL: "http://fixture.invalid" } }),
+    { code: "custom_provider_unavailable" });
+  assert.deepEqual(fixture.pids(), []);
+  assert.equal((await host.run("start", { customProvider })).state, "running");
+  const runtime = JSON.parse(fs.readFileSync(fixture.runtimeRecord));
+  const state = fixture.env.MUNIE_HOST_STATE_DIR;
+  const trustFile = path.join(state, "bridge", "device-state.json");
+  const trust = JSON.parse(fs.readFileSync(trustFile));
+  assert.match(runtime.codexHome, /\/codex-custom-[a-f0-9]{64}$/u);
+  assert.ok(runtime.args.includes('model="fixture/model"'));
+  assert.ok(runtime.args.includes('model_provider="munie_custom"'));
+  assert.ok(runtime.args.some((arg) => /^model_providers\.munie_custom\.base_url="http:\/\/127\.0\.0\.1:\d+"$/u.test(arg)));
+  assert.equal(runtime.hasCustomCapability, true);
+  assert.equal(runtime.inheritedProviderKey, false);
+  assert.ok(!JSON.stringify(runtime).includes(baseURL));
+  assert.ok(!JSON.stringify(events).includes(apiKey));
+  const account = await host.run("account/read");
+  assert.equal(account.authMethod, "customProvider");
+  assert.equal(account.tokenReady, false);
+  await assert.rejects(host.run("account/login/start"), { code: "login_unavailable" });
+  await host.run("stop");
+  await host.run("start", { customProvider: { ...customProvider, baseURL: baseURL + "/" } });
+  assert.equal(JSON.parse(fs.readFileSync(fixture.runtimeRecord)).codexHome, runtime.codexHome);
+  await host.run("stop");
+  await host.run("start", { customProvider: { ...customProvider, model: "other/model" } });
+  assert.notEqual(JSON.parse(fs.readFileSync(fixture.runtimeRecord)).codexHome, runtime.codexHome);
+  assert.deepEqual(JSON.parse(fs.readFileSync(trustFile)), trust);
+  await host.run("stop");
+  assert.ok(fixture.pids().every((pid) => !alive(pid)));
+});
+
 test("EOF cleans the guarded native group and a killed GUI controller cannot orphan it", { timeout: 30000, skip: process.platform !== "darwin" }, async (t) => {
   const fixture = setupRuntime(t);
   const sentinel = spawn(process.execPath, ["-e", "setInterval(()=>{},1000)"], { stdio: "ignore" });
@@ -676,23 +769,40 @@ function setupRuntime(t) {
   const source = `#!${process.execPath}
 const fs=require('node:fs'),{spawn}=require('node:child_process');
 const file=${JSON.stringify(pidsFile)};
-fs.writeFileSync(${JSON.stringify(runtimeRecord)},JSON.stringify({cwd:process.cwd(),codexHome:process.env.CODEX_HOME,endpoint:process.env.REMODEX_CODEX_ENDPOINT,nodeOptions:process.env.NODE_OPTIONS}));
+fs.writeFileSync(${JSON.stringify(runtimeRecord)},JSON.stringify({
+  cwd:process.cwd(),codexHome:process.env.CODEX_HOME,endpoint:process.env.REMODEX_CODEX_ENDPOINT,
+  nodeOptions:process.env.NODE_OPTIONS,args:process.argv.slice(2),
+  inheritedFixtureKey:Object.values(process.env).includes('synthetic-test-openai-key'),
+  inheritedProviderKey:Object.values(process.env).includes('synthetic-custom-upstream-key'),
+  hasCustomCapability:Object.entries(process.env).some(([name,value])=>/^MUNIE_LOCAL_PROVIDER_[A-F0-9]{32}$/.test(name)&&/^[0-9a-f]{64}$/.test(value))
+}));
 process.on('SIGUSR1',()=>process.exit(0));
 fs.appendFileSync(file,process.pid+'\\n');
 const descendant=spawn(process.execPath,['-e','process.on("SIGTERM",()=>{});setInterval(()=>{},1000)'],{stdio:'ignore'});
 fs.appendFileSync(file,descendant.pid+'\\n');
 console.error('SECRET_STDERR');
-let authenticated=false,buffer='',pendingModelList=null;
+let authenticated=false,apiKey=null,initialized=false,buffer='',pendingModelList=null;
 process.stdin.on('data',chunk=>{buffer+=chunk;let end;while((end=buffer.indexOf('\\n'))>=0){const line=buffer.slice(0,end);buffer=buffer.slice(end+1);if(!line)continue;const r=JSON.parse(line);let result={};
 switch(r.method){
-case 'account/read': result={account:authenticated?{type:'chatgpt',email:'fixture@example.test',planType:'plus'}:null,requiresOpenaiAuth:true};break;
-case 'getAuthStatus':result=authenticated?{authMethod:'chatgpt',authToken:'SECRET_TOKEN'}:{};break;
+case 'initialized': initialized=true;break;
+case 'account/read': result={account:apiKey?{type:'apiKey'}:authenticated?{type:'chatgpt',email:'fixture@example.test',planType:'plus'}:null,requiresOpenaiAuth:true};break;
+case 'getAuthStatus':result=apiKey?{authMethod:'apiKey',authToken:apiKey}:authenticated?{authMethod:'chatgpt',authToken:'SECRET_TOKEN'}:{};break;
 case 'model/list':
  if(r.params?.limit===17){pendingModelList=r.id;console.log(JSON.stringify({method:'fixture/model-list-pending',params:{}}));continue;}
  if(r.params?.limit===18)result={data:'x'.repeat(900*1024)};
  if(r.params?.limit===19){if(pendingModelList)console.log(JSON.stringify({id:pendingModelList,result:{old:true}}));result={current:true};}
  break;
-case 'account/login/start':result={type:'chatgpt',loginId:'synthetic-login',authUrl:'https://auth.openai.com/authorize?state=synthetic',authToken:'SECRET_TOKEN'};setTimeout(()=>{authenticated=true;console.log(JSON.stringify({method:'account/login/completed',params:{loginId:'synthetic-login',success:true}}))},100);break;
+case 'account/login/start':
+ if(r.params?.type==='apiKey'){
+  if(!initialized||r.params.apiKey!=='synthetic-test-openai-key'){
+   console.log(JSON.stringify({id:r.id,error:{code:-32600,message:r.params.apiKey}}));continue;
+  }
+  const marker='allow-api-configuration';
+  fs.writeFileSync('api-configuration-started','');
+  const wait=setInterval(()=>{if(!fs.existsSync(marker))return;clearInterval(wait);apiKey=r.params.apiKey;console.log(JSON.stringify({id:r.id,result:{type:'apiKey'}}));},20);
+  continue;
+ }
+ result={type:'chatgpt',loginId:'synthetic-login',authUrl:'https://auth.openai.com/authorize?state=synthetic',authToken:'SECRET_TOKEN'};setTimeout(()=>{authenticated=true;console.log(JSON.stringify({method:'account/login/completed',params:{loginId:'synthetic-login',success:true}}))},100);break;
 }
 if(r.id!==undefined)console.log(JSON.stringify({id:r.id,result}));
 }});

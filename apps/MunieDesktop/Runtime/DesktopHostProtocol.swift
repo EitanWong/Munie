@@ -1,6 +1,6 @@
 import Foundation
 
-/// The local control protocol carries state and pairing bootstrap data, never account secrets.
+/// The private Mac protocol carries state and pairing data. Only start carries provider credentials.
 enum DesktopJSON: Codable, Equatable, Sendable {
   case object([String: DesktopJSON])
   case array([DesktopJSON])

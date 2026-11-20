@@ -1,6 +1,12 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Model provider configured on Mac": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Model provider configured on Mac" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "Mac 已配置模型服务" } }
+      }
+    },
     "Working directory: %@": {
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "Working directory: %@" } },

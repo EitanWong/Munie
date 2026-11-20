@@ -122,6 +122,29 @@ final class CodexGPTAccountTests: XCTestCase {
         XCTAssertNil(service.gptAccountSnapshot.tokenUnavailableSince)
     }
 
+    func testCustomProviderIsMacOwnedAndNeverOffersChatGPTVoiceOrLogout() async {
+        let service = makeService()
+        service.isConnected = true
+        service.requestTransportOverride = { _, _ in
+            RPCMessage(
+                id: .string(UUID().uuidString),
+                result: .object([
+                    "status": .string("authenticated"),
+                    "authMethod": .string("customProvider"),
+                    "needsReauth": .bool(false),
+                    "tokenReady": .bool(false),
+                ]),
+                includeJSONRPC: false
+            )
+        }
+        await service.refreshGPTAccountState()
+        XCTAssertEqual(service.gptAccountSnapshot.authMethod, .customProvider)
+        XCTAssertTrue(service.gptAccountSnapshot.isAuthenticated)
+        XCTAssertFalse(service.canUseGPTVoiceTranscription)
+        XCTAssertFalse(service.gptAccountSnapshot.canLogout)
+        XCTAssertNil(service.gptAccountSnapshot.tokenUnavailableSince)
+    }
+
     func testRefreshGPTAccountStateFallsBackToLegacyGetAuthStatusPayload() async {
         let service = makeService()
         service.isConnected = true

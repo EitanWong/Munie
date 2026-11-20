@@ -1,6 +1,6 @@
 import Foundation
 
-/// The private Mac protocol carries state and pairing data. Only the start request may carry an API key.
+/// The private Mac protocol carries state and pairing data. Only start carries provider credentials.
 enum DesktopJSON: Codable, Equatable, Sendable {
   case object([String: DesktopJSON])
   case array([DesktopJSON])

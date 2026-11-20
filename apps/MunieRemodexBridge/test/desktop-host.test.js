@@ -276,6 +276,46 @@ test("official API mode configures native memory before LAN, preserves trust and
   assert.ok(fixture.pids().every((pid) => !alive(pid)));
 });
 
+test("custom provider keeps the user key out of native launch and separates endpoint/model history", { timeout: 30000, skip: process.platform !== "darwin" }, async (t) => {
+  const fixture = setupRuntime(t), events = [];
+  const host = createDesktopHost({ env: fixture.env, emit: (event, data) => events.push({ event, data }) });
+  t.after(() => host.stop());
+  await host.run("project/set", { path: fixture.project });
+  const apiKey = "synthetic-custom-upstream-key";
+  const model = "fixture/model";
+  const baseURL = "https://provider-fixture.invalid/v1";
+  const customProvider = { baseURL, model, apiKey };
+  await assert.rejects(host.run("start", { customProvider: { ...customProvider, baseURL: "http://fixture.invalid" } }),
+    { code: "custom_provider_unavailable" });
+  assert.deepEqual(fixture.pids(), []);
+  assert.equal((await host.run("start", { customProvider })).state, "running");
+  const runtime = JSON.parse(fs.readFileSync(fixture.runtimeRecord));
+  const state = fixture.env.MUNIE_HOST_STATE_DIR;
+  const trustFile = path.join(state, "bridge", "device-state.json");
+  const trust = JSON.parse(fs.readFileSync(trustFile));
+  assert.match(runtime.codexHome, /\/codex-custom-[a-f0-9]{64}$/u);
+  assert.ok(runtime.args.includes('model="fixture/model"'));
+  assert.ok(runtime.args.includes('model_provider="munie_custom"'));
+  assert.ok(runtime.args.some((arg) => /^model_providers\.munie_custom\.base_url="http:\/\/127\.0\.0\.1:\d+"$/u.test(arg)));
+  assert.equal(runtime.hasCustomCapability, true);
+  assert.equal(runtime.inheritedProviderKey, false);
+  assert.ok(!JSON.stringify(runtime).includes(baseURL));
+  assert.ok(!JSON.stringify(events).includes(apiKey));
+  const account = await host.run("account/read");
+  assert.equal(account.authMethod, "customProvider");
+  assert.equal(account.tokenReady, false);
+  await assert.rejects(host.run("account/login/start"), { code: "login_unavailable" });
+  await host.run("stop");
+  await host.run("start", { customProvider: { ...customProvider, baseURL: baseURL + "/" } });
+  assert.equal(JSON.parse(fs.readFileSync(fixture.runtimeRecord)).codexHome, runtime.codexHome);
+  await host.run("stop");
+  await host.run("start", { customProvider: { ...customProvider, model: "other/model" } });
+  assert.notEqual(JSON.parse(fs.readFileSync(fixture.runtimeRecord)).codexHome, runtime.codexHome);
+  assert.deepEqual(JSON.parse(fs.readFileSync(trustFile)), trust);
+  await host.run("stop");
+  assert.ok(fixture.pids().every((pid) => !alive(pid)));
+});
+
 test("EOF cleans the guarded native group and a killed GUI controller cannot orphan it", { timeout: 30000, skip: process.platform !== "darwin" }, async (t) => {
   const fixture = setupRuntime(t);
   const sentinel = spawn(process.execPath, ["-e", "setInterval(()=>{},1000)"], { stdio: "ignore" });
@@ -729,7 +769,13 @@ function setupRuntime(t) {
   const source = `#!${process.execPath}
 const fs=require('node:fs'),{spawn}=require('node:child_process');
 const file=${JSON.stringify(pidsFile)};
-fs.writeFileSync(${JSON.stringify(runtimeRecord)},JSON.stringify({cwd:process.cwd(),codexHome:process.env.CODEX_HOME,endpoint:process.env.REMODEX_CODEX_ENDPOINT,nodeOptions:process.env.NODE_OPTIONS,args:process.argv.slice(2),inheritedFixtureKey:Object.values(process.env).includes('synthetic-test-openai-key')}));
+fs.writeFileSync(${JSON.stringify(runtimeRecord)},JSON.stringify({
+  cwd:process.cwd(),codexHome:process.env.CODEX_HOME,endpoint:process.env.REMODEX_CODEX_ENDPOINT,
+  nodeOptions:process.env.NODE_OPTIONS,args:process.argv.slice(2),
+  inheritedFixtureKey:Object.values(process.env).includes('synthetic-test-openai-key'),
+  inheritedProviderKey:Object.values(process.env).includes('synthetic-custom-upstream-key'),
+  hasCustomCapability:Object.entries(process.env).some(([name,value])=>/^MUNIE_LOCAL_PROVIDER_[A-F0-9]{32}$/.test(name)&&/^[0-9a-f]{64}$/.test(value))
+}));
 process.on('SIGUSR1',()=>process.exit(0));
 fs.appendFileSync(file,process.pid+'\\n');
 const descendant=spawn(process.execPath,['-e','process.on("SIGTERM",()=>{});setInterval(()=>{},1000)'],{stdio:'ignore'});

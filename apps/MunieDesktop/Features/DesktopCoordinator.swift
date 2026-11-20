@@ -4,7 +4,7 @@ import Observation
 
 @MainActor @Observable
 final class DesktopCoordinator {
-  let controller = DesktopHostController(openAIKeyStore: DesktopKeychainOpenAIKeyStore())
+  let controller = DesktopHostController(providerStore: DesktopKeychainProviderStore())
   @ObservationIgnored let nearby = NearbyPairingHost()
   private(set) var pairingBusy = false
   private(set) var nearbyFailed = false

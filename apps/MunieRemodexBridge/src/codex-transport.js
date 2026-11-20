@@ -14,6 +14,7 @@ const { resolveBundledCodexCommand, resolveCodexAppPath } = require("./codex-des
 function createCodexTransport({
   endpoint = "",
   env = process.env,
+  desktopCustomProvider = null,
   appPath = "",
   platform = process.platform,
   spawnImpl = spawn,
@@ -23,11 +24,11 @@ function createCodexTransport({
     return createWebSocketTransport({ endpoint, WebSocketImpl });
   }
 
-  return createSpawnTransport({ env, appPath, platform, spawnImpl });
+  return createSpawnTransport({ env, appPath, platform, spawnImpl, desktopCustomProvider });
 }
 
-function createSpawnTransport({ env, appPath, platform, spawnImpl = spawn }) {
-  const launchPlans = createCodexLaunchPlans({ env, appPath, platform });
+function createSpawnTransport({ env, appPath, platform, spawnImpl = spawn, desktopCustomProvider = null }) {
+  const launchPlans = createCodexLaunchPlans({ env, appPath, platform, desktopCustomProvider });
   let launchIndex = -1;
   let activeLaunch = null;
   let codex = null;
@@ -177,6 +178,7 @@ const LOCAL_APP_SERVER_ARGS = ["app-server", "-c", "thread_unload_delay_secs=1"]
 // between multiple commands and accidentally starts duplicate runtimes.
 function createCodexLaunchPlans({
   env,
+  desktopCustomProvider = null,
   appPath = "",
   platform = process.platform,
   fsImpl = fs,
@@ -206,13 +208,38 @@ function createCodexLaunchPlans({
       throw new Error("REMODEX_CODEX_BINARY must name an absolute executable file.");
     }
     fsImpl.accessSync(command, fs.constants.X_OK);
+    const customArgs = [];
+    if (desktopCustomProvider) {
+      const { model, origin, capability, environmentKey } = desktopCustomProvider;
+      if (!/^[A-Za-z0-9._:/-]{1,128}$/u.test(model) || !/^http:\/\/127\.0\.0\.1:[0-9]{1,5}$/u.test(origin)
+          || !/^[0-9a-f]{64}$/u.test(capability)
+          || !/^MUNIE_LOCAL_PROVIDER_[A-F0-9]{32}$/u.test(environmentKey)) throw new Error("Invalid local provider broker.");
+      sharedOptions.env[environmentKey] = capability;
+      customArgs.push(
+        "-c", 'cli_auth_credentials_store="ephemeral"',
+        "-c", 'model_provider="munie_custom"',
+        "-c", `model=${JSON.stringify(model)}`,
+        "-c", 'model_providers.munie_custom.name="Custom Responses"',
+        "-c", 'model_providers.munie_custom.wire_api="responses"',
+        "-c", `model_providers.munie_custom.base_url=${JSON.stringify(origin)}`,
+        "-c", `model_providers.munie_custom.env_key=${JSON.stringify(environmentKey)}`,
+        "-c", 'model_providers.munie_custom.requires_openai_auth=false',
+        "-c", 'model_providers.munie_custom.supports_websockets=false',
+        "-c", 'model_providers.munie_custom.request_max_retries=0',
+        "-c", 'model_providers.munie_custom.stream_max_retries=0',
+        "-c", 'shell_environment_policy.exclude=["MUNIE_LOCAL_PROVIDER_*"]',
+        "-c", 'analytics.enabled=false',
+        "-c", 'feedback.enabled=false',
+        "-c", `projects.${JSON.stringify(fsImpl.realpathSync(env.REMODEX_PROJECT_ROOT))}.trust_level="untrusted"`,
+      );
+    }
     const accountOverrides = env.MUNIE_DESKTOP_OPENAI_API === "1" ? [
       "-c", 'cli_auth_credentials_store="ephemeral"',
       "-c", 'model_provider="openai"',
       "-c", 'openai_base_url="https://api.openai.com/v1"',
     ] : [];
     return [{ command, args: [...LOCAL_APP_SERVER_ARGS, "-c", 'approval_policy="on-request"',
-      "-c", 'sandbox_mode="workspace-write"', ...accountOverrides],
+      "-c", 'sandbox_mode="workspace-write"', ...accountOverrides, ...customArgs],
       options: { ...sharedOptions, ...(env.REMODEX_PROJECT_ROOT ? { cwd: fsImpl.realpathSync(env.REMODEX_PROJECT_ROOT) } : {}) },
       description: `explicit Codex ${command}` }];
   }

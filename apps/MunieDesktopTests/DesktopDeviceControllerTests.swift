@@ -186,7 +186,7 @@ struct DesktopDeviceControllerTests {
     DesktopHostController(
       makeRuntime: { runtime },
       defaultProject: { URL(filePath: "/fixture/Project", directoryHint: .isDirectory) },
-      openAIKeyStore: DesktopOpenAIKeyStoreFixture())
+      providerStore: DesktopProviderStoreFixture())
   }
 
   private func waitUntil(_ condition: () -> Bool) async {

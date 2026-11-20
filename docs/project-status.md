@@ -71,6 +71,8 @@ On November 20 the signed `9d91e9d` build installed in place on a real iPhone 17
 
 An additional no-network native probe accepted a generated synthetic OpenAI API key with `cli_auth_credentials_store = "ephemeral"`. The account appeared only in the first process, no `auth.json` was created, and a fresh process reported no account. It verifies memory-only acceptance by the pinned CLI, not the key against OpenAI or storage by Munie.
 
+The local R20 candidate adds ChatGPT, official OpenAI Key, and custom HTTPS Responses settings to the Mac app. Profile changes require a stopped service; the phone cannot change credentials or override the selected model. Separate native histories preserve existing pairing and project state. The exact bundled Codex launch plan and actual Node broker completed two synthetic turns over local TLS, making three expected Bearer requests using a generated upstream key. An approved shell could not read the broker token; an injected project configuration that attempted to replace the provider URL and start an MCP canary was disabled by the native process. The loopback fixture did not use a real external provider, owner's Keychain or mobile app. Product release remains pending real Mac Keychain/UI confirmation, physical iPhone pairing and authorized provider tasks; App-managed cellular is separate and still open.
+
 The following evidence describes the adopted base and its earlier five-page onboarding. The current product flow above supersedes its terminal-based setup; original logs and diagnostic failures remain retained.
 
 | Area | Observed result / remaining work |

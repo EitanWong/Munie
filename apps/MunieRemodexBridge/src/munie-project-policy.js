@@ -81,18 +81,27 @@ function validatePathParameters(params, root = configuredRoot()) {
   }
 }
 
-function bindNativeRequest(request, root = configuredRoot(), { openAiApiKeyMode = false } = {}) {
+function bindNativeRequest(request, root = configuredRoot(), { openAiApiKeyMode = false, customProviderModel = null } = {}) {
   if (!root || !request?.method) return request;
   if (request.method.startsWith('desktop/') && request.method !== 'desktop/preferences/read') {
     throw new Error('This foreground launch does not authorize Desktop handoff, power changes or package updates.');
   }
   const params = { ...(request.params || {}) };
-  if (openAiApiKeyMode) {
+  if (openAiApiKeyMode || customProviderModel !== null) {
     if (request.method.startsWith("account/login/") || request.method === "account/logout") {
       throw new Error("Change the account on this Mac.");
     }
-    if (params.modelProvider != null && params.modelProvider !== "openai") {
+    const provider = customProviderModel === null ? "openai" : "munie_custom";
+    if (params.modelProvider != null && params.modelProvider !== provider) {
       throw new Error("Change the model provider on this Mac.");
+    }
+    if (customProviderModel !== null) {
+      if (params.model != null) params.model = customProviderModel;
+      if (Object.hasOwn(params, "allowProviderModelFallback")) params.allowProviderModelFallback = false;
+      if (params.collaborationMode?.settings && typeof params.collaborationMode.settings === "object") {
+        params.collaborationMode = { ...params.collaborationMode,
+          settings: { ...params.collaborationMode.settings, model: customProviderModel } };
+      }
     }
   }
   if (request.method === 'account/login/start'

@@ -728,6 +728,7 @@ function startBridge({
   onPairingSession = null,
   onBridgeStatus = null,
   desktopManagedRelay = null,
+  desktopCustomProvider = null,
 } = {}) {
   const config = explicitConfig || readBridgeConfig();
   const projectResponseGate = createPendingResponseGate();
@@ -1015,6 +1016,7 @@ function startBridge({
     endpoint: config.codexEndpoint,
     env: process.env,
     appPath: config.codexAppPath,
+    desktopCustomProvider,
     logPrefix: "[remodex]",
   });
   const openCodeRuntime = createOpenCodeRuntime({
@@ -1336,7 +1338,7 @@ function startBridge({
     // Streaming deltas make this the hottest path in the bridge: parse the
     // envelope once and share the read-only object with every observer.
     let parsedMessage = parseBridgeMessage(message);
-    if (config.localOpenAiApiKeyMode === true) {
+    if (config.localOpenAiApiKeyMode === true || desktopCustomProvider) {
       const sanitized = redactNativeProviderError(parsedMessage);
       if (sanitized !== parsedMessage) {
         parsedMessage = sanitized;
@@ -1430,6 +1432,7 @@ function startBridge({
         if (!incoming?.method && incoming?.id != null) projectResponseGate.consume(incoming.id);
         rawMessage = JSON.stringify(bindNativeRequest(incoming, projectRoot, {
           openAiApiKeyMode: config.localOpenAiApiKeyMode === true,
+          customProviderModel: desktopCustomProvider?.model,
         }));
       } catch (error) {
         if (incoming?.id != null) sendApplicationResponse(createJsonRpcErrorResponse(incoming.id, error, "project_not_authorized"));
@@ -2052,6 +2055,7 @@ function startBridge({
   // Combines account/read + getAuthStatus into one safe snapshot for the phone UI.
   // The two RPCs are settled independently so one transient failure does not hide the other.
   async function readSanitizedAuthStatus() {
+    if (desktopCustomProvider) return configuredCustomProviderStatus();
     const [accountReadResult, authStatusResult, bridgeVersionInfoResult] = await Promise.allSettled([
       sendCodexRequest("account/read", {
         refreshToken: false,
@@ -2078,6 +2082,17 @@ function startBridge({
       allowPackageUpdates,
       transportMode: codex.mode,
       hostPlatform: process.platform,
+    });
+  }
+
+  function configuredCustomProviderStatus() {
+    return composeSanitizedAuthStatusFromSettledResults({
+      accountReadResult: {
+        status: "fulfilled",
+        value: { account: { type: "customProvider", loggedIn: true }, requiresOpenaiAuth: false },
+      },
+      allowPackageUpdates: false,
+      transportMode: codex.mode,
     });
   }
 
@@ -2788,6 +2803,7 @@ function startBridge({
         if (result?.type !== "apiKey") throw new Error("Codex did not accept the API key.");
       },
       async read() {
+        if (desktopCustomProvider) return configuredCustomProviderStatus();
         const [accountReadResult, authStatusResult] = await Promise.allSettled([
           sendCodexRequest("account/read", { refreshToken: false }, { timeoutMs: 10_000 }),
           sendCodexRequest("getAuthStatus", {

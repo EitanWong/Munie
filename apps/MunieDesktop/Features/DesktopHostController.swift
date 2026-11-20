@@ -32,6 +32,15 @@ enum DesktopModelProvider: Equatable {
   case unknown
   case chatGPT
   case openAIAPIKey
+  case custom(baseURL: String, model: String)
+
+  fileprivate init(credentials: DesktopProviderCredentials?) {
+    switch credentials {
+    case nil: self = .chatGPT
+    case .openAI: self = .openAIAPIKey
+    case .custom(let profile): self = .custom(baseURL: profile.baseURL, model: profile.model)
+    }
+  }
 }
 
 struct DesktopPairedDevice: Equatable, Sendable, Identifiable {
@@ -84,7 +93,7 @@ final class DesktopHostController {
 
   @ObservationIgnored private let makeRuntime: RuntimeFactory
   @ObservationIgnored private let defaultProject: @Sendable () async throws -> URL
-  @ObservationIgnored private let openAIKeyStore: any DesktopOpenAIKeyStore
+  @ObservationIgnored private let providerStore: any DesktopProviderStore
   @ObservationIgnored var onNearbyAvailabilityChange: (() -> Void)?
   // These handles also drive the observable start, stop and busy controls.
   private var runtime: (any DesktopHostRuntime)?
@@ -103,11 +112,11 @@ final class DesktopHostController {
     defaultProject: @escaping @Sendable () async throws -> URL = {
       try await DesktopRuntimeConfiguration.bundled().defaultProject
     },
-    openAIKeyStore: any DesktopOpenAIKeyStore
+    providerStore: any DesktopProviderStore
   ) {
     self.makeRuntime = makeRuntime
     self.defaultProject = defaultProject
-    self.openAIKeyStore = openAIKeyStore
+    self.providerStore = providerStore
   }
 
   func start() async {
@@ -123,14 +132,14 @@ final class DesktopHostController {
 
   private func startService() async {
     do {
-      let apiKey: DesktopOpenAIKey?
+      let credentials: DesktopProviderCredentials?
       do {
-        apiKey = try await openAIKeyStore.read()
-        modelProvider = apiKey == nil ? .chatGPT : .openAIAPIKey
+        credentials = try await providerStore.read()
+        modelProvider = DesktopModelProvider(credentials: credentials)
         modelProviderError = nil
       } catch {
         modelProviderError = "Munie could not read the API key from the Keychain."
-        throw DesktopOpenAIKeyStoreFailure.unavailable
+        throw DesktopProviderStoreFailure.unavailable
       }
       guard stopping == nil else { return }
       let owned = try await makeRuntime()
@@ -152,8 +161,8 @@ final class DesktopHostController {
           "project/set", params: .object(["path": .string(project.path)]))
       }
       guard stopping == nil else { return }
-      let params: DesktopJSON = .object(apiKey.map { ["apiKey": .string($0.value)] } ?? [:])
-      let status = try await owned.request("start", params: params)
+      let status = try await owned.request(
+        "start", params: credentials?.startParameters ?? .object([:]))
       apply(status)
       guard status["state"]?.string == "running" else {
         throw DesktopHostFailure.notRunning
@@ -161,7 +170,7 @@ final class DesktopHostController {
       // A stop requested during startup owns the next transition.
       if stopping == nil {
         serviceState = .running
-        if modelProvider != .openAIAPIKey { await refreshAccount(using: owned) }
+        if modelProvider == .chatGPT { await refreshAccount(using: owned) }
       }
     } catch {
       if await closeResources() {
@@ -171,8 +180,10 @@ final class DesktopHostController {
           self.error = "Connect this Mac to Wi-Fi or Ethernet, then try again."
         case "api_key_unavailable":
           modelProviderError = "Munie could not load the official API key into Codex."
+        case "custom_provider_unavailable":
+          modelProviderError = "Munie could not configure the custom provider."
         default:
-          if !(error is DesktopOpenAIKeyStoreFailure) {
+          if !(error is DesktopProviderStoreFailure) {
             self.error = "Munie could not start. Try again."
           }
         }
@@ -183,31 +194,50 @@ final class DesktopHostController {
   @discardableResult
   func saveOpenAIAPIKey(_ value: String) async -> Bool {
     guard canChangeModelProvider else { return false }
-    guard let key = DesktopOpenAIKey(validating: value) else {
+    guard let key = DesktopProviderKey(validating: value) else {
       modelProviderError = "Enter an API key without spaces or line breaks."
       return false
     }
-    return await changeModelProvider(to: key)
+    return await changeModelProvider(to: .openAI(key))
   }
 
   @discardableResult
-  func removeOpenAIAPIKey() async -> Bool {
+  func saveCustomProvider(baseURL: String, model: String, apiKey: String) async -> Bool {
+    guard canChangeModelProvider else { return false }
+    guard DesktopCustomProvider.isValidBaseURL(baseURL) else {
+      modelProviderError = "Enter a valid HTTPS base URL without credentials, query, or fragment."
+      return false
+    }
+    guard DesktopCustomProvider.isValidModel(model) else {
+      modelProviderError = "Enter a model ID using letters, numbers, or ._:/-."
+      return false
+    }
+    guard let key = DesktopProviderKey(validating: apiKey),
+      let profile = DesktopCustomProvider(baseURL: baseURL, model: model, apiKey: key)
+    else {
+      modelProviderError = "Enter an API key without spaces or line breaks."
+      return false
+    }
+    return await changeModelProvider(to: .custom(profile))
+  }
+
+  @discardableResult
+  func switchToChatGPT() async -> Bool {
     guard canChangeModelProvider else { return false }
     return await changeModelProvider(to: nil)
   }
 
-  private func changeModelProvider(to key: DesktopOpenAIKey?) async -> Bool {
+  private func changeModelProvider(to credentials: DesktopProviderCredentials?) async -> Bool {
     changingModelProvider = true
     modelProviderError = nil
     defer { changingModelProvider = false }
     do {
-      if let key {
-        try await openAIKeyStore.save(key)
-        modelProvider = .openAIAPIKey
+      if let credentials {
+        try await providerStore.save(credentials)
       } else {
-        try await openAIKeyStore.remove()
-        modelProvider = .chatGPT
+        try await providerStore.remove()
       }
+      modelProvider = DesktopModelProvider(credentials: credentials)
       accountState = .unknown
       loginURL = nil
       return true
@@ -265,7 +295,7 @@ final class DesktopHostController {
       let status = try await runtime.request("status", params: .object([:]))
       guard operationGeneration == generation, revision == statusRevision else { return }
       apply(status)
-      if modelProvider != .openAIAPIKey { await refreshAccount(using: runtime) }
+      if modelProvider == .chatGPT { await refreshAccount(using: runtime) }
     } catch {
       guard operationGeneration == generation, revision == statusRevision else { return }
       self.error = "Munie could not refresh its status. Try again."
@@ -273,7 +303,7 @@ final class DesktopHostController {
   }
 
   func beginLogin() async -> URL? {
-    guard ready, modelProvider != .openAIAPIKey, !accountBusy, let runtime else { return nil }
+    guard ready, modelProvider == .chatGPT, !accountBusy, let runtime else { return nil }
     let operationGeneration = generation
     accountBusy = true
     defer { if operationGeneration == generation { accountBusy = false } }
@@ -296,7 +326,7 @@ final class DesktopHostController {
   }
 
   func cancelLogin() async {
-    guard ready, modelProvider != .openAIAPIKey, !accountBusy, let runtime else { return }
+    guard ready, modelProvider == .chatGPT, !accountBusy, let runtime else { return }
     let operationGeneration = generation
     accountBusy = true
     defer { if operationGeneration == generation { accountBusy = false } }
@@ -483,7 +513,7 @@ final class DesktopHostController {
       }
     }
     if let project = value["project"]?["name"]?.string { projectName = project }
-    if modelProvider != .openAIAPIKey, let account = value["account"] {
+    if modelProvider == .chatGPT, let account = value["account"] {
       if account["status"]?.string == "authenticated" {
         accountState = .signedIn
         loginURL = nil

@@ -13,6 +13,7 @@
     enum Failure: Error, Equatable {
       case invalidLoopbackOrigin
       case transientUnavailable(Stage)
+      case challengeQuotaExceeded
       // The pilot uses 403 for both no current route and denied admission. Do not infer revocation.
       case admissionForbidden(Stage)
       case redirectRejected(Stage)
@@ -310,6 +311,7 @@
               max(http.expectedContentLength, contentLength ?? -1) > maximum
               ? .invalidChallenge : nil
           case 403: failure = .admissionForbidden(.challenge)
+          case 429: failure = .challengeQuotaExceeded
           case 300..<400: failure = .redirectRejected(.challenge)
           default: failure = .unexpectedResponse(.challenge)
           }

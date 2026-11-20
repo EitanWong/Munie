@@ -21,6 +21,7 @@ VERSION = 'codex-cli 0.162.1'
 ZERO_ID = '00000000-0000-0000-0000-000000000000'
 MAX_LINE_BYTES = 64 * 1024
 MAX_STREAM_BYTES = 512 * 1024
+MAX_DISCARD_BYTES = 8192
 REQUEST_SECONDS = 10
 TOTAL_SECONDS = 60
 CLIENT = {'name': 'munie_protocol_probe', 'version': '0.1.0'}
@@ -83,8 +84,33 @@ class JsonLinePeer:
         self.request_seconds = request_seconds
         self.notifications = []
         self.cleanup = None
+        self.stream_failure = None
+        self.discard_bytes = 0
+        self.cleanup_read_limit_reached = False
+
+    def reject_stream(self, message):
+        # A rejected byte stream cannot be reparsed: the failing read may have
+        # ended inside a JSONL frame. Keep its first failure while cleanup only
+        # counts/hashes/discards further bytes until real EOF.
+        if self.stream_failure is None:
+            self.stream_failure = ProbeError(message)
+        self.buffer = b''
+        raise self.stream_failure
+
+    def record_data(self, label, data):
+        self.totals[label] += len(data)
+        self.digests[label].update(data)
+        if self.stream_failure is not None:
+            self.discard_bytes += len(data)
+            return
+        if self.totals[label] > MAX_STREAM_BYTES:
+            self.reject_stream(label + ' byte limit exceeded')
+        if label == 'stdout':
+            self.buffer += data
 
     def send(self, message):
+        if self.stream_failure is not None:
+            raise self.stream_failure
         require(time.monotonic() < self.deadline, 'Total probe deadline exceeded')
         encoded = json.dumps(message, allow_nan=False).encode('utf-8') + b'\n'
         require(len(encoded) <= 4096, 'Probe request exceeds fixed size')
@@ -93,14 +119,18 @@ class JsonLinePeer:
         self.process.stdin.flush()
 
     def read_frame(self, deadline):
+        if self.stream_failure is not None:
+            raise self.stream_failure
         while True:
             if b'\n' in self.buffer:
                 line, self.buffer = self.buffer.split(b'\n', 1)
-                require(len(line) <= MAX_LINE_BYTES, 'JSONL line limit exceeded')
+                if len(line) > MAX_LINE_BYTES:
+                    self.reject_stream('JSONL line limit exceeded')
                 frame = strict_json(line)
                 require(type(frame) is dict, 'Protocol frame must be an object')
                 return frame
-            require(len(self.buffer) <= MAX_LINE_BYTES, 'JSONL line limit exceeded')
+            if len(self.buffer) > MAX_LINE_BYTES:
+                self.reject_stream('JSONL line limit exceeded')
             remaining = min(deadline, self.deadline) - time.monotonic()
             require(remaining > 0, 'Protocol response deadline exceeded')
             for key, _ in self.selector.select(remaining):
@@ -110,11 +140,7 @@ class JsonLinePeer:
                     require(key.data != 'stdout', 'Protocol stdout closed before response')
                     continue
                 label = key.data
-                self.totals[label] += len(data)
-                self.digests[label].update(data)
-                require(self.totals[label] <= MAX_STREAM_BYTES, label + ' byte limit exceeded')
-                if label == 'stdout':
-                    self.buffer += data
+                self.record_data(label, data)
 
     def accept_notification(self, frame):
         require('id' not in frame, 'Unexpected server request; no approval was sent')
@@ -149,11 +175,13 @@ class JsonLinePeer:
         while True:
             while b'\n' in self.buffer:
                 line, self.buffer = self.buffer.split(b'\n', 1)
-                require(len(line) <= MAX_LINE_BYTES, 'JSONL line limit exceeded')
+                if len(line) > MAX_LINE_BYTES:
+                    self.reject_stream('JSONL line limit exceeded')
                 frame = strict_json(line)
                 require(type(frame) is dict and 'method' in frame, 'Unexpected trailing response')
                 self.accept_notification(frame)
-            require(len(self.buffer) <= MAX_LINE_BYTES, 'JSONL line limit exceeded')
+            if len(self.buffer) > MAX_LINE_BYTES:
+                self.reject_stream('JSONL line limit exceeded')
             if not self.selector.get_map():
                 require(not self.buffer, 'Incomplete trailing JSONL frame')
                 return
@@ -161,16 +189,21 @@ class JsonLinePeer:
             if remaining <= 0:
                 return
             for key, _ in self.selector.select(remaining):
-                data = os.read(key.fileobj.fileno(), 8192)
+                maximum = 8192
+                if self.stream_failure is not None:
+                    available = MAX_DISCARD_BYTES - self.discard_bytes
+                    if available <= 0:
+                        # A readable descriptor could contain bytes or EOF. Do
+                        # not read even one extra byte to guess which it is.
+                        self.cleanup_read_limit_reached = True
+                        raise ProbeError('Cleanup discard byte limit exceeded')
+                    maximum = min(maximum, available)
+                data = os.read(key.fileobj.fileno(), maximum)
                 if not data:
                     self.selector.unregister(key.fileobj)
                     continue
                 label = key.data
-                self.totals[label] += len(data)
-                self.digests[label].update(data)
-                require(self.totals[label] <= MAX_STREAM_BYTES, label + ' byte limit exceeded')
-                if label == 'stdout':
-                    self.buffer += data
+                self.record_data(label, data)
 
     def close(self):
         if self.cleanup is not None:
@@ -180,7 +213,8 @@ class JsonLinePeer:
             process.stdin.close()
         except BrokenPipeError:
             pass
-        failure = None
+        failure = self.stream_failure
+        drain_errors = []
         # Drain EOF first, then terminate with bounded escalation; validation failure never skips it.
         for sig in (None, signal.SIGTERM, signal.SIGKILL):
             process.poll()
@@ -192,11 +226,13 @@ class JsonLinePeer:
                 except PermissionError:
                     if group_members(process.pid):
                         failure = failure or ProbeError('Cannot terminate probe process group')
-            if failure is None:
+            if failure is None or self.stream_failure is not None:
                 try:
                     self.drain(time.monotonic() + 1)
                 except (ValueError, OSError, UnicodeError) as error:
-                    failure = error
+                    if failure is not None and error is not failure:
+                        drain_errors.append(type(error).__name__)
+                    failure = failure or error
             try:
                 process.wait(timeout=.2)
             except subprocess.TimeoutExpired:
@@ -223,6 +259,10 @@ class JsonLinePeer:
         self.selector.close()
         self.cleanup = {'exitStatus': process.returncode, 'processGroupGone': group_gone,
                         'streamsReachedEOF': streams_eof}
+        if drain_errors:
+            self.cleanup['drainErrors'] = drain_errors
+        if self.cleanup_read_limit_reached:
+            self.cleanup['cleanupReadLimitReached'] = True
         require(group_gone, 'Probe process group remains after cleanup')
         if failure is not None:
             raise failure

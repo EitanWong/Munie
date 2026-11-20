@@ -177,6 +177,110 @@ class JsonLinePeerTests(unittest.TestCase):
                     accepted += 1
             self.assertGreater(accepted, 1, 'Budget was not tested across multiple response reads')
             self.assertGreater(peer.totals['stdout'], 1024)
+            with self.assertRaisesRegex(probe.ProbeError, 'stdout byte limit exceeded'):
+                peer.close()
+            self.assertTrue(peer.cleanup['streamsReachedEOF'])
+            self.assertTrue(peer.cleanup['processGroupGone'])
+
+    def test_split_over_limit_frame_is_terminal_and_cleanup_keeps_original_failure(self):
+        frame = {'id': 7, 'result': 'x' * 180}
+        wire = (json.dumps(frame) + '\n').encode()
+        peer = self.peer('import sys\nfor line in sys.stdin:\n'
+                         f'    print({json.dumps(frame)!r},flush=True)\n')
+        native_read = os.read
+
+        def split_overflow(descriptor, maximum):
+            if descriptor == peer.process.stdout.fileno() and peer.totals['stdout'] >= 5 * len(wire):
+                maximum = min(maximum, 8)
+            return native_read(descriptor, maximum)
+
+        with patch.object(probe, 'MAX_STREAM_BYTES', 5 * len(wire) + 4), \
+                patch.object(probe.os, 'read', side_effect=split_overflow):
+            for _ in range(5):
+                self.assertEqual(peer.request(REQUEST), frame)
+            with self.assertRaisesRegex(probe.ProbeError, 'stdout byte limit exceeded') as rejected:
+                peer.request(REQUEST)
+        original = rejected.exception
+        with patch.object(peer, 'send', wraps=peer.send) as send:
+            with self.assertRaises(probe.ProbeError) as retry:
+                peer.request(REQUEST)
+            self.assertIs(retry.exception, original)
+            send.assert_called_once_with(REQUEST)
+        with patch.object(peer.process.stdin, 'write') as write, self.assertRaises(probe.ProbeError):
+            peer.send(REQUEST)
+        write.assert_not_called()
+        with patch.object(probe, 'strict_json', side_effect=AssertionError('reparsed rejected stream')):
+            with self.assertRaises(probe.ProbeError) as closed:
+                peer.close()
+        self.assertIs(closed.exception, original)
+        self.assertEqual(peer.totals['stdout'], 6 * len(wire))
+        self.assertEqual(peer.digests['stdout'].hexdigest(), probe.hashlib.sha256(wire * 6).hexdigest())
+        self.assertEqual(peer.buffer, b'')
+        self.assertTrue(peer.cleanup['streamsReachedEOF'])
+        self.assertTrue(peer.cleanup['processGroupGone'])
+        self.assertNotIn('cleanupReadLimitReached', peer.cleanup)
+        self.assertLess(peer.discard_bytes, 8192)
+        self.assertIsNotNone(peer.process.poll())
+        self.assertEqual(peer.close(), peer.cleanup)
+
+    def test_terminal_discard_budget_bounds_real_flood_bytes_and_preserves_failure(self):
+        for label, descriptor in (('stdout', 1), ('stderr', 2)):
+            with self.subTest(stream=label), patch.object(probe, 'MAX_STREAM_BYTES', 16 * 1024):
+                peer = self.peer('import os,sys\nsys.stdin.readline()\n'
+                                 f'os.write({descriptor},b"x"*1048576)\n')
+                with self.assertRaisesRegex(probe.ProbeError, label + ' byte limit exceeded') as rejected:
+                    peer.request(REQUEST)
+                rejected_total = peer.totals[label]
+                with self.assertRaises(probe.ProbeError) as closed:
+                    peer.close()
+                self.assertIs(closed.exception, rejected.exception)
+                self.assertEqual(peer.discard_bytes, 8192)
+                self.assertEqual(peer.totals[label], rejected_total + 8192)
+                self.assertLessEqual(peer.totals[label], probe.MAX_STREAM_BYTES + 16384)
+                self.assertTrue(peer.cleanup['cleanupReadLimitReached'])
+                self.assertFalse(peer.cleanup['streamsReachedEOF'])
+                self.assertTrue(peer.cleanup['processGroupGone'])
+                self.assertIsNotNone(peer.process.poll())
+                self.assertEqual(peer.buffer, b'')
+                self.assertEqual(peer.close(), peer.cleanup)
+
+    def test_discard_reads_share_budget_across_streams_without_a_probe_after_exhaustion(self):
+        peer = self.peer('import sys\nsys.stdin.readline()')
+        with self.assertRaises(probe.ProbeError) as rejected:
+            peer.reject_stream('stdout byte limit exceeded')
+        native_read = os.read
+        descriptors = {peer.process.stdout.fileno(): 'stdout', peer.process.stderr.fileno(): 'stderr'}
+        reads = []
+        chunks = iter((b'a' * 3000, b'b' * 4000, b'c' * 1192))
+
+        def bounded_read(descriptor, maximum):
+            if descriptor not in descriptors:
+                return native_read(descriptor, maximum)
+            reads.append(maximum)
+            data = next(chunks)
+            self.assertLessEqual(len(data), maximum)
+            return data
+
+        # Alternate both descriptors through a real selector's keys. Once the
+        # budget is consumed, the next ready event must not call os.read at all.
+        keys = {key.data: key for key in peer.selector.get_map().values()}
+        events = iter(([(keys['stdout'], 1)], [(keys['stderr'], 1)],
+                       [(keys['stdout'], 1)], [(keys['stderr'], 1)]))
+        with patch.object(peer.selector, 'select', side_effect=lambda _timeout: next(events)), \
+                patch.object(probe.os, 'read', side_effect=bounded_read):
+            with self.assertRaisesRegex(probe.ProbeError, 'Cleanup discard byte limit exceeded'):
+                peer.drain(time.monotonic() + 2)
+        self.assertEqual(reads, [8192, 5192, 1192])
+        self.assertEqual(peer.discard_bytes, 8192)
+        self.assertEqual(peer.totals, {'stdout': 4192, 'stderr': 4000})
+        self.assertEqual(peer.digests['stdout'].hexdigest(), probe.hashlib.sha256(b'a'*3000+b'c'*1192).hexdigest())
+        self.assertEqual(peer.digests['stderr'].hexdigest(), probe.hashlib.sha256(b'b'*4000).hexdigest())
+        with self.assertRaises(probe.ProbeError) as closed:
+            peer.close()
+        self.assertIs(closed.exception, rejected.exception)
+        self.assertFalse(peer.cleanup['streamsReachedEOF'])
+        self.assertTrue(peer.cleanup['cleanupReadLimitReached'])
+        self.assertTrue(peer.cleanup['processGroupGone'])
 
     def test_stderr_flood_is_bounded_without_persisting_content(self):
         peer = self.peer('import sys\nsys.stdin.readline()\n'
@@ -189,6 +293,31 @@ class JsonLinePeerTests(unittest.TestCase):
         self.assertLessEqual(peer.totals['stderr'], probe.MAX_STREAM_BYTES + 8192)
         self.assertEqual(len(peer.digests['stderr'].hexdigest()), 64)
         self.assertNotIn('private-diagnostic', repr(peer.__dict__))
+
+    def test_cleanup_read_error_preserves_stream_failure_and_records_unproven_eof(self):
+        peer = self.reply(b'{"id":7,"result":{}}\n')
+        with patch.object(probe, 'MAX_STREAM_BYTES', 1):
+            with self.assertRaisesRegex(probe.ProbeError, 'stdout byte limit exceeded') as rejected:
+                peer.request(REQUEST)
+        native_read = os.read
+        peer_descriptors = {peer.process.stdout.fileno(), peer.process.stderr.fileno()}
+
+        def failed_peer_read(descriptor, maximum):
+            if descriptor in peer_descriptors:
+                raise OSError(5, 'synthetic read failure')
+            return native_read(descriptor, maximum)
+
+        with patch.object(probe.os, 'read', side_effect=failed_peer_read):
+            with self.assertRaises(probe.ProbeError) as closed:
+                peer.close()
+        self.assertIs(closed.exception, rejected.exception)
+        self.assertTrue(peer.cleanup['processGroupGone'])
+        self.assertFalse(peer.cleanup['streamsReachedEOF'])
+        self.assertTrue(peer.cleanup['drainErrors'])
+        self.assertEqual(set(peer.cleanup['drainErrors']), {'OSError'})
+        self.assertNotIn('synthetic read failure', json.dumps(peer.cleanup))
+        self.assertIsNotNone(peer.process.poll())
+        self.assertEqual(peer.close(), peer.cleanup)
 
     def test_eof_before_response_fails(self):
         peer = self.peer('import sys\nsys.stdin.readline()')

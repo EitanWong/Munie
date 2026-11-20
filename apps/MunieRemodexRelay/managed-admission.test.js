@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 const { createPublicKey, generateKeyPairSync, sign, verify } = require("node:crypto");
 const test = require("node:test");
-const { createManagedRelayAdmission, managedAdmissionTranscript } = require("./managed-admission");
+const { createManagedRelayAdmission, managedAdmissionTranscript, ISSUANCE_LIMIT_REACHED } = require("./managed-admission");
 
 function device() {
   const { publicKey, privateKey } = generateKeyPairSync("ed25519");
@@ -95,7 +95,7 @@ test("challenge count is bounded and expiration uses only the service clock", ()
   assert.ok(admission.admit(current.id, mac.sign(current)));
 });
 
-test("invalidated challenges do not block a different Mac at capacity", () => {
+test("capacity denials do not debit a different Mac's issuance budgets", () => {
   const mac = device();
   const other = device();
   const phone = device();
@@ -106,11 +106,101 @@ test("invalidated challenges do not block a different Mac at capacity", () => {
   const first = issue("mac");
   const registered = admission.admit(first.id, mac.sign(first));
   assert.ok(registered);
+  const otherFirst = issue("mac", other);
+  assert.ok(admission.admit(otherFirst.id, other.sign(otherFirst)));
   assert.ok(issue("phone"));
   assert.ok(issue("mac"));
   assert.equal(issue("mac", other), null);
+  assert.equal(issue("phone", other), null);
   assert.equal(admission.deactivate(registered), true);
-  assert.ok(issue("mac", other));
+  for (const [role, remaining] of [["mac", 15], ["phone", 16]]) {
+    for (let count = 0; count < remaining; count += 1) {
+      const challenge = issue(role, other);
+      assert.ok(challenge, `${role} slot ${count + 1} after capacity clears`);
+      assert.equal(admission.admit(challenge.id, "invalid proof"), null);
+    }
+    assert.equal(issue(role, other), ISSUANCE_LIMIT_REACHED);
+  }
+});
+
+test("each configured Mac has a separate budget per role and invalid requests do not debit it", () => {
+  const macs = [device(), device()];
+  const phone = device();
+  const outsider = device();
+  const admission = createManagedRelayAdmission({
+    audience: "fixture.invalid", allowedMacKeys: macs.map((mac) => mac.key), now: () => 1_000,
+  });
+  for (const [index, mac] of macs.entries()) {
+    const issue = (role, macKey = mac.key, phoneKey = phone.key) => admission.issue({ role, macKey, phoneKey });
+    assert.equal(issue("phone"), null);
+    assert.equal(issue("mac", outsider.key), null);
+    assert.equal(issue("phone", outsider.key), null);
+    assert.equal(issue("mac", mac.key, "not a key"), null);
+    assert.equal(issue("invalid"), null);
+
+    const first = issue("mac");
+    assert.ok(first);
+    assert.ok(admission.admit(first.id, mac.sign(first)));
+    assert.equal(issue("phone", mac.key, "not a key"), null);
+    assert.equal(issue("phone", mac.key, outsider.key), null);
+
+    for (const [role, alreadyIssued] of [["mac", 1], ["phone", 0]]) {
+      for (let count = alreadyIssued; count < 16; count += 1) {
+        assert.ok(issue(role), `Mac ${index + 1}, ${role} slot ${count + 1}`);
+      }
+      assert.equal(issue(role), ISSUANCE_LIMIT_REACHED);
+    }
+  }
+});
+
+test("successful and failed proofs stay charged until their exact rolling-window boundary", () => {
+  const start = 1_000;
+  const later = start + 2_000;
+  let time = start;
+  const { admission, mac, phone, issue, register } = setup({ now: () => time });
+  const registration = register();
+  const first = issue("phone");
+  assert.ok(first);
+  assert.equal(admission.admit(first.id, phone.sign(first)), registration);
+
+  time = later;
+  const rejected = issue("phone");
+  assert.ok(rejected);
+  assert.equal(admission.admit(rejected.id, mac.sign(rejected)), null);
+  for (let count = 2; count < 16; count += 1) assert.ok(issue("phone"));
+  assert.equal(issue("phone"), ISSUANCE_LIMIT_REACHED);
+
+  time = start + 14_999;
+  assert.equal(issue("phone"), ISSUANCE_LIMIT_REACHED);
+  time = start + 15_000;
+  assert.ok(issue("phone"));
+  assert.equal(issue("phone"), ISSUANCE_LIMIT_REACHED);
+
+  time = later + 14_999;
+  assert.equal(issue("phone"), ISSUANCE_LIMIT_REACHED);
+  time = later + 15_000;
+  for (let count = 0; count < 15; count += 1) assert.ok(issue("phone"));
+  assert.equal(issue("phone"), ISSUANCE_LIMIT_REACHED);
+});
+
+test("replacement and deactivation do not reset either role's issuance budget", () => {
+  const { admission, issue, register } = setup({ now: () => 1_000 });
+  const original = register();
+  assert.ok(original);
+  // Leave the last two Mac slots for replacement and re-registration.
+  for (let count = 1; count < 14; count += 1) assert.ok(issue("mac"));
+  for (let count = 0; count < 16; count += 1) assert.ok(issue("phone"));
+  assert.equal(issue("phone"), ISSUANCE_LIMIT_REACHED);
+
+  const replacementPhone = device();
+  const replacement = register(replacementPhone);
+  assert.ok(replacement);
+  assert.equal(admission.isCurrent(original), false);
+  assert.equal(issue("phone", replacementPhone), ISSUANCE_LIMIT_REACHED);
+  assert.equal(admission.deactivate(replacement), true);
+  assert.ok(register(replacementPhone));
+  assert.equal(issue("phone", replacementPhone), ISSUANCE_LIMIT_REACHED);
+  assert.equal(issue("mac", replacementPhone), ISSUANCE_LIMIT_REACHED);
 });
 
 test("a prepared proof still requires a current and unexpired generation at commit", () => {

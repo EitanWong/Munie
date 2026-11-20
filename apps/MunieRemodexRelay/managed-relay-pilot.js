@@ -1,7 +1,7 @@
 const { createServer } = require("node:http");
 const { randomUUID } = require("node:crypto");
 const { WebSocket, WebSocketServer } = require("ws");
-const { createManagedRelayAdmission } = require("./managed-admission");
+const { createManagedRelayAdmission, ISSUANCE_LIMIT_REACHED } = require("./managed-admission");
 
 const CHALLENGE_PATH = "/v1/managed/challenge";
 const UPGRADE_PATH = "/v1/managed/connect";
@@ -15,8 +15,8 @@ const PHONE_TOO_BIG_REASON = "Mobile route frame too large";
 const PHONE_UNAVAILABLE_REASON = "Mobile route unavailable";
 
 // No CLI or configurable bind address: this is an isolated developer listener.
-async function startManagedRelayPilot({ audience, allowedMacKeys }) {
-  const admission = createManagedRelayAdmission({ audience, allowedMacKeys });
+async function startManagedRelayPilot({ audience, allowedMacKeys, now }) {
+  const admission = createManagedRelayAdmission({ audience, allowedMacKeys, now });
   const routes = new Map();
   const server = createServer({ maxHeaderSize: 4096, headersTimeout: 5000, requestTimeout: 5000 }, (req, res) => {
     if (req.method !== "POST" || req.url !== CHALLENGE_PATH) {
@@ -47,6 +47,7 @@ async function startManagedRelayPilot({ audience, allowedMacKeys }) {
         return respond(res, 400, { ok: false });
       }
       const challenge = admission.issue(parameters);
+      if (challenge === ISSUANCE_LIMIT_REACHED) return respond(res, 429, { ok: false });
       return respond(res, challenge ? 200 : 403, challenge ?? { ok: false });
     });
   });

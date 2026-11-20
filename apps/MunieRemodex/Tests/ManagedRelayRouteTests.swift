@@ -170,6 +170,49 @@
       }
     }
 
+    func testRefusedLANAndChallengeQuotaBackOffButAdmissionDenialDoesNotRetry() async throws {
+      typealias Failure = ManagedRelayPhoneConnector.Failure
+      let viewModel = ContentViewModel()
+      let service = CodexService()
+      var backoffs: [UInt64] = []
+      var managedAttempts = 0
+      var firstFailure = Failure.challengeQuotaExceeded
+      viewModel.reconnectSleepOverride = { backoffs.append($0) }
+      viewModel.connectOverride = { _, _ in
+        try await ContentViewModel.connectWithManagedFallback(
+          shouldContinue: { true },
+          lan: { unreachable in
+            unreachable()
+            throw NWError.posix(.ECONNREFUSED)
+          },
+          managed: {
+            managedAttempts += 1
+            if managedAttempts == 1 { throw firstFailure }
+          }
+        )
+      }
+
+      try await viewModel.connectWithAutoRecovery(codex: service, performAutoRetry: true) {
+        "ws://lan.example/relay/session"
+      }
+      XCTAssertEqual(managedAttempts, 2)
+      XCTAssertEqual(backoffs, [15_000_000_000])
+
+      firstFailure = .admissionForbidden(.challenge)
+      managedAttempts = 0
+      backoffs = []
+      do {
+        try await viewModel.connectWithAutoRecovery(codex: service, performAutoRetry: true) {
+          "ws://lan.example/relay/session"
+        }
+        XCTFail("Admission denial must stop recovery")
+      } catch let failure as Failure {
+        XCTAssertEqual(failure, .admissionForbidden(.challenge))
+      }
+      XCTAssertEqual(managedAttempts, 1)
+      XCTAssertEqual(backoffs, [])
+    }
+
     func testCancellingReconnectWhileLANDialIsPendingPreventsFallback() async {
       var reconnectIntent = true
       var managedAttempts = 0
@@ -190,6 +233,28 @@
       } catch {
         XCTFail("Unexpected error: \(error)")
       }
+    }
+
+    func testLastForegroundAttemptSkipsQuotaBackoff() async {
+      let viewModel = ContentViewModel()
+      let service = CodexService()
+      service.relayUrl = "ws://lan.example/relay"
+      service.relaySessionId = "session"
+      service.shouldAutoReconnectOnForeground = true
+      viewModel.reconnectAttemptLimitOverride = 1
+      var connects = 0
+      var backoffs: [UInt64] = []
+      viewModel.reconnectSleepOverride = { backoffs.append($0) }
+      viewModel.connectOverride = { _, _ in
+        connects += 1
+        throw ManagedRelayPhoneConnector.Failure.challengeQuotaExceeded
+      }
+
+      await viewModel.attemptAutoReconnectOnForegroundIfNeeded(codex: service)
+
+      XCTAssertEqual(connects, 1)
+      XCTAssertTrue(backoffs.isEmpty)
+      XCTAssertFalse(service.shouldAutoReconnectOnForeground)
     }
   }
 #endif

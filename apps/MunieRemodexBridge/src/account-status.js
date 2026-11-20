@@ -12,11 +12,21 @@ const { version: bridgePackageVersion = "" } = require("../package.json");
 function redactNativeProviderError(frame) {
   if (!frame || typeof frame !== "object") return frame;
   const diagnostic = "The model service request failed. Check the API configuration on this Mac.";
-  const redact = (error) => ({
-    message: diagnostic,
-    additionalDetails: null,
-    codexErrorInfo: error.codexErrorInfo === "unauthorized" ? "unauthorized" : null,
-  });
+  const redact = (error) => {
+    const info = error.codexErrorInfo;
+    const flags = ["httpConnectionFailed", "responseStreamConnectionFailed",
+      "responseStreamDisconnected", "responseTooManyFailedAttempts"];
+    const http = flags.find((variant) => [401, 403, 429].includes(info?.[variant]?.httpStatusCode));
+    const status = http ? info[http].httpStatusCode : info === "unauthorized" ? 401
+      : ["usageLimitExceeded", "rateLimitExceeded"].includes(info) ? 429 : null;
+    const message = status === 401 ? "The model service rejected the API credentials."
+      : status === 403 ? "The model service denied this request."
+      : status === 429 ? "The model service rate or quota limit was reached."
+      : diagnostic;
+    const codexErrorInfo = http ? { [http]: { httpStatusCode: status } }
+      : status === 401 || status === 429 ? info : null;
+    return { message, additionalDetails: null, codexErrorInfo };
+  };
   if (frame.method === "error" && frame.params?.error) {
     return { ...frame, params: { ...frame.params, error: redact(frame.params.error) } };
   }

@@ -6,7 +6,7 @@
 // Depends on: ws, crypto, os, ./bridge-status, ./codex-desktop-refresher, ./codex-transport, ./rollout-watch, ./voice-handler
 
 // Munie modification: constrain explicit launches before local handlers/native forwarding.
-const { configuredRoot, scopedPath, withinRoot, bindNativeRequest, assertNativeMethod, createPendingResponseGate } = require("./munie-project-policy");
+const { configuredRoot, scopedPath, withinRoot, bindNativeRequest, configuredModelList, assertNativeMethod, createPendingResponseGate } = require("./munie-project-policy");
 const WebSocket = require("ws");
 const { constants: bufferConstants } = require("buffer");
 const { createHash, randomBytes } = require("crypto");
@@ -1441,6 +1441,11 @@ function startBridge({
     }
     rawMessage = normalizePhoneRuntimeRequest(rawMessage);
     const parsedMessage = parseBridgeMessage(rawMessage);
+    const modelListReply = configuredModelList(parsedMessage, desktopCustomProvider?.model);
+    if (modelListReply) {
+      sendApplicationResponse(JSON.stringify(modelListReply), modelListReply);
+      return;
+    }
     // Scope this stronger cancellation contract to explicit Munie foreground launches.
     if (projectRoot && parsedMessage?.method !== "turn/interrupt"
       && turnCancellation.handle(parsedMessage)) return;

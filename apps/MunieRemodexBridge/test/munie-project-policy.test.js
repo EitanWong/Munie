@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { configuredRoot, scopedPath, bindNativeRequest, assertNativeMethod,
+const { configuredRoot, scopedPath, bindNativeRequest, configuredModelList, assertNativeMethod,
   createPendingResponseGate } = require('../src/munie-project-policy');
 const { createCodexLaunchPlans } = require('../src/codex-transport');
 const { readBridgeConfig } = require('../src/codex-desktop-refresher');
@@ -113,6 +113,20 @@ test('OpenAI API mode permits read-only status but binds account and provider ch
   assert.equal(bindNativeRequest({
     method: 'thread/start', params: { modelProvider: 'openai' },
   }, root, options).params.modelProvider, 'openai');
+});
+
+test('the custom model catalog exposes only the selected model and has no second page', () => {
+  const request = { id: 14, method: 'model/list' };
+  assert.equal(configuredModelList(request, null), null);
+  const actual = configuredModelList(request, 'selected/model');
+  assert.equal(actual.id, 14);
+  assert.equal(actual.result.nextCursor, null);
+  assert.deepEqual(actual.result.data, [{
+    id: 'selected/model', model: 'selected/model', displayName: 'selected/model',
+    isDefault: true, supportedReasoningEfforts: [], supportsFastMode: false,
+  }]);
+  assert.deepEqual(configuredModelList({ ...request, params: { cursor: 'stale-native-page' } },
+    'selected/model').result.data, []);
 });
 
 test('the public QR endpoint is independent of the bridge loopback connection', () => {

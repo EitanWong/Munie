@@ -137,5 +137,12 @@ function bindNativeRequest(request, root = configuredRoot(), { openAiApiKeyMode 
   return { ...request, params };
 }
 
-module.exports = { configuredRoot, scopedPath, withinRoot, validatePathParameters, bindNativeRequest,
+function configuredModelList(request, model) {
+  if (model == null || request?.method !== "model/list" || request.id == null) return null;
+  const data = request.params?.cursor == null ? [{ id: model, model, displayName: model,
+    isDefault: true, supportedReasoningEfforts: [], supportsFastMode: false }] : [];
+  return { id: request.id, result: { data, nextCursor: null } };
+}
+
+module.exports = { configuredRoot, scopedPath, withinRoot, validatePathParameters, bindNativeRequest, configuredModelList,
   assertNativeMethod, createPendingResponseGate };

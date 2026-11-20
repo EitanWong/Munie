@@ -2058,7 +2058,12 @@ function startBridge({
       // Where ChatGPT is signed in, voice still has its separate, bridge-private auth path.
       let accountRead;
       try {
-        accountRead = normalizeAccountRead(await sendCodexRequest("account/read", { refreshToken: false }));
+        const rawAccount = await sendCodexRequest("account/read", { refreshToken: false });
+        if (typeof rawAccount?.requiresOpenaiAuth !== "boolean"
+          || !(rawAccount.account === null || (rawAccount.account && typeof rawAccount.account.type === "string"))) {
+          throw new Error("Unexpected native account state.");
+        }
+        accountRead = normalizeAccountRead(rawAccount);
       } catch {
         throw new Error("Could not read Codex account status on this Mac.");
       }
@@ -2072,7 +2077,7 @@ function startBridge({
       return { ...snapshot, email: null, planType: null, followsCodexAccount: true,
         ...(configured ? { authMethod: method === "apiKey" ? "apiKey" : "customProvider",
           status: "authenticated", needsReauth: false, tokenReady: false } : {}),
-        ...(method === "chatgpt" ? { status: "authenticated", needsReauth: false, tokenReady: true } : {}),
+        ...(method === "chatgpt" ? { status: "authenticated", needsReauth: false, tokenReady: false } : {}),
       };
     }
     const [accountReadResult, authStatusResult, bridgeVersionInfoResult] = await Promise.allSettled([

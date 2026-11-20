@@ -194,6 +194,10 @@ test("bundled relay follows Codex settings, keeps account mutations local, and p
   assert.equal(account.followsCodexAccount, true);
   await assert.rejects(host.run("account/login/start"), { code: "method_not_found" });
   await assert.rejects(host.run("account/login/cancel"), { code: "method_not_found" });
+  const malformedAccount = path.join(fixture.env.CODEX_HOME, "malformed-account");
+  fs.writeFileSync(malformedAccount, "");
+  await assert.rejects(host.run("account/read"), { code: "account_unavailable" });
+  fs.unlinkSync(malformedAccount);
   await host.run("stop");
   const nativeConfig = path.join(fixture.env.CODEX_HOME, "fixture-account");
   fs.writeFileSync(nativeConfig, "apiKey");
@@ -707,7 +711,10 @@ const accountType=fs.existsSync(accountFile)?fs.readFileSync(accountFile,'utf8')
 let buffer='',pendingModelList=null;
 process.stdin.on('data',chunk=>{buffer+=chunk;let end;while((end=buffer.indexOf('\\n'))>=0){const line=buffer.slice(0,end);buffer=buffer.slice(end+1);if(!line)continue;const r=JSON.parse(line);let result={};
 switch(r.method){
-case 'account/read': result={account:accountType?{type:accountType,syntheticToken:'SECRET_TOKEN'}:null,requiresOpenaiAuth:true};break;
+case 'account/read':
+ if (!fs.existsSync(require('node:path').join(process.env.CODEX_HOME,'malformed-account')))
+  result={account:accountType?{type:accountType,syntheticToken:'SECRET_TOKEN'}:null,requiresOpenaiAuth:true};
+ break;
 case 'getAuthStatus':result={authToken:'SECRET_TOKEN'};break;
 case 'model/list':
  if(r.params?.limit===17){pendingModelList=r.id;console.log(JSON.stringify({method:'fixture/model-list-pending',params:{}}));continue;}

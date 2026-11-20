@@ -23,6 +23,14 @@ iPhone–Mac 的文字/短语音与任务控制子集已按该边界连接；Wat
 
 app 负责交互、权限请求、可恢复输入和设备凭据的安全保存；当前 Mac gateway 负责授权、执行主机与项目映射、持久请求状态和受限事件流；Codex adapter 负责上游版本/schema 与错误映射。语音理解/视觉预处理是输入层，不能代替真实执行、伪造工具结果或绕过审批。原始音视频默认不进入执行日志。
 
+## Codex provider 与设备配对
+
+[R20](../requirements.md#可追踪需求)要求 Munie 沿用用户在 Mac Codex 中设置的 ChatGPT、官方 API Key 或兼容 provider，不维护另一份表单或凭据。受监督的原生进程读取 Codex 配置；Munie 不复制整个配置目录、不执行登录 Shell、不读取或转发凭据，手机和 relay 不能更改 provider 或地址。发送到第三方的模型请求可能包含提示、上下文和工具输出。仅支持 Chat Completions 的接口不按当前 Responses API 兼容计，语音等能力独立验收。
+
+真实开启手机任务前，需验证凭据隔离、MCP/插件钩子边界、HTTPS 和重定向不会将数据发到未经授权的目的地。只在交互 Shell 中存在的临时凭据不是已支持入口。远端错误和日志只保留脱敏状态，不透传上游任意正文。
+
+用户在 Codex 中更换 provider，不需要在 Munie 重复确认设置或重新配对。不自动重试不确定的 turn，不静默把已有会话的上下文发往新 provider。连接就绪、模型服务认证和实际任务完成分别显示和验收。
+
 <a id="task-state-contract"></a>
 
 ## 状态契约与协议演进

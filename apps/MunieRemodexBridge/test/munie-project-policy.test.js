@@ -76,6 +76,27 @@ test('native mutations keep fixed cwd and user approvals while replacing client 
   } finally { fs.rmSync(temporary, { recursive: true, force: true }); }
 });
 
+test('the phone may start browser login but may not set credential material', () => {
+  const login = { id: 1, method: 'account/login/start' };
+  assert.deepEqual(bindNativeRequest({ ...login, params: { type: 'chatgpt' } }, '/fixture'),
+    { ...login, params: { type: 'chatgpt' } });
+  for (const params of [
+    { type: 'apiKey', apiKey: 'fixture-secret' },
+    { type: 'chatgptAuthTokens', accessToken: 'fixture-secret' },
+    { type: 'chatgpt', apiKey: 'fixture-secret' },
+    { type: 'futureLogin' },
+    null,
+  ]) {
+    assert.throws(() => bindNativeRequest({ ...login, params }, '/fixture'), (error) => {
+      assert.match(error.message, /only be set on this Mac/);
+      assert.doesNotMatch(error.message, /fixture-secret/);
+      return true;
+    });
+  }
+  const legacy = { ...login, params: { type: 'apiKey', apiKey: 'fixture-secret' } };
+  assert.equal(bindNativeRequest(legacy, null), legacy);
+});
+
 test('the public QR endpoint is independent of the bridge loopback connection', () => {
   const config = readBridgeConfig({ env: { REMODEX_RELAY: 'ws://127.0.0.1:9275/relay',
     REMODEX_PUBLIC_RELAY: 'wss://fixture.invalid:8443/relay' } });

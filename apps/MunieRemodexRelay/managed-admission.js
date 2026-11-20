@@ -1,6 +1,10 @@
 const { createPublicKey, randomBytes, verify } = require("node:crypto");
 const { performance } = require("node:perf_hooks");
 
+const ISSUANCE_WINDOW_MS = 15_000;
+const MAX_ISSUED_PER_ROLE = 16;
+const ISSUANCE_LIMIT_REACHED = Symbol("Managed relay challenge issuance limit reached");
+
 // Reconnect-only pilot core. A caller must bind admitted generations to its live
 // sockets; the LAN relay does not use this module.
 function createManagedRelayAdmission({
@@ -16,6 +20,8 @@ function createManagedRelayAdmission({
   }
   const devices = new Map(allowedMacKeys.map((key) => [key, { registration: null }]));
   const challenges = new Map();
+  // Budgets outlive registration generations and are only allocated for configured Macs.
+  const issuances = new Map([...devices.keys()].map((key) => [key, { mac: [], phone: [] }]));
 
   function issue({ role, macKey, phoneKey }) {
     const state = devices.get(macKey);
@@ -26,6 +32,10 @@ function createManagedRelayAdmission({
     if (role === "phone" && registration?.phoneKey !== phoneKey) return null;
 
     const time = now();
+    const recent = issuances.get(macKey)[role];
+    while (recent.length && recent[0] <= time - ISSUANCE_WINDOW_MS) recent.shift();
+    if (recent.length >= MAX_ISSUED_PER_ROLE) return ISSUANCE_LIMIT_REACHED;
+
     for (const [id, previous] of challenges) {
       if (previous.challenge.expiresAt <= time || devices.get(previous.challenge.macKey) !== previous.state) {
         challenges.delete(id);
@@ -40,6 +50,7 @@ function createManagedRelayAdmission({
       expiresAt: time + 15_000,
     });
     challenges.set(id, { challenge, state });
+    recent.push(time);
     return challenge;
   }
 
@@ -107,4 +118,4 @@ function decode(value, length) {
   return bytes.length === length && bytes.toString("base64url") === value ? bytes : null;
 }
 
-module.exports = { createManagedRelayAdmission, managedAdmissionTranscript };
+module.exports = { createManagedRelayAdmission, managedAdmissionTranscript, ISSUANCE_LIMIT_REACHED };

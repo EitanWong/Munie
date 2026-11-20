@@ -99,6 +99,20 @@
         fixture.requests.map(\.url?.path), Array(repeating: "/v1/managed/challenge", count: 2))
     }
 
+    func testChallengeQuotaUsesExistingReconnectClassificationAndAllowsLaterBootstrap() async throws
+    {
+      let fixture = try Fixture(admission: credential())
+      fixture.reply(.http(status: 429))
+      await expect(try fixture.connector(), .challengeQuotaExceeded)
+
+      fixture.reply(.http(body: try fixture.challenge()))
+      let routeHint = hint()
+      let connector = try fixture.connector { _, _ in .string(routeHint) }
+      let bootstrap = try await connector.connect()
+      XCTAssertEqual(bootstrap.untrustedSessionIDHint, Self.hintID)
+      bootstrap.cancel()
+    }
+
     func testRejectsOversizedStreamAndUntrustedChallengesBeforeUpgrade() async throws {
       let fixture = try Fixture(admission: credential())
       fixture.reply(.http(body: Data(repeating: 32, count: 1025), complete: false))

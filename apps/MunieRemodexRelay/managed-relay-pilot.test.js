@@ -13,10 +13,10 @@ function identity() {
   return { key: publicKey.export({ format: "jwk" }).x, privateKey };
 }
 
-async function fixture(t) {
+async function fixture(t, now) {
   const mac = identity();
   const phone = identity();
-  const relay = await startManagedRelayPilot({ audience: "fixture.invalid", allowedMacKeys: [mac.key] });
+  const relay = await startManagedRelayPilot({ audience: "fixture.invalid", allowedMacKeys: [mac.key], now });
   t.after(() => relay.close());
   const challenge = (role, device = phone) => fetch(`${relay.origin}/v1/managed/challenge`, {
     method: "POST",
@@ -41,6 +41,25 @@ async function fixture(t) {
   };
   return { relay, mac, phone, challenge, proof, connect };
 }
+
+test("challenge quota returns 429 then lets the same phone reconnect", { timeout: 5000 }, async (t) => {
+  let now = 1000;
+  const { challenge, proof, connect } = await fixture(t, () => now);
+  await connect(await proof("mac"));
+  for (let count = 0; count < 16; count += 1) {
+    const response = await challenge("phone");
+    assert.equal(response.status, 200);
+    await response.json();
+  }
+  const denied = await challenge("phone", identity());
+  assert.equal(denied.status, 403);
+  await denied.json();
+  const limited = await challenge("phone");
+  assert.equal(limited.status, 429);
+  assert.deepEqual(await limited.json(), { ok: false });
+  now += 15_000;
+  await connect(await proof("phone"));
+});
 
 test("loopback pilot forwards between admitted peers; denied upgrades cannot replace a live route", { timeout: 5000 }, async (t) => {
   const { relay, challenge, proof, connect, phone } = await fixture(t);

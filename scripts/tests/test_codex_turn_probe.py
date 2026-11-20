@@ -230,6 +230,20 @@ class LifecycleBindingTests(unittest.TestCase):
                 'type': 'agentMessage', 'text': 'not the marker'}))
         self.assertIsNone(peer.message)
 
+    def test_synthetic_key_in_trailing_native_notification_fails_the_probe(self):
+        code = (
+            'import json, os, sys\n'
+            'sys.stdin.read()\n'
+            'print(json.dumps({"method": "remoteControl/status/changed", '
+            '"params": {"status": "disabled", "canary": '
+            f'os.environ[{turns.PROVIDER_KEY_ENV!r}]}}}}), flush=True)\n')
+        peer = turns.LifecyclePeer(
+            [sys.executable, '-I', '-u', '-c', code], self.workspace,
+            {turns.PROVIDER_KEY_ENV: 'disposable-synthetic-key'}, check_key_environment=True)
+        with self.assertRaisesRegex(ValueError, 'Provider key reached native protocol output'):
+            peer.close()
+        self.assertTrue(peer.cleanup['processGroupGone'])
+
 
 class LoopbackProviderTests(unittest.TestCase):
     def setUp(self):
@@ -300,6 +314,37 @@ class LoopbackProviderTests(unittest.TestCase):
             connection.close()
         self.assertIsNotNone(self.server.failure)
         self.assertEqual(self.server.total, 0)
+
+    def test_synthetic_auth_requires_exact_bearer_and_never_accepts_key_in_body(self):
+        original = self.server
+        fake_key = 'synthetic-key-only'
+        try:
+            self.server = turns.FixtureServer(self.workspace, synthetic_key=fake_key)
+            self.server.select('text')
+            headers = {'Authorization': 'Bearer ' + fake_key}
+            self.assertEqual(self.post(headers=headers)[0], 200)
+            self.server.check(1)
+            for rejected in ({}, {'Authorization': 'Bearer different-key'},
+                             {**headers, 'Cookie': 'synthetic'}):
+                with self.subTest(headers=rejected):
+                    self.rejected(headers=rejected)
+            self.rejected(headers=headers, body=self.payload(input=[fake_key]))
+            self.assertEqual(self.server.total, 1)
+        finally:
+            self.server.close()
+            self.server = original
+
+    def test_key_guard_rejects_even_an_empty_inherited_key(self):
+        marker = self.workspace / 'approval-marker'
+        for value in ('synthetic-key-only', ''):
+            result = subprocess.run(
+                ['/bin/sh', '-c', turns.key_guard_source()], cwd=self.workspace,
+                env={turns.PROVIDER_KEY_ENV: value}, capture_output=True, timeout=3)
+            self.assertEqual((result.returncode, result.stdout, result.stderr), (87, b'', b''))
+            self.assertFalse(marker.exists())
+        subprocess.run(['/bin/sh', '-c', turns.key_guard_source()], cwd=self.workspace,
+                       env={}, check=True, timeout=3)
+        self.assertTrue(marker.exists())
 
     def test_oversized_and_chunked_request_are_rejected(self):
         self.server.select('text')

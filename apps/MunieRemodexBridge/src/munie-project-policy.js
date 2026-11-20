@@ -87,6 +87,10 @@ function bindNativeRequest(request, root = configuredRoot()) {
     throw new Error('This foreground launch does not authorize Desktop handoff, power changes or package updates.');
   }
   const params = { ...(request.params || {}) };
+  if (request.method === 'account/login/start'
+      && (params.type !== 'chatgpt' || Object.keys(params).length !== 1)) {
+    throw new Error("API keys and authentication tokens can only be set on this Mac.");
+  }
   for (const field of ['config', 'permissionProfile', 'permission_profile']) {
     if (Object.prototype.hasOwnProperty.call(params, field)) {
       throw new Error('Client configuration overrides are not authorized: ' + field);

@@ -11,6 +11,11 @@ import shutil
 import subprocess
 
 
+POLICY_MARKER = "Runtime/codex-resources/munie-stdio-policy"
+CODEX_BINARY = "Runtime/bin/codex"
+RUNTIME_LOCK = Path(__file__).resolve().parents[1] / "references/desktop-runtime-lock.json"
+
+
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -46,9 +51,18 @@ def verify_bundle(source: Path, distribution: bool) -> dict:
             actual.add(str(path.relative_to(source)))
     if actual != expected:
         raise ValueError("unrecorded resources in desktop bundle")
-    for required in ("Runtime/bin/node", "Runtime/bin/codex", "Runtime/bin/MunieCodexGuardian", "Host/MunieRemodexBridge/src/desktop-host.js", "Host/MunieRemodexRelay/server.js"):
+    for required in ("Runtime/bin/node", CODEX_BINARY, "Runtime/bin/MunieCodexGuardian", "Host/MunieRemodexBridge/src/desktop-host.js", "Host/MunieRemodexRelay/server.js"):
         if required not in expected:
             raise ValueError(f"missing required product resource: {required}")
+    codex_entry = next(entry for entry in manifest["files"] if entry["path"] == CODEX_BINARY)
+    preview = json.loads(RUNTIME_LOCK.read_text())["codexPolicyPreview"]
+    pinned_policy_binary = codex_entry["sha256"] == preview["binarySHA256"]
+    if pinned_policy_binary != (POLICY_MARKER in expected):
+        raise ValueError("the Codex preview marker and pinned binary must be bundled together")
+    if pinned_policy_binary and (source / POLICY_MARKER).read_bytes() != b"1\n":
+        raise ValueError("invalid bundled Codex preview policy version")
+    if pinned_policy_binary and distribution:
+        raise ValueError("the local Codex policy preview cannot be archived")
     return manifest
 
 

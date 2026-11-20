@@ -156,6 +156,37 @@ test("corrupt saved state can confirm stop and quit without claiming startup suc
   assert.equal((await client.closed).code, 0);
 });
 
+test("packaged Codex policy requires the exact private initializer acknowledgement", { timeout: 30000, skip: process.platform !== "darwin" }, async (t) => {
+  for (const policyAck of [undefined, "1", 2, 1]) {
+    await t.test(`native version: ${JSON.stringify(policyAck)}`, async (t) => {
+      const fixture = setupRuntime(t, { policyAck, packagedPolicy: true });
+      const host = createDesktopHost({ env: fixture.env });
+      t.after(() => host.stop());
+      await host.run("project/set", { path: fixture.project });
+      if (policyAck === 1) {
+        assert.equal((await host.run("start")).state, "running");
+        assert.equal((await host.run("account/read")).followsCodexAccount, true);
+      } else {
+        await assert.rejects(host.run("start"), { code: "runtime_failed" });
+        await assert.rejects(host.run("pairing/get"), { code: "pairing_unavailable" });
+        assert.equal(fixture.pids().some(alive), false);
+      }
+      assert.equal(JSON.parse(fs.readFileSync(fixture.runtimeRecord)).policy, "1");
+    });
+  }
+});
+
+test("invalid packaged Codex policy marker does not fall back to stock mode", { skip: process.platform !== "darwin" }, async (t) => {
+  const fixture = setupRuntime(t, { packagedPolicy: true });
+  const marker = path.resolve(path.dirname(fixture.env.MUNIE_CODEX_BINARY), "../codex-resources/munie-stdio-policy");
+  fs.writeFileSync(marker, "2\n");
+  const host = createDesktopHost({ env: fixture.env });
+  t.after(() => host.stop());
+  await host.run("project/set", { path: fixture.project });
+  await assert.rejects(host.run("start"), { code: "runtime_unavailable" });
+  assert.deepEqual(fixture.pids(), []);
+});
+
 test("bundled relay follows Codex settings, keeps account mutations local, and preserves pairing ownership", { timeout: 30000, skip: process.platform !== "darwin" }, async (t) => {
   const fixture = setupRuntime(t), events = [];
   const host = createDesktopHost({ env: { ...fixture.env, NODE_OPTIONS: "--invalid-untrusted-option" }, emit: (event, data) => {
@@ -683,7 +714,7 @@ function temporary(t) {
 }
 
 let guardian;
-function setupRuntime(t) {
+function setupRuntime(t, { policyAck, packagedPolicy = false } = {}) {
   assert.equal(process.platform, "darwin", "native guardian acceptance requires macOS");
   const temp = temporary(t), project = path.join(temp, "project");
   fs.mkdirSync(project);
@@ -696,11 +727,17 @@ function setupRuntime(t) {
     assert.equal(compilation.status, 0, compilation.stderr);
     process.on("exit", () => fs.rmSync(guardianDirectory, { recursive: true, force: true }));
   }
-  const pidsFile = path.join(temp, "owned-pids.jsonl"), codex = path.join(temp, "codex"), runtimeRecord = path.join(temp, "runtime.json");
+  const pidsFile = path.join(temp, "owned-pids.jsonl"), runtimeRecord = path.join(temp, "runtime.json");
+  const codex = path.join(temp, "Runtime/bin/codex");
+  fs.mkdirSync(path.dirname(codex), { recursive: true });
+  if (packagedPolicy) {
+    fs.mkdirSync(path.join(temp, "Runtime/codex-resources"));
+    fs.writeFileSync(path.join(temp, "Runtime/codex-resources/munie-stdio-policy"), "1\n");
+  }
   const source = `#!${process.execPath}
 const fs=require('node:fs'),{spawn}=require('node:child_process');
 const file=${JSON.stringify(pidsFile)};
-fs.writeFileSync(${JSON.stringify(runtimeRecord)},JSON.stringify({cwd:process.cwd(),codexHome:process.env.CODEX_HOME,endpoint:process.env.REMODEX_CODEX_ENDPOINT,nodeOptions:process.env.NODE_OPTIONS}));
+fs.writeFileSync(${JSON.stringify(runtimeRecord)},JSON.stringify({cwd:process.cwd(),codexHome:process.env.CODEX_HOME,endpoint:process.env.REMODEX_CODEX_ENDPOINT,nodeOptions:process.env.NODE_OPTIONS,policy:process.env.MUNIE_CODEX_DISABLE_EXTERNAL_EXTENSIONS}));
 process.on('SIGUSR1',()=>process.exit(0));
 fs.appendFileSync(file,process.pid+'\\n');
 const descendant=spawn(process.execPath,['-e','process.on("SIGTERM",()=>{});setInterval(()=>{},1000)'],{stdio:'ignore'});
@@ -711,6 +748,7 @@ const accountType=fs.existsSync(accountFile)?fs.readFileSync(accountFile,'utf8')
 let buffer='',pendingModelList=null;
 process.stdin.on('data',chunk=>{buffer+=chunk;let end;while((end=buffer.indexOf('\\n'))>=0){const line=buffer.slice(0,end);buffer=buffer.slice(end+1);if(!line)continue;const r=JSON.parse(line);let result={};
 switch(r.method){
+case 'initialize':result={munieStdioPolicyVersion:${JSON.stringify(policyAck)}};break;
 case 'account/read':
  if (!fs.existsSync(require('node:path').join(process.env.CODEX_HOME,'malformed-account')))
   result={account:accountType?{type:accountType,syntheticToken:'SECRET_TOKEN'}:null,requiresOpenaiAuth:true};

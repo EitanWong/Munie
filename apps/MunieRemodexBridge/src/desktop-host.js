@@ -145,6 +145,16 @@ function resolveCodexHome(env, userHome = os.homedir()) {
   } catch { throw hostError("account_unavailable"); }
 }
 
+function requiresPackagedCodexPolicy(codex) {
+  const marker = path.resolve(path.dirname(codex), "../codex-resources/munie-stdio-policy");
+  const stats = fs.lstatSync(marker, { throwIfNoEntry: false });
+  if (!stats) return false;
+  if (!stats.isFile() || stats.size !== 2 || fs.readFileSync(marker, "utf8") !== "1\n") {
+    throw hostError("runtime_unavailable");
+  }
+  return true;
+}
+
 function groupExists(pid, { killImpl = process.kill, listImpl = spawnSync } = {}) {
   try { killImpl(-pid, 0); return true; }
   catch (error) {
@@ -350,6 +360,7 @@ function createDesktopHost({ env = process.env, emit = () => {}, spawnImpl = spa
     project = projectFolder(project.path);
     const codex = executable(env.MUNIE_CODEX_BINARY || path.resolve(__dirname, "../../../Runtime/bin/codex"));
     const guardian = executable(env.MUNIE_GUARDIAN_BINARY || path.resolve(__dirname, "../../../Runtime/bin/MunieCodexGuardian"));
+    const requireCodexStdioPolicy = requiresPackagedCodexPolicy(codex);
     state = "starting"; lastError = null; bridge = null; account = null;
     updateLanAvailability(false);
     publish();
@@ -362,6 +373,7 @@ function createDesktopHost({ env = process.env, emit = () => {}, spawnImpl = spa
       REMODEX_DEVICE_STATE_DIR: path.join(root, "bridge"), REMODEX_DEVICE_STATE_FILE: path.join(root, "bridge", "device-state.json"),
       REMODEX_DISABLE_KEYCHAIN: "1",
     };
+    if (requireCodexStdioPolicy) childEnv.MUNIE_REQUIRE_CODEX_STDIO_POLICY = "1";
     // Leave Codex's native default unset, including on a fresh Mac where ~/.codex does not yet exist.
     if (env.CODEX_HOME) childEnv.CODEX_HOME = resolveCodexHome(env);
     const { loopbackManagedRelayOrigin } = require("./managed-relay-client");
@@ -529,6 +541,7 @@ async function runWorker() {
     codexEndpoint: "", pushServiceUrl: "", refreshEnabled: false, desktopAutoFollowEnabled: false,
     keepMacAwakeEnabled: false, desktopIpcLiveSyncEnabled: false, localAccountControlEnabled: true,
     followCodexAccount: true,
+    requireCodexStdioPolicy: process.env.MUNIE_REQUIRE_CODEX_STDIO_POLICY === "1",
   };
   const bridge = startBridge({ config, printPairingQr: false,
     desktopManagedRelay: pilotOrigin ? {

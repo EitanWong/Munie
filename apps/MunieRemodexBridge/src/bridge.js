@@ -1012,7 +1012,9 @@ function startBridge({
 
   const codex = createCodexTransport({
     endpoint: config.codexEndpoint,
-    env: process.env,
+    env: config.requireCodexStdioPolicy
+      ? { ...process.env, MUNIE_CODEX_DISABLE_EXTERNAL_EXTENSIONS: "1" }
+      : process.env,
     appPath: config.codexAppPath,
     logPrefix: "[remodex]",
   });
@@ -1075,11 +1077,14 @@ function startBridge({
     if (isShuttingDown) return;
     if (initializeOwnedTransport) {
       try {
-        await sendCodexRequest("initialize", {
+        const result = await sendCodexRequest("initialize", {
           clientInfo: { name: "remodex", version: bridgePackageVersion },
           capabilities: { experimentalApi: true },
         });
         if (isShuttingDown) return;
+        if (config.requireCodexStdioPolicy && result?.munieStdioPolicyVersion !== 1) {
+          throw new Error("The bundled Codex runtime did not acknowledge the required stdio policy.");
+        }
         codex.send(JSON.stringify({ method: "initialized" }));
         codexHandshakeState = "warm";
       } catch (error) {

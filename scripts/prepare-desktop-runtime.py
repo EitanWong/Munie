@@ -60,10 +60,23 @@ def extract_file(archive_path: Path, member: str, destination: Path, executable:
     destination.chmod(0o755 if executable else 0o644)
 
 
-def prepare(root: Path, output: Path, node_archive: Path | None, codex_archive: Path | None) -> None:
+def verify_policy_preview(root: Path, binary: Path, lock: dict) -> Path:
+    if lock["protocolVersion"] != 1:
+        raise ValueError("unknown Codex preview policy version")
+    PACKAGE.locked_file({
+        "path": str(root / "references/codex-munie-stdio-policy.patch"),
+        "sha256": lock["patchSHA256"],
+    })
+    return PACKAGE.locked_file({"path": str(binary.absolute()), "sha256": lock["binarySHA256"]})
+
+
+def prepare(root: Path, output: Path, node_archive: Path | None, codex_archive: Path | None,
+            policy_codex: Path | None = None) -> None:
     if platform.system() != "Darwin" or platform.machine() != "arm64":
         raise ValueError("the reviewed desktop runtime currently targets Apple silicon Macs")
     lock = json.loads((root / "references/desktop-runtime-lock.json").read_text())
+    if policy_codex is not None:
+        policy_codex = verify_policy_preview(root, policy_codex, lock["codexPolicyPreview"])
     cache = root / ".tools/desktop-runtime/archives"
     cache.mkdir(parents=True, exist_ok=True)
     node = archive(lock["node"], node_archive, cache)
@@ -73,7 +86,8 @@ def prepare(root: Path, output: Path, node_archive: Path | None, codex_archive: 
         prefix = "package/vendor/aarch64-apple-darwin/"
         extract_file(node, f"node-v{lock['node']['version']}-darwin-arm64/bin/node", inputs / "node", True)
         extract_file(node, f"node-v{lock['node']['version']}-darwin-arm64/LICENSE", inputs / "node-LICENSE")
-        extract_file(codex, prefix + "bin/codex", inputs / "codex", True)
+        if policy_codex is None:
+            extract_file(codex, prefix + "bin/codex", inputs / "codex", True)
         extract_file(codex, prefix + "codex-package.json", inputs / "codex-package.json")
         assets = []
         for relative in ("bin/codex-code-mode-host", "codex-path/rg", "codex-resources/zsh/bin/zsh"):
@@ -87,11 +101,25 @@ def prepare(root: Path, output: Path, node_archive: Path | None, codex_archive: 
         for name in ("node", "codex"):
             license_path = inputs / "node-LICENSE" if name == "node" else root / "references/licenses/codex-runtime.txt"
             manifest[name] = {
-                "path": str(inputs / name), "sha256": PACKAGE.sha256(inputs / name),
+                "path": str(inputs / name),
                 "version": lock[name]["version"], "licensePath": str(license_path),
                 "licenseSHA256": PACKAGE.sha256(license_path),
                 "provenance": lock[name]["url"],
             }
+            if name == "codex" and policy_codex is not None:
+                policy_lock = lock["codexPolicyPreview"]
+                commit = lock["codex"]["sourceCommit"]
+                manifest[name].update(
+                    path=str(policy_codex), sha256=policy_lock["binarySHA256"],
+                    provenance=f"https://github.com/openai/codex/tree/{commit} + codex-munie-stdio-policy.patch"
+                )
+                marker = inputs / "munie-stdio-policy"
+                marker.write_bytes(b"1\n")
+                assets.append({"path": str(marker), "destination": "codex-resources/munie-stdio-policy",
+                               "sha256": PACKAGE.sha256(marker)})
+                manifest["distributionBlockers"].append("Developer-only Codex stdio policy preview")
+            else:
+                manifest[name]["sha256"] = PACKAGE.sha256(inputs / name)
         if manifest["codex"]["licenseSHA256"] != lock["codex"]["licenseSHA256"]:
             raise ValueError("Codex source license SHA-256 mismatch")
         manifest["codexPackage"] = {"path": str(inputs / "codex-package.json"), "sha256": PACKAGE.sha256(inputs / "codex-package.json")}
@@ -106,9 +134,10 @@ def main() -> int:
     parser.add_argument("--output", type=Path, default=ROOT / "build/DesktopBundle")
     parser.add_argument("--node-archive", type=Path)
     parser.add_argument("--codex-archive", type=Path)
+    parser.add_argument("--policy-codex", type=Path, help="Use the pinned local policy preview; never for distribution")
     args = parser.parse_args()
     try:
-        prepare(ROOT, args.output.absolute(), args.node_archive, args.codex_archive)
+        prepare(ROOT, args.output.absolute(), args.node_archive, args.codex_archive, args.policy_codex)
     except (ValueError, OSError, KeyError, subprocess.SubprocessError) as error:
         parser.exit(1, f"Desktop runtime preparation failed: {error}\n")
     return 0

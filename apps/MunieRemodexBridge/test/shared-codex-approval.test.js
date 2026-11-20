@@ -75,7 +75,10 @@ test("expired, cancelled and revoked requests cannot be accepted", (t) => {
   assert.deepEqual(gate.reply({ id: next.id, result: { decision: "cancel" } }, route),
     { id: "native-2", result: { decision: "cancel" } });
   const last = gate.offer({ ...request, id: "native-3" });
-  assert.deepEqual(gate.close(), [{ nativeId: "native-3", phoneId: last.id }]);
+  assert.deepEqual(gate.close(), [
+    { nativeId: null, phoneId: next.id },
+    { nativeId: "native-3", phoneId: last.id },
+  ]);
   assert.deepEqual(gate.close(), []);
   assert.throws(() => gate.reply({ id: last.id, result: { decision: "accept" } }, route));
   assert.throws(() => gate.offer({ ...request, id: "native-4" }));

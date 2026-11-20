@@ -5,25 +5,37 @@ const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
 const { setTimeout: delay } = require('node:timers/promises');
+const { startApprovalProvider } = require('./approval-provider.cjs');
 
 const base64 = (key) => Buffer.from(key, 'base64url').toString('base64');
 
 async function main() {
-  const [resources, readyPath] = process.argv.slice(2);
+  const [resources, readyPath, mode] = process.argv.slice(2);
+  if (mode !== undefined && mode !== '--approval') throw new Error('Unknown signed simulator fixture mode');
   if (fs.readFileSync(path.join(resources, 'Runtime/codex-resources/munie-stdio-policy'), 'utf8') !== '1\n') {
     throw new Error('A signed bundle with the pinned preview policy is required');
   }
   const { createDesktopHost } = require(path.join(resources, 'Host/MunieRemodexBridge/src/desktop-host.js'));
   const { startManagedRelayPilot } = require(path.join(resources, 'Host/MunieRemodexRelay/managed-relay-pilot.js'));
   const temp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'munie-packed-phone-')));
-  let host, relay, shutdown, published = false, stopRequested = false;
+  let host, relay, provider, shutdown, published = false, stopRequested = false;
+  const delaySeconds = 8;
   const close = () => shutdown ??= (async () => {
+    let providerFailure;
     try {
       if (host && !(await host.run('stop')).cleanupConfirmed) throw new Error('Runtime cleanup unconfirmed');
     } finally {
-      if (relay) await relay.close();
+      try {
+        if (relay) await relay.close();
+      } finally {
+        if (provider) {
+          try { await provider.close({ verifySubmission: published }); }
+          catch (error) { providerFailure = error; }
+        }
+      }
     }
     fs.rmSync(temp, { recursive: true, force: true });
+    if (providerFailure) throw providerFailure;
     console.log('Signed preview stopped and disposable state removed.');
   })();
   process.once('SIGTERM', () => {
@@ -37,20 +49,27 @@ async function main() {
     const home = path.join(temp, 'codex'), project = path.join(temp, 'project'), state = path.join(temp, 'state');
     fs.mkdirSync(home, { mode: 0o700 });
     fs.mkdirSync(project, { mode: 0o700 });
-    fs.writeFileSync(path.join(home, 'config.toml'),
-      'cli_auth_credentials_store="file"\nanalytics.enabled=false\nfeedback.enabled=false\n'
-      + 'model_provider="munie_fixture"\n[model_providers.munie_fixture]\n'
-      + 'name="Disposable preview"\nbase_url="http://127.0.0.1:9/v1"\nwire_api="responses"\n');
+    if (mode === '--approval') {
+      provider = await startApprovalProvider(project);
+    } else {
+      fs.writeFileSync(path.join(home, 'config.toml'),
+        'cli_auth_credentials_store="file"\nanalytics.enabled=false\nfeedback.enabled=false\n'
+        + 'model_provider="munie_fixture"\n[model_providers.munie_fixture]\n'
+        + 'name="Disposable preview"\nbase_url="http://127.0.0.1:9/v1"\nwire_api="responses"\n');
+    }
     const mac = generateKeyPairSync('ed25519'), phone = generateKeyPairSync('ed25519');
     const macDeviceId = randomUUID(), phoneDeviceId = randomUUID();
     const macKey = mac.publicKey.export({ format: 'jwk' }).x, phoneKey = phone.publicKey.export({ format: 'jwk' }).x;
     relay = await startManagedRelayPilot({ audience: 'munie-loopback.invalid', allowedMacKeys: [macKey] });
     requireStarting();
-    host = createDesktopHost({ env: {
-      CODEX_HOME: home, MUNIE_HOST_STATE_DIR: state, MUNIE_DEVELOPER_MANAGED_RELAY: relay.origin,
-      MUNIE_CODEX_BINARY: path.join(resources, 'Runtime/bin/codex'),
-      MUNIE_GUARDIAN_BINARY: path.join(resources, 'Runtime/bin/MunieCodexGuardian'),
-    } });
+    host = createDesktopHost({
+      env: {
+        CODEX_HOME: home, MUNIE_HOST_STATE_DIR: state, MUNIE_DEVELOPER_MANAGED_RELAY: relay.origin,
+        MUNIE_CODEX_BINARY: path.join(resources, 'Runtime/bin/codex'),
+        MUNIE_GUARDIAN_BINARY: path.join(resources, 'Runtime/bin/MunieCodexGuardian'),
+      },
+      simulatorApprovalFixture: provider ? { directory: temp, providerPort: provider.port } : undefined,
+    });
     fs.writeFileSync(path.join(state, 'bridge', 'device-state.json'), JSON.stringify({
       version: 1, macDeviceId, macIdentityPublicKey: base64(macKey),
       macIdentityPrivateKey: base64(mac.privateKey.export({ format: 'jwk' }).d),
@@ -82,6 +101,7 @@ async function main() {
           phoneDeviceId, phoneIdentityPublicKey: base64(phoneKey),
           phoneIdentityPrivateKey: base64(phone.privateKey.export({ format: 'jwk' }).d),
           authorizedProject: project,
+          ...(provider ? { approvalDelaySeconds: delaySeconds } : {}),
         }), { mode: 0o600 });
         fs.renameSync(`${readyPath}.new`, readyPath);
         published = true;

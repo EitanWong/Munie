@@ -7,6 +7,7 @@
 
 // Munie modification: constrain explicit launches before local handlers/native forwarding.
 const { configuredRoot, scopedPath, withinRoot, bindNativeRequest, assertNativeMethod, assertFollowCodexPreview, createPendingResponseGate } = require("./munie-project-policy");
+const { createSimulatorApprovalBoundary, FIXTURE_ACTIONS } = require("./munie-simulator-approval");
 const WebSocket = require("ws");
 const { constants: bufferConstants } = require("buffer");
 const { createHash, randomBytes } = require("crypto");
@@ -777,6 +778,22 @@ function startBridge({
   const managedRouteReplies = managedClient ? createManagedRouteReplies() : null;
   let managedRouteId = null;
   let managedSecureGeneration = null;
+  const simulatorApproval = config.simulatorApprovalFixture === true ? (() => {
+    const root = configuredRoot();
+    if (!root || !managedClient || config.followCodexAccount !== true || !initializeForLocalAccount
+        || config.codexEndpoint || config.requireCodexStdioPolicy !== true) {
+      throw new Error("Simulator approvals require the isolated managed route and pinned native transport.");
+    }
+    return createSimulatorApprovalBoundary({
+      root,
+      currentRoute: () => secureTransport.isSecureChannelReady() ? managedSecureGeneration : null,
+      cancellationPending: (threadId, turnId) => turnCancellation.isPending(threadId, turnId),
+      sendNative: (message) => codex.send(JSON.stringify(message)),
+      sendPhone: (message) => secureTransport.sendUnbufferedApplicationMessage(JSON.stringify(message)),
+    });
+  })() : null;
+  const simulatorApprovalTimer = simulatorApproval ? setInterval(() => simulatorApproval.expire(), 1_000) : null;
+  simulatorApprovalTimer?.unref();
   const relaySessionUrl = `${relayBaseUrl}/${sessionId}`;
   const notificationSecret = randomBytes(24).toString("hex");
   const desktopRefresher = new CodexDesktopRefresher({
@@ -896,6 +913,7 @@ function startBridge({
     },
     onSecureSessionReady(session) {
       if (managedRouteReplies) {
+        simulatorApproval?.closeApprovals();
         managedSecureGeneration = Symbol();
         managedRouteReplies.clear();
       }
@@ -924,6 +942,7 @@ function startBridge({
   }
 
   function changeManagedRoute(routeId) {
+    if (managedSecureGeneration) simulatorApproval?.closeApprovals();
     managedRouteId = routeId;
     managedSecureGeneration = null;
     managedRouteReplies.clear();
@@ -931,7 +950,7 @@ function startBridge({
   }
   // Only the spawned local runtime needs rollout mirroring; a real endpoint
   // already provides the authoritative live stream for resumed threads.
-  const rolloutLiveMirror = !config.codexEndpoint
+  const rolloutLiveMirror = !config.codexEndpoint && !simulatorApproval
     ? createRolloutLiveMirrorController({
       sendApplicationResponse,
       // One live source per thread. The follower keeps fresh/idle Desktop state
@@ -945,7 +964,7 @@ function startBridge({
       ),
     })
     : null;
-  const desktopIpcActionFollower = !config.codexEndpoint
+  const desktopIpcActionFollower = !config.codexEndpoint && !simulatorApproval
     ? createDesktopIpcActionFollower({
       sendApplicationResponse,
       readConversationState: async (threadId) => seedConversationStateFromThreadRead(
@@ -1085,6 +1104,7 @@ function startBridge({
         if (config.requireCodexStdioPolicy && result?.munieStdioPolicyVersion !== 1) {
           throw new Error("The bundled Codex runtime did not acknowledge the required stdio policy.");
         }
+        simulatorApproval?.attest();
         codex.send(JSON.stringify({ method: "initialized" }));
         codexHandshakeState = "warm";
       } catch (error) {
@@ -1119,6 +1139,8 @@ function startBridge({
   }
 
   function prepareBridgeShutdown() {
+    simulatorApproval?.closeApprovals();
+    if (simulatorApprovalTimer) clearInterval(simulatorApprovalTimer);
     isShuttingDown = true;
     managedClient?.stop();
     bridgeWakeAssertion.stop();
@@ -1339,16 +1361,25 @@ function startBridge({
   function handleCodexMessage(message) {
     // Streaming deltas make this the hottest path in the bridge: parse the
     // envelope once and share the read-only object with every observer.
-    const parsedMessage = parseBridgeMessage(message);
+    let parsedMessage = parseBridgeMessage(message);
     // Reject native callbacks before they can reach a read-only phone or wait on its reply.
     if (config.followCodexAccount === true
       && (typeof parsedMessage?.id === "string" || Number.isSafeInteger(parsedMessage?.id))
       && typeof parsedMessage.method === "string" && parsedMessage.method.length > 0
       && !hasOwn(parsedMessage, "result") && !hasOwn(parsedMessage, "error") && !hasOwn(parsedMessage, "payload")) {
+      if (simulatorApproval?.offer(parsedMessage)) return;
       codex.send(createJsonRpcErrorResponse(parsedMessage.id,
         new Error("Phone callbacks are unavailable in the Codex settings preview."),
         "shared_codex_actions_unavailable"));
       return;
+    }
+    if (simulatorApproval) {
+      const observed = simulatorApproval.observe(parsedMessage);
+      if (observed === null && parsedMessage !== null) return;
+      if (observed !== parsedMessage) {
+        parsedMessage = observed;
+        message = JSON.stringify(observed);
+      }
     }
     if (turnCancellation.observe(parsedMessage)) return;
     if (configuredRoot() && parsedMessage?.id != null && isRelayBoundServerRequestMethod(parsedMessage.method)) {
@@ -1384,6 +1415,7 @@ function startBridge({
   }
 
   codex.onClose(() => {
+    simulatorApproval?.closeApprovals({ nativeAlive: false });
     activityStore.markSourceStale(APP_SERVER_SOURCE);
     const wasShuttingDown = isShuttingDown;
     clearRelayWatchdog();
@@ -1422,7 +1454,13 @@ function startBridge({
     if (projectRoot) {
       const incoming = parseBridgeMessage(rawMessage);
       if (config.followCodexAccount === true) {
-        try { assertFollowCodexPreview(incoming); }
+        if (simulatorApproval && !incoming?.method && incoming?.id != null) {
+          simulatorApproval.reply(incoming);
+          return;
+        }
+        try {
+          if (!(simulatorApproval && FIXTURE_ACTIONS.has(incoming?.method))) assertFollowCodexPreview(incoming);
+        }
         catch (error) {
           if (incoming?.id != null) sendApplicationResponse(createJsonRpcErrorResponse(incoming.id, error, "shared_codex_actions_unavailable"));
           return;
@@ -1447,6 +1485,13 @@ function startBridge({
         }));
       } catch (error) {
         if (incoming?.id != null) sendApplicationResponse(createJsonRpcErrorResponse(incoming.id, error, "project_not_authorized"));
+        return;
+      }
+      if (simulatorApproval && FIXTURE_ACTIONS.has(incoming?.method)) {
+        // Fixture actions never enter alternate dispatchers or use projected Desktop state.
+        const bound = parseBridgeMessage(rawMessage);
+        if (bound.method !== "turn/interrupt" && turnCancellation.handle(bound)) return;
+        forwardInboundRequestToCodex(normalizePhoneRuntimeRequest(rawMessage));
         return;
       }
     }
@@ -1606,13 +1651,19 @@ function startBridge({
   function forwardInboundRequestToCodex(rawMessage) {
     const codexRequest = normalizeTurnStartForCodex(rawMessage);
     const parsedRequest = parseBridgeMessage(codexRequest);
-    try { assertNativeMethod(parsedRequest); }
+    try {
+      assertNativeMethod(parsedRequest);
+      if (simulatorApproval && FIXTURE_ACTIONS.has(parsedRequest?.method)) simulatorApproval.reserve(parsedRequest);
+    }
     catch (error) {
       if (parsedRequest?.id != null) sendApplicationResponse(createJsonRpcErrorResponse(parsedRequest.id, error, "native_method_not_authorized"));
       return;
     }
     if (configuredRoot() && parsedRequest?.method === "turn/interrupt"
-      && turnCancellation.handle(parsedRequest)) return;
+      && turnCancellation.handle(parsedRequest)) {
+      simulatorApproval?.settlePendingBeforeStop();
+      return;
+    }
     if (parsedRequest?.id != null
       && (parsedRequest.method === "thread/start" || parsedRequest.method === "thread/fork")) {
       pendingLocalThreadCreationRequestsById.set(String(parsedRequest.id), true);

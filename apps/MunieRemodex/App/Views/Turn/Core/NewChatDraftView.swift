@@ -256,8 +256,7 @@ struct NewChatDraftView: View {
             gitSyncAlert: gitSyncAlertBinding,
             isShowingMacHandoffConfirm: $isShowingMacHandoffConfirm,
             macHandoffErrorMessage: $macHandoffErrorMessage,
-            onDeclineApproval: { _ in },
-            onApproveApproval: { _ in },
+            onApprovalDecision: { _, _ in },
             onConfirmGitSyncAction: { action in
                 viewModel.confirmGitSyncAlertAction(
                     action,

@@ -2317,6 +2317,38 @@
         }
       }
     },
+    "That approval decision is no longer available.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That approval decision is no longer available."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法再提交这项审批决定。"
+          }
+        }
+      }
+    },
+    "Waiting for Mac approval confirmation": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for Mac approval confirmation"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在等待 Mac 确认审批结果"
+          }
+        }
+      }
+    },
     "Decline": {
       "localizations": {
         "en": {

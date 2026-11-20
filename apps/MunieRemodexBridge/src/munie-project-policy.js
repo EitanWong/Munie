@@ -131,7 +131,10 @@ function createSharedCodexApprovalGate({ root, route, threadId, turnId, now = ()
     },
     close() {
       closed = true;
-      const unresolved = [...pending].map(([phoneId, { id: nativeId }]) => ({ nativeId, phoneId }));
+      const unresolved = [];
+      for (const [nativeId, phoneId] of offered) {
+        if (phoneId) unresolved.push({ nativeId: pending.has(phoneId) ? nativeId : null, phoneId });
+      }
       pending.clear();
       offered.clear();
       return unresolved;

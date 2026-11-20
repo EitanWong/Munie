@@ -3,8 +3,8 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
-if [ "$#" -ne 1 ]; then
-  printf 'Usage: %s IOS_SIMULATOR_UDID\n' "$0" >&2
+if [ "$#" -lt 1 ] || [ "$#" -gt 2 ] || { [ "$#" -eq 2 ] && [ "$2" != '--approval' ]; }; then
+  printf 'Usage: %s IOS_SIMULATOR_UDID [--approval]\n' "$0" >&2
   exit 64
 fi
 SIMULATOR_ID="$1"
@@ -15,6 +15,10 @@ fi
 NODE_BIN="${MUNIE_MANAGED_NODE:-node}"
 BACKEND_ROOT="${MUNIE_MANAGED_BACKEND_ROOT:-$ROOT}"
 DERIVED_DATA="${MUNIE_MANAGED_DERIVED_DATA:-$ROOT/build/DerivedData-managed-relay}"
+if [ "$#" -eq 2 ] && [ -z "${MUNIE_MANAGED_PACKAGED_APP:-}" ]; then
+  printf '%s\n' 'The approval fixture requires an explicit signed Mac app.' >&2
+  exit 64
+fi
 
 mkdir -p build
 RUN="$(mktemp -d "$ROOT/build/managed-swift-node.XXXXXX")"
@@ -24,10 +28,13 @@ TEST_CASE="testUnreachableLANFallsBackToManagedEncryptedInitializeAndPreservesLA
 xcodegen generate > "$RUN/xcodegen.log" 2>&1
 if [ -n "${MUNIE_MANAGED_PACKAGED_APP:-}" ]; then
   TEST_CASE="testSignedPreviewReadsAuthorizedProjectAndRefusesTaskCreation"
+  if [ "$#" -eq 2 ]; then
+    TEST_CASE="testSignedFixtureApprovesStopsAndRecoversExactlyOneSubmission"
+  fi
   codesign --verify --deep --strict "$MUNIE_MANAGED_PACKAGED_APP" > "$RUN/signature.log" 2>&1
   RESOURCES="$MUNIE_MANAGED_PACKAGED_APP/Contents/Resources"
   "$RESOURCES/Runtime/bin/node" "$ROOT/scripts/fixtures/managed-relay/packaged-preview-peer.cjs" \
-    "$RESOURCES" "$READY" > "$RUN/peer.log" 2>&1 &
+    "$RESOURCES" "$READY" "${@:2}" > "$RUN/peer.log" 2>&1 &
 else
   "$NODE_BIN" "$ROOT/scripts/fixtures/managed-relay/loopback-peer.cjs" "$BACKEND_ROOT" "$READY" > "$RUN/peer.log" 2>&1 &
 fi

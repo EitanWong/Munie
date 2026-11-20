@@ -256,6 +256,110 @@ final class CodexApprovalStateTests: XCTestCase {
         XCTAssertEqual(service.pendingApproval(for: "thread-a")?.id, request.id)
     }
 
+    func testAdvertisedCommandApprovalRejectsSessionGrantBeforeTransport() async throws {
+        let service = makeService()
+        service.handleServerRequest(
+            method: "item/commandExecution/requestApproval",
+            requestID: .string("one-time"),
+            params: .object([
+                "threadId": .string("thread-a"),
+                "availableDecisions": .array([.string("accept"), .string("acceptForSession")]),
+            ])
+        )
+        let request = try XCTUnwrap(service.pendingApproval(for: "thread-a"))
+        do {
+            try await service.approvePendingRequest(request, forSession: true)
+            XCTFail("A constrained command cannot grant session approval")
+        } catch CodexServiceError.invalidInput {
+            XCTAssertEqual(service.pendingApproval(for: "thread-a")?.id, request.id)
+        } catch {
+            XCTFail("Expected rejection before attempting transport, got \(error)")
+        }
+    }
+
+    func testOneTimeCancelRemainsPendingUntilExactServerResolution() async throws {
+        let service = makeService()
+        let request = try offerCommand(using: service, decisions: [.string("cancel"), .string("acceptForSession")])
+        XCTAssertEqual(request.oneTimeDecisions, [.cancel])
+        await XCTAssertThrowsErrorAsync(
+            try await service.respondToPendingApproval(request, decision: .decline) { _, _ in
+                XCTFail("Unadvertised decisions must not reach transport")
+            }
+        )
+        try await service.respondToPendingApproval(request, decision: .cancel) { message, didSend in
+            XCTAssertEqual(message.id, request.requestID)
+            XCTAssertEqual(message.result, .object(["decision": .string("cancel")]))
+            didSend()
+        }
+        XCTAssertEqual(service.pendingApproval(for: "thread-a"), request)
+        XCTAssertNil(service.actionableApproval(for: "thread-a"))
+        XCTAssertTrue(service.isAwaitingApprovalResolution(for: "thread-a"))
+        await XCTAssertThrowsErrorAsync(
+            try await service.respondToPendingApproval(request, decision: .cancel) { _, _ in
+                XCTFail("A submitted decision must not be sent twice")
+            }
+        )
+        service.handleNotification(method: "serverRequest/resolved", params: .object([
+            "threadId": .string("thread-a"), "requestId": .integer(42),
+        ]))
+        XCTAssertEqual(service.pendingApproval(for: "thread-a"), request)
+        service.handleNotification(method: "serverRequest/resolved", params: .object([
+            "threadId": .string("thread-a"), "requestId": request.requestID,
+        ]))
+        XCTAssertNil(service.pendingApproval(for: "thread-a"))
+        XCTAssertFalse(service.isAwaitingApprovalResolution(for: "thread-a"))
+    }
+
+    func testOneTimeReplyRetriesOnlyFailureBeforeTransportAttempt() async throws {
+        let service = makeService()
+        let request = try offerCommand(using: service, decisions: [.string("accept")])
+        await XCTAssertThrowsErrorAsync(
+            try await service.respondToPendingApproval(request, decision: .accept) { _, _ in
+                throw CodexServiceError.disconnected
+            }
+        )
+        XCTAssertEqual(service.actionableApproval(for: "thread-a"), request)
+
+        await XCTAssertThrowsErrorAsync(
+            try await service.respondToPendingApproval(request, decision: .accept) { _, didSend in
+                didSend()
+                throw CodexServiceError.disconnected
+            }
+        )
+        XCTAssertNil(service.actionableApproval(for: "thread-a"))
+        XCTAssertTrue(service.isAwaitingApprovalResolution(for: "thread-a"))
+        service.clearPendingApprovals()
+        XCTAssertNil(service.pendingApproval(for: "thread-a"))
+        XCTAssertFalse(service.isAwaitingApprovalResolution(for: "thread-a"))
+    }
+
+    func testOneTimeResolutionArrivingDuringSendCannotRestorePrompt() async throws {
+        let service = makeService()
+        let request = try offerCommand(using: service, decisions: [.string("accept")])
+        await XCTAssertThrowsErrorAsync(
+            try await service.respondToPendingApproval(request, decision: .accept) { _, didSend in
+                didSend()
+                service.handleNotification(method: "serverRequest/resolved", params: .object([
+                    "threadId": .string("thread-a"), "requestId": request.requestID,
+                ]))
+                throw CodexServiceError.disconnected
+            }
+        )
+        XCTAssertNil(service.actionableApproval(for: "thread-a"))
+        XCTAssertFalse(service.isAwaitingApprovalResolution(for: "thread-a"))
+    }
+
+    func testLegacyCommandApprovalStillSettlesAfterSendingSessionDecision() async throws {
+        let service = makeService()
+        let request = try offerCommand(using: service, decisions: nil)
+        XCTAssertNil(request.oneTimeDecisions)
+        try await service.respondToPendingApproval(request, decision: .acceptForSession) { message, didSend in
+            XCTAssertEqual(message.result, .object(["decision": .string("acceptForSession")]))
+            didSend()
+        }
+        XCTAssertNil(service.pendingApproval(for: "thread-a"))
+    }
+
     func testApproveTreatsAlreadyResolvedRequestAsCompleted() async {
         let service = makeService()
         let viewModel = TurnViewModel()
@@ -277,6 +381,17 @@ final class CodexApprovalStateTests: XCTestCase {
         }
 
         XCTAssertTrue(didSucceed)
+    }
+
+    private func offerCommand(using service: CodexService, decisions: [JSONValue]?) throws -> CodexApprovalRequest {
+        var params: [String: JSONValue] = ["threadId": .string("thread-a")]
+        params["availableDecisions"] = decisions.map(JSONValue.array)
+        service.handleServerRequest(
+            method: "item/commandExecution/requestApproval",
+            requestID: .string("42"),
+            params: .object(params)
+        )
+        return try XCTUnwrap(service.pendingApproval(for: "thread-a"))
     }
 
     private func makeService() -> CodexService {

@@ -218,7 +218,51 @@ function bridgeSnapshot(value) {
   return { connectionStatus, codexLaunchState, activeDevice: summary(value?.activeDevice), activePhone: summary(value?.activePhone) };
 }
 
-function createDesktopHost({ env = process.env, emit = () => {}, spawnImpl = spawn } = {}) {
+function prepareSimulatorApprovalFixture(fixture, env, { verify = false } = {}) {
+  const { directory, providerPort } = fixture;
+  const base = verify ? null : fs.realpathSync(os.tmpdir());
+  const assertPrivate = (target) => {
+    const info = fs.lstatSync(target);
+    if (!info.isDirectory() || info.uid !== process.getuid()
+        || (info.mode & 0o777) !== 0o700 || fs.realpathSync(target) !== target) {
+      throw hostError("state_unavailable");
+    }
+  };
+  if (typeof directory !== "string" || !path.isAbsolute(directory) || (base && path.dirname(directory) !== base)
+      || !/^munie-packed-phone-[a-zA-Z0-9]+$/.test(path.basename(directory))
+      || !Number.isInteger(providerPort) || providerPort < 1024 || providerPort > 65535) {
+    throw hostError("state_unavailable");
+  }
+  const home = path.join(directory, "codex"), project = path.join(directory, "project");
+  const state = path.join(directory, "state");
+  if (env.CODEX_HOME !== home || env.MUNIE_HOST_STATE_DIR !== state
+      || !require("./managed-relay-client").loopbackManagedRelayOrigin(env.MUNIE_DEVELOPER_MANAGED_RELAY)
+      || (verify ? env.REMODEX_PROJECT_ROOT !== project || env.TMPDIR !== directory : fs.existsSync(state))) {
+    throw hostError("state_unavailable");
+  }
+  for (const dir of [directory, home, project, ...(verify ? [state, path.join(home, "rules")] : [])]) assertPrivate(dir);
+  if (!verify && (fs.readdirSync(home).length || fs.readdirSync(project).length)) throw hostError("state_unavailable");
+  const put = (file, content) => {
+    if (!verify) return fs.writeFileSync(file, content, { flag: "wx", mode: 0o600 });
+    const info = fs.lstatSync(file);
+    if (!info.isFile() || info.uid !== process.getuid() || (info.mode & 0o777) !== 0o600
+        || info.size !== Buffer.byteLength(content) || fs.readFileSync(file, "utf8") !== content) {
+      throw hostError("state_unavailable");
+    }
+  };
+  put(path.join(home, "config.toml"), 'cli_auth_credentials_store="file"\nanalytics.enabled=false\nfeedback.enabled=false\n'
+    + 'model="munie-fixture"\nmodel_provider="munie_fixture"\n[model_providers.munie_fixture]\n'
+    + `name="Munie simulator fixture"\nbase_url="http://127.0.0.1:${providerPort}/v1"\nwire_api="responses"\n`
+    + 'request_max_retries=0\nstream_max_retries=0\n');
+  if (!verify) fs.mkdirSync(path.join(home, "rules"), { mode: 0o700 });
+  put(path.join(home, "rules", "default.rules"), 'prefix_rule(pattern=["/bin/sh", "managed-stop.sh"], decision="prompt")\n');
+  put(path.join(project, "managed-stop.sh"), "/bin/mkdir managed-shell-started && /bin/sleep 8 && /bin/mkdir managed-shell-late\n");
+  return { directory, project };
+}
+
+function createDesktopHost({ env = process.env, emit = () => {}, spawnImpl = spawn, simulatorApprovalFixture = null } = {}) {
+  // Only the local signed test driver constructs this option; no env or protocol method enables it.
+  const fixture = simulatorApprovalFixture ? prepareSimulatorApprovalFixture(simulatorApprovalFixture, env) : null;
   let root;
   try {
     if (!env.MUNIE_HOST_STATE_DIR || !path.isAbsolute(env.MUNIE_HOST_STATE_DIR)) throw new Error();
@@ -361,6 +405,7 @@ function createDesktopHost({ env = process.env, emit = () => {}, spawnImpl = spa
     const codex = executable(env.MUNIE_CODEX_BINARY || path.resolve(__dirname, "../../../Runtime/bin/codex"));
     const guardian = executable(env.MUNIE_GUARDIAN_BINARY || path.resolve(__dirname, "../../../Runtime/bin/MunieCodexGuardian"));
     const requireCodexStdioPolicy = requiresPackagedCodexPolicy(codex);
+    if (fixture && (!requireCodexStdioPolicy || project.path !== fixture.project)) throw hostError("runtime_unavailable");
     state = "starting"; lastError = null; bridge = null; account = null;
     updateLanAvailability(false);
     publish();
@@ -379,7 +424,13 @@ function createDesktopHost({ env = process.env, emit = () => {}, spawnImpl = spa
     const { loopbackManagedRelayOrigin } = require("./managed-relay-client");
     const pilotOrigin = loopbackManagedRelayOrigin(env.MUNIE_DEVELOPER_MANAGED_RELAY);
     if (pilotOrigin) childEnv.MUNIE_DEVELOPER_MANAGED_RELAY = pilotOrigin;
-    const child = spawnImpl(guardian, [String(process.pid), process.execPath, __filename, "--worker"], {
+    const workerArgs = [String(process.pid), process.execPath, __filename, "--worker"];
+    if (fixture) {
+      childEnv.HOME = fixture.directory;
+      childEnv.TMPDIR = fixture.directory;
+      workerArgs.push("--simulator-approval-fixture", String(simulatorApprovalFixture.providerPort));
+    }
+    const child = spawnImpl(guardian, workerArgs, {
       env: childEnv, cwd: project.path, detached: true, stdio: ["pipe", "pipe", "ignore"],
     });
     worker = child; ownedGroup = child.pid || null;
@@ -518,7 +569,7 @@ function monitorLanRelay(loopbackServer, port, onAvailability) {
   };
 }
 
-async function runWorker() {
+async function runWorker({ simulatorApprovalFixture = false, fixtureProviderPort = null } = {}) {
   // Imported bridge/relay log text may contain paths or upstream details: discard, never forward it.
   for (const key of ["log", "info", "warn", "error", "debug"]) console[key] = () => {};
   const send = (frame) => writeFrame(process.stdout, frame);
@@ -528,6 +579,12 @@ async function runWorker() {
   const { loopbackManagedRelayOrigin } = require("./managed-relay-client");
   const { startBridge, readBridgeConfig } = require("./index");
   const pilotOrigin = loopbackManagedRelayOrigin(process.env.MUNIE_DEVELOPER_MANAGED_RELAY);
+  if (simulatorApprovalFixture) {
+    if (!pilotOrigin || process.env.MUNIE_REQUIRE_CODEX_STDIO_POLICY !== "1") throw hostError("runtime_unavailable");
+    prepareSimulatorApprovalFixture({
+      directory: process.env.HOME, providerPort: fixtureProviderPort,
+    }, process.env, { verify: true });
+  }
   const relay = createRelayServer({ enablePushService: false, maxPayload: MAX_FRAME_BYTES,
     relayOptions: { enableManagedRoutes: Boolean(pilotOrigin) } });
   await new Promise((resolve, reject) => {
@@ -536,12 +593,14 @@ async function runWorker() {
   });
   const port = relay.server.address().port;
   send({ event: "relay", data: { port } });
-  const lan = monitorLanRelay(relay.server, port, (available) => send({ event: "lan", data: available }));
+  const lan = simulatorApprovalFixture ? { address: null, stop() {} }
+    : monitorLanRelay(relay.server, port, (available) => send({ event: "lan", data: available }));
   const config = { ...readBridgeConfig(), relayUrl: `ws://127.0.0.1:${port}/relay`, publicRelayUrl: "",
     codexEndpoint: "", pushServiceUrl: "", refreshEnabled: false, desktopAutoFollowEnabled: false,
     keepMacAwakeEnabled: false, desktopIpcLiveSyncEnabled: false, localAccountControlEnabled: true,
     followCodexAccount: true,
     requireCodexStdioPolicy: process.env.MUNIE_REQUIRE_CODEX_STDIO_POLICY === "1",
+    simulatorApprovalFixture,
   };
   const bridge = startBridge({ config, printPairingQr: false,
     desktopManagedRelay: pilotOrigin ? {
@@ -652,7 +711,10 @@ function runProtocol({ input = process.stdin, output = process.stdout, env = pro
 
 if (require.main === module) {
   if (process.argv[2] === "--verify-cleanup") void runCleanupVerification(process.argv.slice(3));
-  else if (process.argv.includes("--worker")) runWorker().catch((error) => {
+  else if (process.argv[2] === "--worker") runWorker({
+    simulatorApprovalFixture: process.argv[3] === "--simulator-approval-fixture",
+    fixtureProviderPort: Number(process.argv[4]),
+  }).catch((error) => {
     writeFrame(process.stdout, { event: "fatal", data: publicError(hostError(error?.code === "EADDRINUSE" ? "relay_port_unavailable" : "runtime_failed")) });
     process.exit(1);
   });

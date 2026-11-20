@@ -8,11 +8,23 @@
     nonisolated deinit {}
 
     func testUnreachableLANFallsBackToManagedEncryptedInitializeAndPreservesLANHint() async throws {
+      try await exerciseLoopback(expectsPackagedPreview: false)
+    }
+
+    func testSignedPreviewReadsAuthorizedProjectAndRefusesTaskCreation() async throws {
+      try await exerciseLoopback(expectsPackagedPreview: true)
+    }
+
+    private func exerciseLoopback(expectsPackagedPreview: Bool) async throws {
       guard let fixtureJSON = ProcessInfo.processInfo.environment["MUNIE_MANAGED_LOOPBACK_FIXTURE"]
       else {
         throw XCTSkip("Loopback interoperability fixture was not started")
       }
       let fixture = try JSONDecoder().decode(Fixture.self, from: Data(fixtureJSON.utf8))
+      let packagedProject =
+        try expectsPackagedPreview
+        ? XCTUnwrap(fixture.authorizedProject, "Signed preview must supply its project")
+        : nil
       let service = CodexService()
       service.phoneIdentityState = CodexPhoneIdentityState(
         phoneDeviceId: fixture.phoneDeviceId,
@@ -41,12 +53,25 @@
         XCTAssertNotNil(service.managedRelayAttemptID)
         XCTAssertTrue(service.isConnected)
         XCTAssertTrue(service.isInitialized)
-        XCTAssertTrue(
-          service.supportsRuntimeSettingsSync, "Plaintext predecessor must not resolve initialize")
+        XCTAssertTrue(service.supportsRuntimeSettingsSync, "Encrypted initialization must succeed")
         XCTAssertEqual(service.secureSession?.macDeviceId, mac.macDeviceId)
         XCTAssertEqual(service.relaySessionId, lanSessionID)
         XCTAssertEqual(service.relayUrl, lanURL)
         XCTAssertEqual(service.trustedMacRegistry.records[mac.macDeviceId]?.relayURL, lanURL)
+        if let project = packagedProject {
+          let listing = try await service.listProjectDirectory(path: project)
+          XCTAssertEqual(listing.path, project)
+          XCTAssertTrue(listing.entries.isEmpty)
+          do {
+            _ = try await service.sendRequest(
+              method: "thread/start", params: .object(["cwd": .string(project)]))
+            XCTFail("The configured Codex preview must remain read-only")
+          } catch let CodexServiceError.rpcError(error) {
+            XCTAssertEqual(
+              error.data?.objectValue?["errorCode"]?.stringValue,
+              "shared_codex_actions_unavailable")
+          }
+        }
 
         await service.disconnect()
         let nextSessionID = UUID().uuidString.lowercased()
@@ -78,6 +103,7 @@
       let phoneDeviceId: String
       let phoneIdentityPrivateKey: String
       let phoneIdentityPublicKey: String
+      let authorizedProject: String?
     }
   }
 #endif

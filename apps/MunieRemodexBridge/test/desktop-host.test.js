@@ -659,11 +659,16 @@ test("read-only preview denies native writes and approvals on the encrypted rout
   await new Promise((resolve, reject) => { socket.once("open", resolve); socket.once("error", reject); });
   const channel = await openFixtureSecureChannel({ socket, messages }, { sessionId, mac, phone, macDeviceId, phoneDeviceId });
 
-  // A bound native request verifies that the preview denies even a pending response.
+  // A native callback must be rejected locally, not exposed to a read-only phone.
   const approvalId = "fixture-native-approval";
+  const nativeCallbackIds = [approvalId, "fixture-native-input", 17];
   channel.send({ id: "prepare-approval", method: "model/list", params: { limit: 20 } });
-  await until(() => channel.read().some((message) =>
-    message.id === approvalId && message.method === "item/commandExecution/requestApproval"));
+  await until(() => channel.read().some((message) => message.id === "prepare-approval" && message.result));
+  assert.equal(channel.read().some((message) => nativeCallbackIds.includes(message.id)), false);
+  await until(() => nativeCallbackIds.every((id) => fixture.nativeFrames().some((message) =>
+    message.id === id && message.errorCode === -32000)));
+  assert.deepEqual(fixture.nativeFrames().filter((message) => nativeCallbackIds.includes(message.id)),
+    nativeCallbackIds.map((id) => ({ id, errorCode: -32000, errorTag: "shared_codex_actions_unavailable" })));
   const before = fixture.nativeFrames().length;
   const blocked = [
     { id: "thread-start", method: "thread/start", params: {} },
@@ -686,6 +691,7 @@ test("read-only preview denies native writes and approvals on the encrypted rout
   // The allowed request is a receive barrier and proves the native side is still reachable.
   channel.send({ id: "read-after-denials", method: "model/list", params: {} });
   await until(() => channel.read().some((message) => message.id === "read-after-denials" && message.result));
+  assert.equal(channel.read().some((message) => message.method && nativeCallbackIds.includes(message.id)), false);
   assert.deepEqual(fixture.nativeFrames().slice(before), [{ id: "read-after-denials", method: "model/list" }]);
 });
 
@@ -806,7 +812,8 @@ const accountFile=require('node:path').join(process.env.CODEX_HOME,'fixture-acco
 const accountType=fs.existsSync(accountFile)?fs.readFileSync(accountFile,'utf8'):null;
 let buffer='',pendingModelList=null;
 process.stdin.on('data',chunk=>{buffer+=chunk;let end;while((end=buffer.indexOf('\\n'))>=0){const line=buffer.slice(0,end);buffer=buffer.slice(end+1);if(!line)continue;const r=JSON.parse(line);let result={};
-if (${recordNativeFrames}) fs.appendFileSync(${JSON.stringify(nativeRecord)},JSON.stringify({id:r.id,method:r.method})+'\\n');
+if (${recordNativeFrames}) fs.appendFileSync(${JSON.stringify(nativeRecord)},JSON.stringify({id:r.id,method:r.method,errorCode:r.error?.code,errorTag:r.error?.data?.errorCode})+'\\n');
+if(r.method===undefined && r.error)continue;
 switch(r.method){
 case 'initialize':result={munieStdioPolicyVersion:${JSON.stringify(policyAck)}};break;
 case 'account/read':
@@ -818,7 +825,11 @@ case 'model/list':
  if(r.params?.limit===17){pendingModelList=r.id;console.log(JSON.stringify({method:'fixture/model-list-pending',params:{}}));continue;}
  if(r.params?.limit===18)result={data:'x'.repeat(900*1024)};
  if(r.params?.limit===19){if(pendingModelList)console.log(JSON.stringify({id:pendingModelList,result:{old:true}}));result={current:true};}
- if(${recordNativeFrames} && r.params?.limit===20)console.log(JSON.stringify({id:'fixture-native-approval',method:'item/commandExecution/requestApproval',params:{}}));
+ if(${recordNativeFrames} && r.params?.limit===20)for(const [id,method] of [
+  ['fixture-native-approval','item/commandExecution/requestApproval'],
+  ['fixture-native-input','item/tool/requestUserInput'],
+  [17,'item/tool/call'],
+ ])console.log(JSON.stringify({id,method,params:{}}));
  break;
 case 'account/login/start':case 'account/logout':process.exit(92);
 }

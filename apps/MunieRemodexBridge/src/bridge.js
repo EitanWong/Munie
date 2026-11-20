@@ -1340,6 +1340,16 @@ function startBridge({
     // Streaming deltas make this the hottest path in the bridge: parse the
     // envelope once and share the read-only object with every observer.
     const parsedMessage = parseBridgeMessage(message);
+    // Reject native callbacks before they can reach a read-only phone or wait on its reply.
+    if (config.followCodexAccount === true
+      && (typeof parsedMessage?.id === "string" || Number.isSafeInteger(parsedMessage?.id))
+      && typeof parsedMessage.method === "string" && parsedMessage.method.length > 0
+      && !hasOwn(parsedMessage, "result") && !hasOwn(parsedMessage, "error") && !hasOwn(parsedMessage, "payload")) {
+      codex.send(createJsonRpcErrorResponse(parsedMessage.id,
+        new Error("Phone callbacks are unavailable in the Codex settings preview."),
+        "shared_codex_actions_unavailable"));
+      return;
+    }
     if (turnCancellation.observe(parsedMessage)) return;
     if (configuredRoot() && parsedMessage?.id != null && isRelayBoundServerRequestMethod(parsedMessage.method)) {
       projectResponseGate.remember(parsedMessage.id);

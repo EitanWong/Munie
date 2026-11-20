@@ -34,7 +34,8 @@ console.log(JSON.stringify({command: plan.command, args: plan.args,
     ))
 
 
-def probe(codex, node, request_escalation):
+def probe(codex, node, mode):
+    request_escalation = mode == "escalation"
     turns = load_turns()
     original_sse = turns.sse
     decode_payload = turns.probe.strict_json
@@ -135,17 +136,34 @@ def probe(codex, node, request_escalation):
             if not request_escalation:
                 peer.wait_for(lambda: peer.approval is not None or peer.terminal is not None)
                 assert not marker.exists() and peer.approval is not None and peer.terminal is None
-                peer.respond_approval("accept")
+                if mode == "unavailable":
+                    peer.send({
+                        "id": peer.approval,
+                        "error": {
+                            "code": -32000,
+                            "message": "Phone callbacks are unavailable in the Codex settings preview.",
+                            "data": {"errorCode": "shared_codex_actions_unavailable"},
+                        },
+                    })
+                else:
+                    peer.respond_approval("accept")
             peer.wait_for(lambda: peer.terminal is not None)
-            provider.check(2)
-            assert peer.terminal == "completed" and peer.message is True
+            if mode == "unavailable":
+                assert peer.resolved and not marker.exists()
+                assert peer.command_result != ("completed", 0)
+                assert peer.terminal in {"interrupted", "completed"}, peer.terminal
+                provider.check(1 if peer.terminal == "interrupted" else 2)
+            else:
+                provider.check(2)
+                assert peer.terminal == "completed" and peer.message is True
             if request_escalation:
                 assert policy_denial_seen, "Missing native sandbox escalation rejection"
                 assert peer.approval is None and not marker.exists(), "Escalation changed state"
-            else:
+            elif mode == "accept":
                 assert peer.resolved and marker.is_file() and peer.command_result == ("completed", 0)
-            print(json.dumps({"requestEscalation": request_escalation, "turn": peer.terminal,
-                              "approvalRequested": peer.approval is not None, "approvedOnce": peer.resolved,
+            print(json.dumps({"mode": mode, "turn": peer.terminal,
+                              "approvalRequested": peer.approval is not None,
+                              "approvalResolved": peer.resolved, "approvedOnce": peer.approval_replied,
                               "projectMarkerWritten": marker.is_file(),
                               "nativePolicyDenialObserved": policy_denial_seen}), flush=True)
         finally:
@@ -164,8 +182,8 @@ def main():
     args = parser.parse_args()
     if not __debug__:
         parser.error("run without Python optimization")
-    for requested in (True, False):
-        probe(str(args.codex.resolve(strict=True)), str(args.node.resolve(strict=True)), requested)
+    for mode in ("escalation", "accept", "unavailable"):
+        probe(str(args.codex.resolve(strict=True)), str(args.node.resolve(strict=True)), mode)
 
 
 if __name__ == "__main__":

@@ -25,11 +25,11 @@ app 负责交互、权限请求、可恢复输入和设备凭据的安全保存�
 
 ## Codex provider 与设备配对
 
-[R20](../requirements.md#可追踪需求)沿用同一个受监督的内置 Codex 进程和已配对设备身份。Mac 单独设置 ChatGPT 登录、官方 API Key 或自定义 provider；手机和 relay 不能指定 provider、地址、认证命令或凭据。不导入用户整个 `~/.codex`、Shell 环境、MCP 服务器配置或现有凭据。选择第三方前确认目的地：模型请求可能包含提示、上下文和工具输出。原生 Codex 当前要求 Responses API；仅支持 Chat Completions 的接口不按兼容计，语音和其他能力独立验证。
+[R20](../requirements.md#可追踪需求)要求 Munie 沿用用户在 Mac Codex 中设置的 ChatGPT、官方 API Key 或兼容 provider，不维护另一份表单或凭据。受监督的原生进程读取 Codex 配置；Munie 不复制整个配置目录、不执行登录 Shell、不读取或转发凭据，手机和 relay 不能更改 provider 或地址。发送到第三方的模型请求可能包含提示、上下文和工具输出。仅支持 Chat Completions 的接口不按当前 Responses API 兼容计，语音等能力独立验收。
 
-官方 Key 先验证原生 API Key 登录与仅钥匙串存储；自定义 provider 需要独立作用域，不能转发 ChatGPT 登录或官方 Key。生产路径只接受经标准校验的 HTTPS，且须验证重定向不会转发请求体或凭据。Shell 环境剔除不覆盖 MCP 或任意宿主子进程；在单独验证凭据交付边界前，不把测试用环境变量方案投入产品。远端错误和日志也需脱敏，不能把上游任意正文作为可透传诊断。
+真实开启手机任务前，需验证凭据隔离、MCP/插件钩子边界、HTTPS 和重定向不会将数据发到未经授权的目的地。只在交互 Shell 中存在的临时凭据不是已支持入口。远端错误和日志只保留脱敏状态，不透传上游任意正文。
 
-更换 provider 须明确确认，不隐式改投其他服务、不自动重试不确定的 turn。先停妥原生任务或拒绝切换；保留配对、项目、已有 thread/turn 历史。未证实兼容的旧会话可读，但不默认把它的上下文送往新 provider。连接就绪、模型服务认证和实际任务完成分别显示和验收。
+用户在 Codex 中更换 provider，不需要在 Munie 重复确认设置或重新配对。不自动重试不确定的 turn，不静默把已有会话的上下文发往新 provider。连接就绪、模型服务认证和实际任务完成分别显示和验收。
 
 <a id="task-state-contract"></a>
 

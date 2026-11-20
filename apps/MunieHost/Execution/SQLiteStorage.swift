@@ -9,6 +9,7 @@ final class SQLiteStorage {
   private let directoryURL: URL
   private var directoryDescriptor: Int32 = -1
   private var ownerDescriptor: Int32 = -1
+  private var ownsFileLock = false
   private var databaseDescriptor: Int32 = -1
   private var database: OpaquePointer?
 
@@ -27,6 +28,7 @@ final class SQLiteStorage {
         if errno == EWOULDBLOCK || errno == EAGAIN { throw SubmissionError.storeBusy }
         throw SubmissionError.invalidStorage
       }
+      ownsFileLock = true
       databaseDescriptor = try openPrivateFile("submissions.sqlite3")
       try validateSidecars()
       try validatePaths()
@@ -266,8 +268,13 @@ final class SQLiteStorage {
   private func closeResources() {
     if let database { sqlite3_close_v2(database) }
     database = nil
-    for descriptor in [databaseDescriptor, ownerDescriptor, directoryDescriptor]
-    where descriptor >= 0 {
+    if databaseDescriptor >= 0 { close(databaseDescriptor) }
+    if ownsFileLock {
+      // A duplicated descriptor can keep the flock alive after close, even with O_CLOEXEC.
+      flock(ownerDescriptor, LOCK_UN)
+      ownsFileLock = false
+    }
+    for descriptor in [ownerDescriptor, directoryDescriptor] where descriptor >= 0 {
       close(descriptor)
     }
     databaseDescriptor = -1

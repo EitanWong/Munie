@@ -1,3 +1,4 @@
+// Munie modification: exercise capped rollout attachment with a controlled poll clock.
 // FILE: rollout-live-mirror.test.js
 // Purpose: Verifies desktop-origin rollout replay/live tailing emits thinking and tool-call notifications for iPhone only.
 // Layer: Unit test

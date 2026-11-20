@@ -1,8 +1,117 @@
+diff --git a/codex-rs/app-server-protocol/src/protocol/v1.rs b/codex-rs/app-server-protocol/src/protocol/v1.rs
+index 7d05fb1..db37f48 100644
+--- a/codex-rs/app-server-protocol/src/protocol/v1.rs
++++ b/codex-rs/app-server-protocol/src/protocol/v1.rs
+@@ -81,6 +81,10 @@ pub struct InitializeResponse {
+     /// Operating system for the running app-server target, for example
+     /// `"macos"`, `"linux"`, or `"windows"`.
+     pub platform_os: String,
++    // Munie modification: only the restricted stdio process supplies this marker.
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub munie_stdio_policy_version: Option<u8>,
+ }
+ 
+ #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+diff --git a/codex-rs/app-server-transport/src/transport/mod.rs b/codex-rs/app-server-transport/src/transport/mod.rs
+index 232ce94..5e35418 100644
+--- a/codex-rs/app-server-transport/src/transport/mod.rs
++++ b/codex-rs/app-server-transport/src/transport/mod.rs
+@@ -383,6 +383,7 @@ mod tests {
+                     codex_home,
+                     platform_family: "unix".to_string(),
+                     platform_os: "linux".to_string(),
++                    munie_stdio_policy_version: None,
+                 },
+             )),
+         });
+diff --git a/codex-rs/app-server-transport/src/transport/remote_control/segment_tests.rs b/codex-rs/app-server-transport/src/transport/remote_control/segment_tests.rs
+index 3b2406b..7b36b96 100644
+--- a/codex-rs/app-server-transport/src/transport/remote_control/segment_tests.rs
++++ b/codex-rs/app-server-transport/src/transport/remote_control/segment_tests.rs
+@@ -140,6 +140,7 @@ fn invalid_response_becomes_remote_control_jsonrpc_error() {
+                     codex_home,
+                     platform_family: "unix".to_string(),
+                     platform_os: "linux".to_string(),
++                    munie_stdio_policy_version: None,
+                 })),
+             })),
+         },
+diff --git a/codex-rs/app-server-transport/src/transport/remote_control/tests.rs b/codex-rs/app-server-transport/src/transport/remote_control/tests.rs
+index 490ac1e..a3563ca 100644
+--- a/codex-rs/app-server-transport/src/transport/remote_control/tests.rs
++++ b/codex-rs/app-server-transport/src/transport/remote_control/tests.rs
+@@ -1892,6 +1892,7 @@ async fn remote_control_http_mode_enrolls_before_connecting() {
+                             codex_home: codex_home.path().abs(),
+                             platform_family: "test-family".to_string(),
+                             platform_os: "test-os".to_string(),
++                            munie_stdio_policy_version: None,
+                         },
+                     ),
+                 ),
+diff --git a/codex-rs/app-server/src/config_manager.rs b/codex-rs/app-server/src/config_manager.rs
+index 21d1780..d2070c0 100644
+--- a/codex-rs/app-server/src/config_manager.rs
++++ b/codex-rs/app-server/src/config_manager.rs
+@@ -39,6 +39,29 @@ pub(crate) mod application_network;
+ )]
+ pub(crate) struct ModelProviderRequirementsChanged;
+ 
++#[derive(Debug, thiserror::Error)]
++#[error("Munie's restricted stdio mode cannot enforce this managed hook or MCP policy")]
++struct RestrictedExtensionRequirementsConflict;
++
++fn verify_restricted_extension_requirements(config: &Config) -> std::io::Result<()> {
++    if !codex_protocol::shell_environment::external_extensions_disabled_for_process() {
++        return Ok(());
++    }
++    let requirements = config.config_layer_stack.requirements();
++    if requirements.managed_hooks.is_some()
++        || requirements
++            .mcp_servers
++            .as_ref()
++            .is_some_and(|allowlist| !allowlist.value.is_empty())
++    {
++        return Err(std::io::Error::new(
++            std::io::ErrorKind::PermissionDenied,
++            RestrictedExtensionRequirementsConflict,
++        ));
++    }
++    Ok(())
++}
++
+ /// Shared app-server entry point for loading effective Codex configuration.
+ #[derive(Clone)]
+ pub(crate) struct ConfigManager {
+@@ -326,6 +349,7 @@ impl ConfigManager {
+             Ok(config) => Ok(config),
+             Err(error)
+                 if self.strict_config
++                    || codex_protocol::shell_environment::external_extensions_disabled_for_process()
+                     || crate::is_unsupported_untrusted_approval_policy_error(&error) =>
+             {
+                 Err(error)
+@@ -351,6 +375,7 @@ impl ConfigManager {
+             .cloud_config_bundle(CloudConfigBundleLoader::default())
+             .build()
+             .await?;
++        verify_restricted_extension_requirements(&config)?;
+         self.apply_network_policy(&mut config);
+         self.apply_runtime_feature_enablement(&mut config);
+         self.apply_arg0_paths(&mut config);
+@@ -464,6 +489,7 @@ impl ConfigManager {
+             .build()
+             .await;
+         let mut config = result?;
++        verify_restricted_extension_requirements(&config)?;
+         self.check_application_policy_load(&policy_load)?;
+         self.apply_network_policy(&mut config);
+         self.apply_runtime_feature_enablement(&mut config);
 diff --git a/codex-rs/app-server/src/lib.rs b/codex-rs/app-server/src/lib.rs
-index 896aa66..c8b68c0 100644
+index 896aa66..56b2b67 100644
 --- a/codex-rs/app-server/src/lib.rs
 +++ b/codex-rs/app-server/src/lib.rs
-@@ -504,6 +504,18 @@ pub async fn run_main_with_transport_options(
+@@ -504,6 +504,23 @@ pub async fn run_main_with_transport_options(
      auth: WebsocketAuthSettings,
      runtime_options: AppServerRuntimeOptions,
  ) -> IoResult<AppServerExit> {
@@ -11,8 +120,13 @@ index 896aa66..c8b68c0 100644
 +    if std::env::var_os("MUNIE_CODEX_DISABLE_EXTERNAL_EXTENSIONS").as_deref()
 +        == Some(std::ffi::OsStr::new("1"))
 +    {
-+        if !matches!(&transport, AppServerTransport::Stdio) {
-+            return Err(std::io::Error::new(ErrorKind::InvalidInput, "Munie policy requires stdio"));
++        if !matches!(&transport, AppServerTransport::Stdio)
++            || runtime_options.code_mode_host_transport != CodeModeHostTransport::Local
++        {
++            return Err(std::io::Error::new(
++                ErrorKind::InvalidInput,
++                "Munie policy requires stdio and a local code-mode host",
++            ));
 +        }
 +        codex_protocol::shell_environment::disable_external_extensions_for_process();
 +        runtime_options.plugin_startup_tasks = PluginStartupTasks::Skip;
@@ -21,6 +135,55 @@ index 896aa66..c8b68c0 100644
      #[cfg(target_os = "windows")]
      let _registered_core = codex_windows_sandbox::registered_core_requested();
      let managed_daemon = matches!(&transport, AppServerTransport::UnixSocket { .. })
+@@ -566,7 +583,9 @@ pub async fn run_main_with_transport_options(
+             return Err(err);
+         }
+         Err(err) => {
+-            if strict_config {
++            if strict_config
++                || codex_protocol::shell_environment::external_extensions_disabled_for_process()
++            {
+                 return Err(err);
+             }
+ 
+diff --git a/codex-rs/app-server/src/request_processors/initialize_processor.rs b/codex-rs/app-server/src/request_processors/initialize_processor.rs
+index d68a29d..f4bd942 100644
+--- a/codex-rs/app-server/src/request_processors/initialize_processor.rs
++++ b/codex-rs/app-server/src/request_processors/initialize_processor.rs
+@@ -215,6 +215,9 @@ impl InitializeRequestProcessor {
+             codex_home,
+             platform_family: std::env::consts::FAMILY.to_string(),
+             platform_os: std::env::consts::OS.to_string(),
++            munie_stdio_policy_version:
++                codex_protocol::shell_environment::external_extensions_disabled_for_process()
++                    .then_some(1),
+         };
+ 
+         self.outgoing
+diff --git a/codex-rs/app-server/tests/suite/v2/initialize.rs b/codex-rs/app-server/tests/suite/v2/initialize.rs
+index 1ba0f26..433bf18 100644
+--- a/codex-rs/app-server/tests/suite/v2/initialize.rs
++++ b/codex-rs/app-server/tests/suite/v2/initialize.rs
+@@ -59,7 +59,9 @@ async fn initialize_uses_client_info_name_as_originator() -> Result<()> {
+         codex_home: response_codex_home,
+         platform_family,
+         platform_os,
++        munie_stdio_policy_version,
+     } = to_response::<InitializeResponse>(response)?;
++    assert_eq!(munie_stdio_policy_version, None);
+ 
+     assert!(user_agent.starts_with("codex_vscode/"));
+     assert_eq!(response_codex_home, expected_codex_home);
+@@ -171,7 +173,9 @@ async fn initialize_respects_originator_override_env_var() -> Result<()> {
+         codex_home: response_codex_home,
+         platform_family,
+         platform_os,
++        munie_stdio_policy_version,
+     } = to_response::<InitializeResponse>(response)?;
++    assert_eq!(munie_stdio_policy_version, None);
+ 
+     assert!(user_agent.starts_with("codex_originator_via_env_var/"));
+     assert_eq!(response_codex_home, expected_codex_home);
 diff --git a/codex-rs/codex-mcp/src/connection_manager.rs b/codex-rs/codex-mcp/src/connection_manager.rs
 index 7aaba94..70ab57e 100644
 --- a/codex-rs/codex-mcp/src/connection_manager.rs

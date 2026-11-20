@@ -54,6 +54,9 @@ def run(binary, loader, restricted):
                 "clientInfo": loader.CLIENT, "capabilities": {"experimentalApi": True}
             })
             assert Path(initialized["codexHome"]).resolve() == home
+            version = initialized.get("munieStdioPolicyVersion")
+            assert version == (1 if restricted else None), "Native policy acknowledgment mismatch"
+            print(json.dumps({"restricted": restricted, "nativePolicyVersion": version}))
             peer.send({"method": "initialized"})
             for index, model, marker in ((2, "fixture-a", first), (4, "fixture-b", None)):
                 if marker is None:

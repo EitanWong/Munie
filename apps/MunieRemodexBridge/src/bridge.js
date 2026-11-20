@@ -48,6 +48,7 @@ const { createNotificationsHandler } = require("./notifications-handler");
 const { createVoiceHandler, resolveVoiceAuth } = require("./voice-handler");
 const {
   composeSanitizedAuthStatusFromSettledResults,
+  redactNativeProviderError,
 } = require("./account-status");
 const { createBridgePackageVersionStatusReader } = require("./package-version-status");
 const { createPushNotificationServiceClient } = require("./push-notification-service-client");
@@ -1334,7 +1335,14 @@ function startBridge({
   function handleCodexMessage(message) {
     // Streaming deltas make this the hottest path in the bridge: parse the
     // envelope once and share the read-only object with every observer.
-    const parsedMessage = parseBridgeMessage(message);
+    let parsedMessage = parseBridgeMessage(message);
+    if (config.localOpenAiApiKeyMode === true) {
+      const sanitized = redactNativeProviderError(parsedMessage);
+      if (sanitized !== parsedMessage) {
+        parsedMessage = sanitized;
+        message = JSON.stringify(sanitized);
+      }
+    }
     if (turnCancellation.observe(parsedMessage)) return;
     if (configuredRoot() && parsedMessage?.id != null && isRelayBoundServerRequestMethod(parsedMessage.method)) {
       projectResponseGate.remember(parsedMessage.id);
@@ -1420,7 +1428,9 @@ function startBridge({
       }
       try {
         if (!incoming?.method && incoming?.id != null) projectResponseGate.consume(incoming.id);
-        rawMessage = JSON.stringify(bindNativeRequest(incoming, projectRoot));
+        rawMessage = JSON.stringify(bindNativeRequest(incoming, projectRoot, {
+          openAiApiKeyMode: config.localOpenAiApiKeyMode === true,
+        }));
       } catch (error) {
         if (incoming?.id != null) sendApplicationResponse(createJsonRpcErrorResponse(incoming.id, error, "project_not_authorized"));
         return;
@@ -2047,8 +2057,8 @@ function startBridge({
         refreshToken: false,
       }),
       sendCodexRequest("getAuthStatus", {
-        includeToken: true,
-        refreshToken: true,
+        includeToken: config.localOpenAiApiKeyMode !== true,
+        refreshToken: config.localOpenAiApiKeyMode !== true,
       }),
       readBridgePackageVersionStatus(),
     ]);
@@ -2772,10 +2782,18 @@ function startBridge({
     } : null,
     // Local process control only. These functions are never registered as relay RPC methods.
     localAccount: initializeForLocalAccount ? {
+      async setOpenAiApiKey(apiKey) {
+        if (config.localOpenAiApiKeyMode !== true) throw new Error("The Mac is not using an API key.");
+        const result = await sendCodexRequest("account/login/start", { type: "apiKey", apiKey }, { timeoutMs: 10_000 });
+        if (result?.type !== "apiKey") throw new Error("Codex did not accept the API key.");
+      },
       async read() {
         const [accountReadResult, authStatusResult] = await Promise.allSettled([
           sendCodexRequest("account/read", { refreshToken: false }, { timeoutMs: 10_000 }),
-          sendCodexRequest("getAuthStatus", { includeToken: true, refreshToken: true }, { timeoutMs: 10_000 }),
+          sendCodexRequest("getAuthStatus", {
+            includeToken: config.localOpenAiApiKeyMode !== true,
+            refreshToken: config.localOpenAiApiKeyMode !== true,
+          }, { timeoutMs: 10_000 }),
         ]);
         return composeSanitizedAuthStatusFromSettledResults({
           accountReadResult, authStatusResult,

@@ -9,6 +9,27 @@ const { version: bridgePackageVersion = "" } = require("../package.json");
 
 // ─── Status composition ─────────────────────────────────────
 
+function redactNativeProviderError(frame) {
+  if (!frame || typeof frame !== "object") return frame;
+  const diagnostic = "The model service request failed. Check the API configuration on this Mac.";
+  const redact = (error) => ({
+    message: diagnostic,
+    additionalDetails: null,
+    codexErrorInfo: error.codexErrorInfo === "unauthorized" ? "unauthorized" : null,
+  });
+  if (frame.method === "error" && frame.params?.error) {
+    return { ...frame, params: { ...frame.params, error: redact(frame.params.error) } };
+  }
+  if (frame.method === "turn/completed" && frame.params?.turn?.error) {
+    const turn = frame.params.turn;
+    return { ...frame, params: { ...frame.params, turn: { ...turn, error: redact(turn.error) } } };
+  }
+  if (!frame.method && frame.error) {
+    return { ...frame, error: { code: Number.isInteger(frame.error.code) ? frame.error.code : -32603, message: diagnostic } };
+  }
+  return frame;
+}
+
 function composeAccountStatus({
   accountRead = null,
   authStatus = null,
@@ -27,10 +48,11 @@ function composeAccountStatus({
   ]) || null;
   // Voice transcription now uses ChatGPT session auth only; API-key tokens must not advertise voice readiness.
   const tokenReady = Boolean(authToken) && isChatGPTAuthMethod(authMethod);
+  const apiKeyConfigured = account?.type === "apiKey" && authMethod === "apiKey";
   const requiresOpenaiAuth = Boolean(accountRead?.requiresOpenaiAuth || authStatus?.requiresOpenaiAuth);
   const hasPriorLoginContext = hasAccountLogin || Boolean(authMethod);
-  const needsReauth = !loginInFlight && requiresOpenaiAuth && hasPriorLoginContext && !tokenReady;
-  const isAuthenticated = !needsReauth && (tokenReady || hasAccountLogin);
+  const needsReauth = !loginInFlight && requiresOpenaiAuth && hasPriorLoginContext && !tokenReady && !apiKeyConfigured;
+  const isAuthenticated = !needsReauth && (tokenReady || hasAccountLogin || apiKeyConfigured);
   const status = isAuthenticated
     ? "authenticated"
     : (loginInFlight ? "pending_login" : (needsReauth ? "expired" : "not_logged_in"));
@@ -181,6 +203,7 @@ function deriveHostCapabilities(platform, allowPackageUpdates) {
 }
 
 module.exports = {
+  redactNativeProviderError,
   composeAccountStatus,
   composeSanitizedAuthStatusFromSettledResults,
   redactAuthStatus,

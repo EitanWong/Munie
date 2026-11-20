@@ -127,6 +127,8 @@ struct DesktopHostLifecycleTests {
     let controller = makeController(runtime)
     await controller.start()
     #expect(await runtime.methods == ["status", "project/set", "start", "account/read"])
+    #expect(await runtime.startParameters == [.object([:])])
+    #expect(controller.modelProvider == .chatGPT)
     #expect(controller.projectName == "My Project")
     #expect(await controller.stop())
   }
@@ -166,14 +168,138 @@ struct DesktopHostLifecycleTests {
     #expect(await controller.stop())
   }
 
-  private func makeController(_ runtime: DesktopRuntimeFixture) -> DesktopHostController {
+  @Test func savedAPIKeyOnlyEntersLocalStartParameters() async throws {
+    let runtime = DesktopRuntimeFixture()
+    let store = DesktopOpenAIKeyStoreFixture()
+    let controller = makeController(runtime, openAIKeyStore: store)
+    let key = "synthetic-official-key"
+    #expect(await controller.saveOpenAIAPIKey(key))
+    #expect(await runtime.launchCount == 0)
+    #expect(controller.modelProvider == .openAIAPIKey)
+    await controller.start()
+    #expect(await runtime.startParameters == [.object(["apiKey": .string(key)])])
+    #expect(controller.modelProvider == .openAIAPIKey)
+    #expect(controller.accountState == .unknown)
+    #expect(controller.loginURL == nil)
+    #expect(controller.nearbyReady)
+    let pairing = try await controller.pairingPayload()
+    #expect(!String(decoding: pairing, as: UTF8.self).contains(key))
+    await controller.refresh()
+    #expect(await controller.beginLogin() == nil)
+    await controller.cancelLogin()
+    #expect(
+      await runtime.methods == ["status", "start", "pairing/get", "status"])
+    #expect(await controller.stop())
+    #expect(await controller.removeOpenAIAPIKey())
+    #expect(controller.modelProvider == .chatGPT)
+    #expect(await runtime.launchCount == 1)
+    await controller.start()
+    #expect(await runtime.startParameters.last == .object([:]))
+    #expect(await controller.stop())
+  }
+
+  @Test func keyChangesRequireConfirmedStopAndKeepPriorSelectionOnFailure() async {
+    let runtime = DesktopRuntimeFixture(stopFailures: 1)
+    let store = DesktopOpenAIKeyStoreFixture()
+    let controller = makeController(runtime, openAIKeyStore: store)
+    await controller.start()
+    #expect(!controller.canChangeModelProvider)
+    #expect(await controller.saveOpenAIAPIKey("synthetic-replacement") == false)
+    #expect(await controller.removeOpenAIAPIKey() == false)
+    #expect(await controller.stop() == false)
+    #expect(!controller.canChangeModelProvider)
+    #expect(await controller.saveOpenAIAPIKey("synthetic-replacement") == false)
+    #expect(await controller.stop())
+    #expect(await controller.saveOpenAIAPIKey("synthetic-original"))
+    await store.failWrites()
+    #expect(await controller.saveOpenAIAPIKey("synthetic-replacement") == false)
+    #expect(await controller.removeOpenAIAPIKey() == false)
+    #expect(controller.modelProvider == .openAIAPIKey)
+    #expect(controller.modelProviderError == "Munie could not update the API key in the Keychain.")
+    #expect(await store.savedKey() == "synthetic-original")
+  }
+
+  @Test func providerOperationAndStartupCannotOverlap() async {
+    let runtime = DesktopRuntimeFixture()
+    let store = DesktopOpenAIKeyStoreFixture(blockSaves: true)
+    let controller = makeController(runtime, openAIKeyStore: store)
+    let save = Task { await controller.saveOpenAIAPIKey("synthetic-official-key") }
+    await store.waitForOperation()
+    #expect(controller.changingModelProvider)
+    #expect(!controller.canStart)
+    await controller.start()
+    #expect(await runtime.launchCount == 0)
+    #expect(await controller.stop() == false)
+    #expect(await controller.removeOpenAIAPIKey() == false)
+    await store.releaseOperation()
+    #expect(await save.value)
+    #expect(controller.canStart)
+  }
+
+  @Test func stoppingDuringKeyReadPreventsLateCredentialLaunch() async {
+    let runtime = DesktopRuntimeFixture()
+    let store = DesktopOpenAIKeyStoreFixture(
+      key: DesktopOpenAIKey(validating: "synthetic-official-key"), blockReads: true)
+    let controller = makeController(runtime, openAIKeyStore: store)
+    let start = Task { await controller.start() }
+    await store.waitForOperation()
+    #expect(!controller.canChangeModelProvider)
+    let stop = Task { await controller.stop() }
+    while controller.serviceState != .stopping { await Task.yield() }
+    await store.releaseOperation()
+    await start.value
+    #expect(await stop.value)
+    #expect(await runtime.launchCount == 0)
+    #expect(await runtime.startParameters.isEmpty)
+    #expect(controller.serviceState == .stopped)
+  }
+
+  @Test func unreadableKeychainDoesNotFallBackToChatGPT() async {
+    let runtime = DesktopRuntimeFixture()
+    let controller = makeController(
+      runtime, openAIKeyStore: DesktopOpenAIKeyStoreFixture(failReads: true))
+    await controller.start()
+    #expect(controller.serviceState == .failed)
+    #expect(controller.modelProvider == .unknown)
+    #expect(controller.modelProviderError == "Munie could not read the API key from the Keychain.")
+    #expect(await runtime.launchCount == 0)
+  }
+
+  @Test func rejectedLocalKeyKeepsSelectionWithoutEchoingErrorPayload() async {
+    let testKey = "synthetic-official-key"
+    let runtime = DesktopRuntimeFixture(
+      startError: DesktopHostControlError(code: "api_key_unavailable", message: testKey))
+    let store = DesktopOpenAIKeyStoreFixture(key: DesktopOpenAIKey(validating: testKey))
+    let controller = makeController(runtime, openAIKeyStore: store)
+    await controller.start()
+    #expect(controller.serviceState == .failed)
+    #expect(controller.modelProvider == .openAIAPIKey)
+    #expect(
+      controller.modelProviderError == "Munie could not load the official API key into Codex.")
+    #expect(controller.error == nil)
+    #expect(controller.canChangeModelProvider)
+    #expect(await store.savedKey() == testKey)
+  }
+
+  private func makeController(
+    _ runtime: DesktopRuntimeFixture,
+    openAIKeyStore: any DesktopOpenAIKeyStore = DesktopOpenAIKeyStoreFixture()
+  ) -> DesktopHostController {
     DesktopHostController(
       makeRuntime: { runtime },
-      defaultProject: { URL(filePath: "/fixture/My Project", directoryHint: .isDirectory) })
+      defaultProject: { URL(filePath: "/fixture/My Project", directoryHint: .isDirectory) },
+      openAIKeyStore: openAIKeyStore)
   }
 }
 
 struct DesktopHostProtocolTests {
+  @Test func keySyntaxMatchesTheBoundedLocalProtocol() {
+    #expect(DesktopOpenAIKey(validating: String(repeating: "~", count: 512)) != nil)
+    for value in ["", "key ", "key\n", "密钥", String(repeating: "x", count: 513)] {
+      #expect(DesktopOpenAIKey(validating: value) == nil)
+    }
+  }
+
   @Test func ownershipMustMatchTheActualLocalHelper() {
     let trusted: DesktopJSON = .object([
       "ownership": .object(["ownerPid": .number(42), "groupId": .number(99)])
@@ -299,8 +425,9 @@ private actor DesktopRuntimeFixture: DesktopHostRuntime {
   private(set) var launchCount = 0
   private(set) var stopCount = 0
   private(set) var methods: [String] = []
+  private(set) var startParameters: [DesktopJSON] = []
   private var stopFailures: Int
-  private let failStart: Bool
+  private let startError: (any Error)?
   private var blockStart: Bool
   private var hasProject: Bool
   private var isRunning = false
@@ -311,10 +438,10 @@ private actor DesktopRuntimeFixture: DesktopHostRuntime {
 
   init(
     stopFailures: Int = 0, failStart: Bool = false, blockStart: Bool = false,
-    hasProject: Bool = true
+    hasProject: Bool = true, startError: (any Error)? = nil
   ) {
     self.stopFailures = stopFailures
-    self.failStart = failStart
+    self.startError = startError ?? (failStart ? DesktopHostFailure.notRunning : nil)
     self.blockStart = blockStart
     self.hasProject = hasProject
   }
@@ -330,13 +457,14 @@ private actor DesktopRuntimeFixture: DesktopHostRuntime {
     methods.append(method)
     if method == "project/set" { hasProject = true }
     if method == "start" {
+      startParameters.append(params)
       startRequested = true
       for waiter in startWaiters { waiter.resume() }
       startWaiters.removeAll()
       if blockStart {
         await withCheckedContinuation { startGate = $0 }
       }
-      if failStart { throw DesktopHostFailure.notRunning }
+      if let startError { throw startError }
       isRunning = true
     }
     if method == "pairing/get" {
@@ -376,4 +504,63 @@ private actor DesktopRuntimeFixture: DesktopHostRuntime {
   }
 
   func emit(_ event: DesktopHostEvent) { events?.yield(event) }
+}
+
+actor DesktopOpenAIKeyStoreFixture: DesktopOpenAIKeyStore {
+  private var key: DesktopOpenAIKey?
+  private let blockReads: Bool
+  private let blockSaves: Bool
+  private let failReads: Bool
+  private var failMutations = false
+  private var operation: CheckedContinuation<Void, Never>?
+  private var operationWaiter: CheckedContinuation<Void, Never>?
+
+  init(
+    key: DesktopOpenAIKey? = nil, blockReads: Bool = false,
+    blockSaves: Bool = false, failReads: Bool = false
+  ) {
+    self.key = key
+    self.blockReads = blockReads
+    self.blockSaves = blockSaves
+    self.failReads = failReads
+  }
+
+  func read() async throws -> DesktopOpenAIKey? {
+    if blockReads { await suspendOperation() }
+    if failReads { throw DesktopOpenAIKeyStoreFailure.unavailable }
+    return key
+  }
+
+  func save(_ key: DesktopOpenAIKey) async throws {
+    if blockSaves { await suspendOperation() }
+    if failMutations { throw DesktopOpenAIKeyStoreFailure.unavailable }
+    self.key = key
+  }
+
+  func remove() throws {
+    if failMutations { throw DesktopOpenAIKeyStoreFailure.unavailable }
+    key = nil
+  }
+
+  func savedKey() -> String? { key?.value }
+
+  func failWrites() { failMutations = true }
+
+  func waitForOperation() async {
+    if operation != nil { return }
+    await withCheckedContinuation { operationWaiter = $0 }
+  }
+
+  func releaseOperation() {
+    operation?.resume()
+    operation = nil
+  }
+
+  private func suspendOperation() async {
+    await withCheckedContinuation { continuation in
+      operation = continuation
+      operationWaiter?.resume()
+      operationWaiter = nil
+    }
+  }
 }

@@ -1,6 +1,278 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Munie could not read the API key from the Keychain.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Munie could not read the API key from the Keychain."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Munie 无法从钥匙串读取 API 密钥。"
+          }
+        }
+      }
+    },
+    "Munie could not load the official API key into Codex.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Munie could not load the official API key into Codex."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Munie 无法将 OpenAI 官方 API 密钥载入 Codex。"
+          }
+        }
+      }
+    },
+    "Enter an API key without spaces or line breaks.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter an API key without spaces or line breaks."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请输入不含空格或换行的 API 密钥。"
+          }
+        }
+      }
+    },
+    "Munie could not update the API key in the Keychain.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Munie could not update the API key in the Keychain."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Munie 无法更新钥匙串中的 API 密钥。"
+          }
+        }
+      }
+    },
+    "Remove OpenAI API Key?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove OpenAI API Key?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除 OpenAI API 密钥？"
+          }
+        }
+      }
+    },
+    "Remove OpenAI API Key": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove OpenAI API Key"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除 OpenAI API 密钥"
+          }
+        }
+      }
+    },
+    "This removes the saved key and switches to ChatGPT. API-key conversations are kept.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This removes the saved key and switches to ChatGPT. API-key conversations are kept."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这会移除已保存的密钥并切回 ChatGPT。使用 API 密钥创建的会话将保留。"
+          }
+        }
+      }
+    },
+    "OpenAI API key configured": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OpenAI API key configured"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已配置 OpenAI API 密钥"
+          }
+        }
+      }
+    },
+    "A configured key has not been verified with OpenAI.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A configured key has not been verified with OpenAI."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此密钥尚未通过 OpenAI 验证。"
+          }
+        }
+      }
+    },
+    "Replace OpenAI API Key…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Replace OpenAI API Key…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "替换 OpenAI API 密钥…"
+          }
+        }
+      }
+    },
+    "Use OpenAI API Key…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use OpenAI API Key…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用 OpenAI API 密钥…"
+          }
+        }
+      }
+    },
+    "Switch to ChatGPT…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch to ChatGPT…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切回 ChatGPT…"
+          }
+        }
+      }
+    },
+    "Stop Munie before changing the sign-in method.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop Munie before changing the sign-in method."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更换登录方式之前，请先停止 Munie。"
+          }
+        }
+      }
+    },
+    "OpenAI API key": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OpenAI API key"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OpenAI API 密钥"
+          }
+        }
+      }
+    },
+    "The key is saved in this Mac’s Keychain. Each sign-in method keeps its own conversations.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The key is saved in this Mac’s Keychain. Each sign-in method keeps its own conversations."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "密钥保存在此 Mac 的钥匙串中。每种登录方式分别保留会话。"
+          }
+        }
+      }
+    },
+    "Cancel": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消"
+          }
+        }
+      }
+    },
+    "Save API Key": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save API Key"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存 API 密钥"
+          }
+        }
+      }
+    },
     "Mac service stopped": {
       "localizations": {
         "en": {

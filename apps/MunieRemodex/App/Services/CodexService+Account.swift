@@ -24,6 +24,7 @@ enum CodexGPTAccountStatus: String, Codable, Sendable {
 
 enum CodexGPTAuthMethod: String, Codable, Sendable {
     case chatgpt
+    case apiKey
 }
 
 struct CodexGPTAccountSnapshot: Codable, Equatable, Sendable {
@@ -50,11 +51,11 @@ struct CodexGPTAccountSnapshot: Codable, Equatable, Sendable {
     }
 
     var canLogout: Bool {
-        isAuthenticated || needsReauth
+        authMethod != .apiKey && (isAuthenticated || needsReauth)
     }
 
     var isVoiceTokenReady: Bool {
-        tokenReady ?? isAuthenticated
+        authMethod != .apiKey && (tokenReady ?? isAuthenticated)
     }
 
     var statusLabel: String {
@@ -85,7 +86,7 @@ struct CodexGPTAccountSnapshot: Codable, Equatable, Sendable {
         if let expiresAt {
             parts.append(Self.expiryFormatter.string(from: expiresAt))
         }
-        if isAuthenticated && !isVoiceTokenReady {
+        if authMethod != .apiKey && isAuthenticated && !isVoiceTokenReady {
             parts.append("Voice syncing")
         }
         return parts.isEmpty ? nil : parts.joined(separator: " • ")
@@ -992,18 +993,18 @@ extension CodexService {
         let hasPendingLogin = bridgeReportedPendingLogin
             || (currentPendingGPTLogin() != nil && resolvedStatus != .authenticated && resolvedStatus != .expired)
 
-        let tokenReady = resolvedTokenReady(
+        let tokenReady = legacyAuthMethod != .apiKey && resolvedTokenReady(
             from: payloadObject,
             status: resolvedStatus,
             needsReauth: needsReauth,
             hasLegacyAuthToken: hasLegacyAuthToken
         )
-        let tokenUnavailableSince = resolvedTokenUnavailableSince(
+        let tokenUnavailableSince = legacyAuthMethod == .apiKey ? nil : resolvedTokenUnavailableSince(
             status: resolvedStatus,
             needsReauth: needsReauth,
             tokenReady: tokenReady
         )
-        let escalatedNeedsReauth = resolvedNeedsReauth(
+        let escalatedNeedsReauth = legacyAuthMethod == .apiKey ? needsReauth : resolvedNeedsReauth(
             baseNeedsReauth: needsReauth,
             status: resolvedStatus,
             tokenReady: tokenReady,
@@ -1197,6 +1198,8 @@ extension CodexService {
         switch value {
         case "chatgpt", "chat_gpt", "chatgptauthtokens":
             return .chatgpt
+        case "apikey", "api_key":
+            return .apiKey
         default:
             return nil
         }

@@ -97,6 +97,31 @@ final class CodexGPTAccountTests: XCTestCase {
         XCTAssertNil(service.gptAccountErrorMessage)
     }
 
+    func testApiKeyModeDoesNotEscalateMissingVoiceTokenOrOfferRemoteLogout() async {
+        let service = makeService()
+        service.isConnected = true
+        service.gptAccountSnapshot.needsReauth = true
+        service.gptAccountSnapshot.tokenUnavailableSince = Date(timeIntervalSinceNow: -120)
+        service.requestTransportOverride = { _, _ in
+            RPCMessage(
+                id: .string(UUID().uuidString),
+                result: .object([
+                    "status": .string("authenticated"),
+                    "authMethod": .string("apiKey"),
+                    "needsReauth": .bool(false),
+                    "tokenReady": .bool(false),
+                ]),
+                includeJSONRPC: false
+            )
+        }
+        await service.refreshGPTAccountState()
+        XCTAssertEqual(service.gptAccountSnapshot.authMethod, .apiKey)
+        XCTAssertTrue(service.gptAccountSnapshot.isAuthenticated)
+        XCTAssertFalse(service.gptAccountSnapshot.isVoiceTokenReady)
+        XCTAssertFalse(service.gptAccountSnapshot.canLogout)
+        XCTAssertNil(service.gptAccountSnapshot.tokenUnavailableSince)
+    }
+
     func testRefreshGPTAccountStateFallsBackToLegacyGetAuthStatusPayload() async {
         let service = makeService()
         service.isConnected = true

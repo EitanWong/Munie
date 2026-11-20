@@ -97,6 +97,24 @@ test('the phone may start browser login but may not set credential material', ()
   assert.equal(bindNativeRequest(legacy, null), legacy);
 });
 
+test('OpenAI API mode permits read-only status but binds account and provider changes to the Mac', () => {
+  const options = { openAiApiKeyMode: true };
+  const root = fs.realpathSync(os.tmpdir());
+  for (const method of ['account/read', 'account/status/read', 'account/rateLimits/read', 'getAuthStatus']) {
+    assert.equal(bindNativeRequest({ method }, root, options).method, method);
+  }
+  for (const method of ['account/login/start', 'account/login/cancel', 'account/logout']) {
+    assert.throws(() => bindNativeRequest({ method, params: { type: 'chatgpt' } }, root, options),
+      /Change the account on this Mac/);
+  }
+  assert.throws(() => bindNativeRequest({
+    method: 'thread/start', params: { modelProvider: 'fixture-unselected' },
+  }, root, options), /Change the model provider on this Mac/);
+  assert.equal(bindNativeRequest({
+    method: 'thread/start', params: { modelProvider: 'openai' },
+  }, root, options).params.modelProvider, 'openai');
+});
+
 test('the public QR endpoint is independent of the bridge loopback connection', () => {
   const config = readBridgeConfig({ env: { REMODEX_RELAY: 'ws://127.0.0.1:9275/relay',
     REMODEX_PUBLIC_RELAY: 'wss://fixture.invalid:8443/relay' } });

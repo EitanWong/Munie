@@ -81,12 +81,20 @@ function validatePathParameters(params, root = configuredRoot()) {
   }
 }
 
-function bindNativeRequest(request, root = configuredRoot()) {
+function bindNativeRequest(request, root = configuredRoot(), { openAiApiKeyMode = false } = {}) {
   if (!root || !request?.method) return request;
   if (request.method.startsWith('desktop/') && request.method !== 'desktop/preferences/read') {
     throw new Error('This foreground launch does not authorize Desktop handoff, power changes or package updates.');
   }
   const params = { ...(request.params || {}) };
+  if (openAiApiKeyMode) {
+    if (request.method.startsWith("account/login/") || request.method === "account/logout") {
+      throw new Error("Change the account on this Mac.");
+    }
+    if (params.modelProvider != null && params.modelProvider !== "openai") {
+      throw new Error("Change the model provider on this Mac.");
+    }
+  }
   if (request.method === 'account/login/start'
       && (params.type !== 'chatgpt' || Object.keys(params).length !== 1)) {
     throw new Error("API keys and authentication tokens can only be set on this Mac.");

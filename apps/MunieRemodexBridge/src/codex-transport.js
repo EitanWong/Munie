@@ -206,8 +206,13 @@ function createCodexLaunchPlans({
       throw new Error("REMODEX_CODEX_BINARY must name an absolute executable file.");
     }
     fsImpl.accessSync(command, fs.constants.X_OK);
+    const accountOverrides = env.MUNIE_DESKTOP_OPENAI_API === "1" ? [
+      "-c", 'cli_auth_credentials_store="ephemeral"',
+      "-c", 'model_provider="openai"',
+      "-c", 'openai_base_url="https://api.openai.com/v1"',
+    ] : [];
     return [{ command, args: [...LOCAL_APP_SERVER_ARGS, "-c", 'approval_policy="on-request"',
-      "-c", 'sandbox_mode="workspace-write"'],
+      "-c", 'sandbox_mode="workspace-write"', ...accountOverrides],
       options: { ...sharedOptions, ...(env.REMODEX_PROJECT_ROOT ? { cwd: fsImpl.realpathSync(env.REMODEX_PROJECT_ROOT) } : {}) },
       description: `explicit Codex ${command}` }];
   }

@@ -6,6 +6,8 @@ struct DesktopHostView: View {
   @ObservedObject var nearby: NearbyPairingHost
   @State private var showingRemovePairing = false
   @State private var deviceToRemove: DesktopPairedDevice?
+  @State private var showingOpenAIKeyEditor = false
+  @State private var confirmingOpenAIKeyRemoval = false
 
   private var controller: DesktopHostController { coordinator.controller }
 
@@ -43,6 +45,22 @@ struct DesktopHostView: View {
         "This removes all current iPhone pairings and disconnects them. The Mac service restarts and active work may stop. Pair again to reconnect.",
         tableName: "Desktop")
     }
+    .sheet(isPresented: $showingOpenAIKeyEditor) {
+      DesktopOpenAIKeyEditor(controller: controller)
+    }
+    .confirmationDialog(
+      String(localized: "Remove OpenAI API Key?", table: "Desktop"),
+      isPresented: $confirmingOpenAIKeyRemoval,
+      titleVisibility: .visible
+    ) {
+      Button(String(localized: "Remove OpenAI API Key", table: "Desktop"), role: .destructive) {
+        Task { await controller.removeOpenAIAPIKey() }
+      }
+    } message: {
+      Text(
+        "This removes the saved key and switches to ChatGPT. API-key conversations are kept.",
+        tableName: "Desktop")
+    }
   }
 
   private var header: some View {
@@ -68,7 +86,16 @@ struct DesktopHostView: View {
     GroupBox {
       VStack(alignment: .leading, spacing: 10) {
         Text("Your account", tableName: "Desktop").font(.headline)
-        accountContent
+        if controller.modelProvider == .openAIAPIKey {
+          Label(
+            String(localized: "OpenAI API key configured", table: "Desktop"),
+            systemImage: "key")
+          Text("A configured key has not been verified with OpenAI.", tableName: "Desktop")
+            .font(.caption).foregroundStyle(.secondary)
+        } else {
+          accountContent
+        }
+        modelProviderControls
         Text(
           "Your Codex account stays on this Mac. Munie never sends account credentials to your iPhone.",
           tableName: "Desktop"
@@ -77,6 +104,38 @@ struct DesktopHostView: View {
       }
       .frame(maxWidth: .infinity, alignment: .leading)
       .padding(8)
+    }
+  }
+
+  private var modelProviderControls: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      HStack {
+        Button(
+          String(
+            localized: controller.modelProvider == .openAIAPIKey
+              ? "Replace OpenAI API Key…" : "Use OpenAI API Key…", table: "Desktop")
+        ) {
+          showingOpenAIKeyEditor = true
+        }
+        .accessibilityIdentifier("desktop.editOpenAIKey")
+        if controller.modelProvider == .openAIAPIKey {
+          Button(String(localized: "Switch to ChatGPT…", table: "Desktop")) {
+            confirmingOpenAIKeyRemoval = true
+          }
+          .accessibilityIdentifier("desktop.removeOpenAIKey")
+        }
+      }
+      .disabled(!controller.canChangeModelProvider)
+      if controller.changingModelProvider {
+        ProgressView().controlSize(.small)
+      } else if controller.ready {
+        Text("Stop Munie before changing the sign-in method.", tableName: "Desktop")
+          .font(.caption).foregroundStyle(.secondary)
+      }
+      if let error = controller.modelProviderError, !showingOpenAIKeyEditor {
+        Label(String(localized: error, table: "Desktop"), systemImage: "exclamationmark.triangle")
+          .foregroundStyle(.red)
+      }
     }
   }
 
@@ -246,6 +305,51 @@ struct DesktopHostView: View {
       }
     }
     .disabled(controller.busy)
+  }
+}
+
+private struct DesktopOpenAIKeyEditor: View {
+  let controller: DesktopHostController
+  @Environment(\.dismiss) private var dismiss
+  @State private var key = ""
+  @FocusState private var fieldFocused: Bool
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      Text("OpenAI API key", tableName: "Desktop").font(.headline)
+      Text(
+        "The key is saved in this Mac’s Keychain. Each sign-in method keeps its own conversations.",
+        tableName: "Desktop"
+      )
+      .foregroundStyle(.secondary)
+      SecureField(text: $key) { Text("OpenAI API key", tableName: "Desktop") }
+        .focused($fieldFocused)
+        .disabled(controller.changingModelProvider)
+        .accessibilityIdentifier("desktop.openAIKey")
+      if let error = controller.modelProviderError {
+        Label(String(localized: error, table: "Desktop"), systemImage: "exclamationmark.triangle")
+          .foregroundStyle(.red)
+      }
+      HStack {
+        if controller.changingModelProvider { ProgressView().controlSize(.small) }
+        Spacer()
+        Button(String(localized: "Cancel", table: "Desktop"), role: .cancel) { dismiss() }
+          .disabled(controller.changingModelProvider)
+        Button(String(localized: "Save API Key", table: "Desktop")) {
+          Task {
+            if await controller.saveOpenAIAPIKey(key) { dismiss() }
+          }
+        }
+        .keyboardShortcut(.defaultAction)
+        .disabled(key.isEmpty || !controller.canChangeModelProvider)
+        .accessibilityIdentifier("desktop.saveOpenAIKey")
+      }
+    }
+    .padding(22)
+    .frame(width: 440)
+    .defaultFocus($fieldFocused, true)
+    .interactiveDismissDisabled(controller.changingModelProvider)
+    .onDisappear { key = "" }
   }
 }
 

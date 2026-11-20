@@ -2,6 +2,7 @@
 // This is an application routing boundary; the Codex sandbox remains authoritative for tools.
 const fs = require("fs");
 const path = require("path");
+const { randomUUID } = require("node:crypto");
 const SHARED_CODEX_PERMISSIONS = "munie_remote_shared_codex";
 const SHARED_CODEX_APPROVAL = Object.freeze({ granular: Object.freeze({
   sandbox_approval: false, rules: true, mcp_elicitations: false,
@@ -52,6 +53,88 @@ function createPendingResponseGate() {
       if (created === undefined || Date.now() - created > 5 * 60 * 1000) {
         throw new Error('No live native server request matches this response.');
       }
+    },
+  };
+}
+
+// A gate belongs to one Mac-authorized turn and one authenticated route.
+// The caller must drain expiry and close records to settle native callbacks.
+function createSharedCodexApprovalGate({ root, route, threadId, turnId, now = () => performance.now() }) {
+  if (typeof route !== "symbol" || !path.isAbsolute(root) || fs.realpathSync(root) !== root) {
+    throw new Error("Approval requires a canonical project and authenticated route.");
+  }
+  requireTaskID(threadId, "threadId");
+  requireTaskID(turnId, "turnId");
+  const pending = new Map();
+  const offered = new Map();
+  const singleUse = new Set(["accept", "decline", "cancel"]);
+  let closed = false;
+  const unavailable = () => new Error("No matching one-time command approval is available.");
+  return {
+    offer(request) {
+      const { id, method, params } = request ?? {};
+      if (closed || offered.size >= 64 || pending.size >= 8 || offered.has(id)
+        || !(Number.isSafeInteger(id) || (typeof id === "string" && id.length > 0 && id.length <= 256))
+        || method !== "item/commandExecution/requestApproval"
+        || params?.kind !== "command" || params.threadId !== threadId || params.turnId !== turnId
+        || params.cwd !== root || fs.realpathSync(root) !== root
+        || (params.environmentId != null && params.environmentId !== "local")
+        || params.approvalId != null || params.additionalPermissions != null
+        || params.networkApprovalContext != null || params.proposedNetworkPolicyAmendments != null
+        || typeof params.command !== "string" || !params.command.trim()
+        || Buffer.byteLength(params.command, "utf8") > 8192
+        || !Array.isArray(params.availableDecisions) || params.availableDecisions.length > 16) {
+        throw unavailable();
+      }
+      const itemId = requireTaskID(params.itemId, "itemId");
+      const decisions = new Set(params.availableDecisions.filter((value) => singleUse.has(value)));
+      if (!decisions.has("accept")) throw unavailable();
+      const token = randomUUID();
+      offered.set(id, token);
+      pending.set(token, { id, decisions, deadline: now() + 120_000 });
+      return { id: token, method, params: {
+        kind: "command", threadId, turnId, itemId, command: params.command, cwd: root,
+        availableDecisions: [...decisions],
+      } };
+    },
+    reply(response, activeRoute) {
+      const record = pending.get(response?.id);
+      const result = response?.result;
+      if (closed || activeRoute !== route || !record || now() >= record.deadline
+        || !Object.hasOwn(response, "id") || !Object.hasOwn(response, "result") || Object.keys(response).length !== 2
+        || !result || typeof result !== "object" || Array.isArray(result)
+        || !Object.hasOwn(result, "decision") || Object.keys(result).length !== 1
+        || !record.decisions.has(result.decision)
+        || fs.realpathSync(root) !== root) {
+        throw unavailable();
+      }
+      pending.delete(response.id);
+      return { id: record.id, result: { decision: result.decision } };
+    },
+    resolve(nativeId) {
+      const phoneId = offered.get(nativeId);
+      if (!phoneId) return null;
+      offered.set(nativeId, null);
+      pending.delete(phoneId);
+      return phoneId;
+    },
+    expire() {
+      const unresolved = [];
+      const currentTime = now();
+      for (const [phoneId, { id: nativeId, deadline }] of pending) {
+        if (currentTime < deadline) continue;
+        pending.delete(phoneId);
+        offered.set(nativeId, null);
+        unresolved.push({ nativeId, phoneId });
+      }
+      return unresolved;
+    },
+    close() {
+      closed = true;
+      const unresolved = [...pending].map(([phoneId, { id: nativeId }]) => ({ nativeId, phoneId }));
+      pending.clear();
+      offered.clear();
+      return unresolved;
     },
   };
 }
@@ -212,4 +295,5 @@ function bindNativeRequest(request, root = configuredRoot(), { followCodexAccoun
 }
 
 module.exports = { configuredRoot, scopedPath, withinRoot, validatePathParameters, bindNativeRequest,
-  assertNativeMethod, createPendingResponseGate, assertFollowCodexPreview, SHARED_CODEX_PERMISSIONS, SHARED_CODEX_APPROVAL };
+  assertNativeMethod, createPendingResponseGate, createSharedCodexApprovalGate, assertFollowCodexPreview,
+  SHARED_CODEX_PERMISSIONS, SHARED_CODEX_APPROVAL };

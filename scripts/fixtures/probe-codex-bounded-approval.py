@@ -34,6 +34,31 @@ console.log(JSON.stringify({command: plan.command, args: plan.args,
     ))
 
 
+def bound_approval_reply(node, frame, root, thread_id, turn_id):
+    script = """
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const {createSharedCodexApprovalGate} = require(process.argv[1]);
+const {root, threadId, turnId, frame} = JSON.parse(fs.readFileSync(0, "utf8"));
+const route = Symbol("fixture route");
+const gate = createSharedCodexApprovalGate({root, route, threadId, turnId});
+const prompt = gate.offer(frame);
+const reply = {id: prompt.id, result: {decision: "accept"}};
+assert.equal(prompt.params.command, frame.params.command);
+assert.equal(prompt.params.cwd, root);
+assert.throws(() => gate.reply(reply, Symbol("reconnected route")));
+assert.throws(() => gate.reply({...reply, result: {decision: "acceptForSession"}}, route));
+const accepted = gate.reply(reply, route);
+assert.throws(() => gate.reply(reply, route));
+console.log(JSON.stringify(accepted));
+"""
+    return json.loads(subprocess.check_output(
+        [node, "-e", script, BRIDGE / "munie-project-policy.js"],
+        input=json.dumps({"root": str(root), "threadId": thread_id, "turnId": turn_id, "frame": frame}),
+        timeout=8, text=True,
+    ))
+
+
 def probe(codex, node, mode):
     request_escalation = mode == "escalation"
     turns = load_turns()
@@ -127,6 +152,7 @@ def probe(codex, node, mode):
                     assert params.get("cwd") == str(self.workspace), params
                     assert "accept" in params.get("availableDecisions", []), params
                     self.approval = frame["id"]
+                    self.approval_frame = frame
 
             peer = Peer([plan["command"], *plan["args"]], project, env)
             peer.initialize(home)
@@ -146,7 +172,10 @@ def probe(codex, node, mode):
                         },
                     })
                 else:
-                    peer.respond_approval("accept")
+                    reply = bound_approval_reply(node, peer.approval_frame, project, peer.thread_id, peer.turn_id)
+                    assert reply == {"id": peer.approval, "result": {"decision": "accept"}}, reply
+                    peer.send(reply)
+                    peer.approval_replied = True
             peer.wait_for(lambda: peer.terminal is not None)
             if mode == "unavailable":
                 assert peer.resolved and not marker.exists()

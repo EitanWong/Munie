@@ -12,6 +12,17 @@ enum DesktopLaunch {
       MunieDesktopApp.main()
       return
     }
+    // A registered legacy app may not have finished launching or taken a lock.
+    // Only yield to an earlier process, and do so before owning the lock.
+    if let currentOrder = launchOrder(of: getpid()),
+      let earlier = existingInstances.first(where: { app in
+        guard let otherOrder = launchOrder(of: app.processIdentifier) else { return false }
+        return otherOrder < currentOrder
+      })
+    {
+      activate(earlier)
+      return
+    }
     do {
       let files = FileManager.default
       let support = try files.url(
@@ -21,7 +32,7 @@ enum DesktopLaunch {
       try files.createDirectory(
         at: root, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
       guard let instance = try DesktopInstanceLock.acquire(in: root) else {
-        activate(existingInstances.first)
+        activate(existingInstances.first(where: \.isFinishedLaunching))
         return
       }
       // A competing new build cannot finish launching without the lock. An already-running
@@ -55,8 +66,16 @@ enum DesktopLaunch {
     }
   }
 
+  private static func launchOrder(of pid: pid_t) -> (UInt64, UInt64, pid_t)? {
+    var info = proc_bsdinfo()
+    let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+    guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return nil }
+    return (info.pbi_start_tvsec, info.pbi_start_tvusec, pid)
+  }
+
   private static func activate(_ app: NSRunningApplication?) {
-    _ = app?.activate(options: [])
+    guard let app, app.isFinishedLaunching else { return }
+    _ = app.activate(options: [])
   }
 }
 

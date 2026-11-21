@@ -728,6 +728,7 @@ function startBridge({
   onPairingSession = null,
   onBridgeStatus = null,
   desktopManagedRelay = null,
+  desktopMobileRouteFrame = null,
 } = {}) {
   const config = explicitConfig || readBridgeConfig();
   const projectResponseGate = createPendingResponseGate();
@@ -775,13 +776,14 @@ function startBridge({
   const sessionId = relaySession.sessionId;
   const managedClient = initializeForLocalAccount && desktopManagedRelay
     ? createManagedRelayClient({ ...desktopManagedRelay, sessionId }) : null;
-  const managedRouteReplies = managedClient ? createManagedRouteReplies() : null;
-  const bindSecureRoute = Boolean(managedClient) || (initializeForLocalAccount && config.followCodexAccount === true);
+  const mobileRouteFrame = initializeForLocalAccount ? desktopMobileRouteFrame : null;
+  const mobileRouteReplies = mobileRouteFrame ? createManagedRouteReplies() : null;
+  const bindSecureRoute = Boolean(mobileRouteFrame) || (initializeForLocalAccount && config.followCodexAccount === true);
   let secureRouteGeneration = null;
-  let managedRouteId = null;
+  let mobileRouteId = null;
   const simulatorApproval = config.simulatorApprovalFixture === true ? (() => {
     const root = configuredRoot();
-    if (!root || !managedClient || config.followCodexAccount !== true || !initializeForLocalAccount
+    if (!root || !managedClient || !mobileRouteFrame || config.followCodexAccount !== true || !initializeForLocalAccount
         || config.codexEndpoint || config.requireCodexStdioPolicy !== true) {
       throw new Error("Simulator approvals require the isolated managed route and pinned native transport.");
     }
@@ -902,10 +904,10 @@ function startBridge({
     requireTrustResetForReplacement: initializeForLocalAccount,
     // Encrypted base64 expands by 4/3. Leave room for the envelope, local
     // route wrapper and historical replay metadata under the 1 MiB wire cap.
-    maxEncodedPayloadBytes: managedClient ? 750 * 1024 : null,
+    maxEncodedPayloadBytes: mobileRouteFrame ? 750 * 1024 : null,
     onSecureSessionResumed() {
-      if (!managedRouteId || socket?.readyState !== WebSocket.OPEN) return;
-      socket.send(JSON.stringify({ kind: desktopManagedRelay.routeFrame, routeId: managedRouteId, ready: true }));
+      if (!mobileRouteId || socket?.readyState !== WebSocket.OPEN) return;
+      socket.send(JSON.stringify({ kind: mobileRouteFrame, routeId: mobileRouteId, ready: true }));
     },
     onTrustedPhoneUpdate(nextDeviceState) {
       deviceState = nextDeviceState;
@@ -913,9 +915,9 @@ function startBridge({
       managedClient?.replaceTrust(nextDeviceState);
     },
     onSecureSessionReady(session) {
-      if (managedRouteReplies) {
+      if (mobileRouteReplies) {
         simulatorApproval?.closeApprovals();
-        managedRouteReplies.clear();
+        mobileRouteReplies.clear();
       }
       if (bindSecureRoute) secureRouteGeneration = Symbol();
       activityStore.resetSubscriber();
@@ -933,20 +935,20 @@ function startBridge({
       return false;
     }
 
-    if (managedClient && !managedRouteId) return false;
-    const frame = managedClient ? JSON.stringify({
-      kind: desktopManagedRelay.routeFrame, routeId: managedRouteId, message: wireMessage,
+    if (mobileRouteFrame && !mobileRouteId) return false;
+    const frame = mobileRouteFrame ? JSON.stringify({
+      kind: mobileRouteFrame, routeId: mobileRouteId, message: wireMessage,
     }) : wireMessage;
-    if (managedClient && Buffer.byteLength(frame) > MANAGED_RELAY_FRAME_LIMIT) return false;
+    if (mobileRouteFrame && Buffer.byteLength(frame) > MANAGED_RELAY_FRAME_LIMIT) return false;
     socket.send(frame);
     return true;
   }
 
-  function changeManagedRoute(routeId) {
+  function changeMobileRoute(routeId) {
     if (secureRouteGeneration) simulatorApproval?.closeApprovals();
-    managedRouteId = routeId;
+    mobileRouteId = routeId;
     secureRouteGeneration = null;
-    managedRouteReplies.clear();
+    mobileRouteReplies.clear();
     secureTransport.invalidateMobileRoute();
   }
   // Only the spawned local runtime needs rollout mirroring; a real endpoint
@@ -1267,7 +1269,7 @@ function startBridge({
       reconnectAttempt = 0;
       startRelayWatchdog(nextSocket);
       logConnectionStatus("connected");
-      if (managedClient) changeManagedRoute(null);
+      if (mobileRouteFrame) changeMobileRoute(null);
       secureTransport.bindLiveSendWireMessage(sendRelayWireMessage);
       sendRelayRegistrationUpdate(deviceState);
       managedClient?.replaceTrust(deviceState);
@@ -1277,14 +1279,14 @@ function startBridge({
       if (socket !== nextSocket) return;
       markRelayActivity();
       let message = typeof data === "string" ? data : data.toString("utf8");
-      if (managedClient) {
+      if (mobileRouteFrame) {
         const frame = parseBridgeMessage(message);
-        if (frame?.kind !== desktopManagedRelay.routeFrame) return;
+        if (frame?.kind !== mobileRouteFrame) return;
         if (frame.message === undefined) {
-          changeManagedRoute(typeof frame.routeId === "string" ? frame.routeId : null);
+          changeMobileRoute(typeof frame.routeId === "string" ? frame.routeId : null);
           return;
         }
-        if (!managedRouteId || frame.routeId !== managedRouteId || typeof frame.message !== "string") return;
+        if (!mobileRouteId || frame.routeId !== mobileRouteId || typeof frame.message !== "string") return;
         message = frame.message;
       }
       if (secureTransport.handleIncomingWireMessage(message, {
@@ -1292,13 +1294,15 @@ function startBridge({
           sendRelayWireMessage(JSON.stringify(controlMessage));
         },
         onApplicationMessage(plaintextMessage) {
-          if (!managedRouteReplies) return handleApplicationMessage(plaintextMessage, false, secureRouteGeneration);
+          if (!mobileRouteReplies) return handleApplicationMessage(plaintextMessage, false, secureRouteGeneration);
           if (!secureTransport.isSecureChannelReady()) return;
           const message = parseBridgeMessage(plaintextMessage);
-          if (message?.method && message.id != null) {
+          if (message?.id != null) {
             if (!(typeof message.id === "string" && Buffer.byteLength(message.id) <= 128)
                 && !Number.isSafeInteger(message.id)) return;
-            const request = managedRouteReplies.wrapRequest(message);
+          }
+          if (message?.method && message.id != null) {
+            const request = mobileRouteReplies.wrapRequest(message);
             if (!request) {
               secureTransport.sendUnbufferedApplicationMessage(createJsonRpcErrorResponse(
                 message.id, new Error("The current connection has too many pending replies."), "relay_reply_limit"
@@ -1325,7 +1329,7 @@ function startBridge({
     nextSocket.on("close", (code) => {
       if (socket === nextSocket) {
         clearRelayWatchdog();
-        if (managedClient) changeManagedRoute(null);
+        if (mobileRouteFrame) changeMobileRoute(null);
       }
       logConnectionStatus("disconnected");
       if (socket === nextSocket) {
@@ -1463,7 +1467,16 @@ function startBridge({
           if (!(simulatorApproval && FIXTURE_ACTIONS.has(incoming?.method))) assertFollowCodexPreview(incoming);
         }
         catch (error) {
-          if (incoming?.id != null) sendApplicationResponse(createJsonRpcErrorResponse(incoming.id, error, "shared_codex_actions_unavailable"));
+          if (incoming?.id != null) {
+            const denial = createJsonRpcErrorResponse(incoming.id, error, "shared_codex_actions_unavailable");
+            if (mobileRouteReplies && !incoming.method) {
+              // A rejected callback response has no request mapping. Reply only on
+              // this live route and never consume a mapping using the phone's ID.
+              secureTransport.sendUnbufferedApplicationMessage(denial);
+            } else {
+              sendApplicationResponse(denial);
+            }
+          }
           return;
         }
       }
@@ -1797,11 +1810,11 @@ function startBridge({
     const listRequest = pendingOpenCodeThreadListRequests.get(requestKey);
     const sanitizedMessage = sanitizeRelayBoundCodexMessage(rawMessage, outboundMessage);
     if (configuredRoot() && listRequest) pendingOpenCodeThreadListRequests.delete(requestKey);
-    const sanitizedResponse = managedRouteReplies && sanitizedMessage === rawMessage
-      ? outboundMessage : managedRouteReplies && sanitizedMessage && parseBridgeMessage(sanitizedMessage);
-    if (managedRouteReplies && (isManagedRouteRequestId(responseId)
+    const sanitizedResponse = mobileRouteReplies && sanitizedMessage === rawMessage
+      ? outboundMessage : mobileRouteReplies && sanitizedMessage && parseBridgeMessage(sanitizedMessage);
+    if (mobileRouteReplies && (isManagedRouteRequestId(responseId)
         || (sanitizedResponse?.id != null && !sanitizedResponse.method))) {
-      const response = sanitizedResponse && !sanitizedResponse.method && managedRouteReplies.takeReply(sanitizedResponse);
+      const response = sanitizedResponse && !sanitizedResponse.method && mobileRouteReplies.takeReply(sanitizedResponse);
       if (response && !secureTransport.sendUnbufferedApplicationMessage(JSON.stringify(response))) {
         secureTransport.sendUnbufferedApplicationMessage(createJsonRpcErrorResponse(
           response.id, new Error("The response could not fit the current connection."), "relay_response_too_large"

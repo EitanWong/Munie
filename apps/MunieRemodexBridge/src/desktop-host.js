@@ -606,7 +606,7 @@ async function runWorker({ simulatorApprovalFixture = false, fixtureProviderPort
     }, process.env, { verify: true });
   }
   const relay = createRelayServer({ enablePushService: false, maxPayload: MAX_FRAME_BYTES,
-    relayOptions: { enableManagedRoutes: Boolean(pilotOrigin) } });
+    relayOptions: { enableManagedRoutes: true } });
   await new Promise((resolve, reject) => {
     relay.server.once("error", reject);
     relay.server.listen(Number(process.env.MUNIE_HOST_RELAY_PORT), "127.0.0.1", resolve);
@@ -623,9 +623,10 @@ async function runWorker({ simulatorApprovalFixture = false, fixtureProviderPort
     simulatorApprovalFixture,
   };
   const bridge = startBridge({ config, printPairingQr: false,
+    desktopMobileRouteFrame: MOBILE_ROUTE_FRAME,
     desktopManagedRelay: pilotOrigin ? {
       origin: pilotOrigin, audience: "munie-loopback.invalid", encodeChallenge: managedAdmissionTranscript,
-      attachPhone: relay.attachManagedPhone, routeFrame: MOBILE_ROUTE_FRAME,
+      attachPhone: relay.attachManagedPhone,
     } : null,
     onBridgeStatus: (data) => {
       send({ event: "bridge", data: bridgeSnapshot(data) });

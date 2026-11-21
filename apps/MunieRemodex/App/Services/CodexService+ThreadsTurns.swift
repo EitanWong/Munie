@@ -1,4 +1,5 @@
 // Munie modification: use the shared catalog-aware runtime model and honor one-time host approvals.
+// Munie modification: map the paired Mac read-only preview rejection to localized copy.
 // FILE: CodexService+ThreadsTurns.swift
 // Purpose: Thread/turn operations exposed to the UI.
 // Layer: Service
@@ -2226,6 +2227,9 @@ extension CodexService {
         if let serviceError = error as? CodexServiceError {
             switch serviceError {
             case .rpcError(let rpcError):
+                if rpcError.data?.objectValue?["errorCode"]?.stringValue == "shared_codex_actions_unavailable" {
+                    return String(localized: "This Mac is connected in read-only mode.")
+                }
                 if let mappedMessage = userFacingRuntimeMessage(for: rpcError.message) {
                     return mappedMessage
                 }

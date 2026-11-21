@@ -143,6 +143,40 @@ test('the shared-account preview fails closed before an execution or a native re
   }
 });
 
+test('the read-only phone picker can open only the Mac-authorized project', async (t) => {
+  const fixture = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'munie-preview-picker-')));
+  const root = path.join(fixture, 'Shared Project');
+  const outside = path.join(fixture, 'Private Sibling');
+  fs.mkdirSync(root);
+  fs.mkdirSync(outside);
+  fs.mkdirSync(path.join(root, 'src'));
+  fs.symlinkSync(outside, path.join(root, 'escape'), 'dir');
+  const previousRoot = process.env.REMODEX_PROJECT_ROOT;
+  process.env.REMODEX_PROJECT_ROOT = root;
+  t.after(() => {
+    if (previousRoot === undefined) delete process.env.REMODEX_PROJECT_ROOT;
+    else process.env.REMODEX_PROJECT_ROOT = previousRoot;
+    fs.rmSync(fixture, { recursive: true, force: true });
+  });
+
+  const read = (method, params = {}) => {
+    const request = { method, params };
+    assertFollowCodexPreview(request);
+    const bound = bindNativeRequest(request, root, { followCodexAccount: true });
+    return handleProjectMethod(bound.method, bound.params);
+  };
+  const { locations } = await read('project/quickLocations');
+  assert.deepEqual(locations.map((entry) => entry.path), [root]);
+  const listing = await read('project/listDirectory', { path: locations[0].path });
+  assert.equal(listing.path, root);
+  assert.equal(listing.parentPath, null);
+  assert.deepEqual(listing.entries.map((entry) => entry.name), ['src']);
+  await assert.rejects(async () => read('project/listDirectory', { path: outside }));
+  for (const method of ['project/createDirectory', 'project/projectlessRoots', 'thread/start', 'turn/start']) {
+    assert.throws(() => assertFollowCodexPreview({ method }), { errorCode: 'shared_codex_actions_unavailable' });
+  }
+});
+
 test('generic native execution, configuration and future unknown methods require explicit policy', () => {
   for (const method of ['command/exec', 'config/value/write', 'config/batchWrite', 'fs/readFile', 'future/execute']) {
     assert.throws(() => assertNativeMethod({ method }, '/fixture'));

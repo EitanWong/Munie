@@ -3725,6 +3725,22 @@
         }
       }
     },
+    "This Mac is connected in read-only mode.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This Mac is connected in read-only mode."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此 Mac 当前以只读模式连接。"
+          }
+        }
+      }
+    },
     "Reconnecting securely": {
       "localizations": {
         "en": {

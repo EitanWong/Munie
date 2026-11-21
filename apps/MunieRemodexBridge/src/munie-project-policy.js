@@ -12,7 +12,7 @@ const SHARED_CODEX_APPROVAL = Object.freeze({ granular: Object.freeze({
 // Keep the shared-account candidate read-only until all execution paths are guarded.
 const FOLLOW_CODEX_PREVIEW_METHODS = new Set([
   "initialize", "initialized", "account/read", "account/status/read", "getAuthStatus",
-  "model/list", "collaborationMode/list", "project/listDirectory", "project/recentDirectories",
+  "model/list", "collaborationMode/list", "project/quickLocations", "project/listDirectory", "project/recentDirectories",
   "thread/list", "thread/read", "thread/turns/list", "thread/goal/get",
 ]);
 

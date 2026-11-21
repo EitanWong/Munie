@@ -729,6 +729,7 @@ function startBridge({
   onBridgeStatus = null,
   desktopManagedRelay = null,
   desktopMobileRouteFrame = null,
+  desktopLanTaskExecution = false,
 } = {}) {
   const config = explicitConfig || readBridgeConfig();
   const projectResponseGate = createPendingResponseGate();
@@ -781,22 +782,34 @@ function startBridge({
   const bindSecureRoute = Boolean(mobileRouteFrame) || (initializeForLocalAccount && config.followCodexAccount === true);
   let secureRouteGeneration = null;
   let mobileRouteId = null;
+  let securePhoneId = null;
+  const taskBoundaryOptions = () => ({
+    root: configuredRoot(),
+    currentRoute: () => isCurrentApplicationRoute(secureRouteGeneration) ? secureRouteGeneration : null,
+    currentPhone: () => securePhoneId,
+    cancellationPending: (threadId, turnId) => turnCancellation.isPending(threadId, turnId),
+    sendNative: (message) => codex.send(JSON.stringify(message)),
+    sendPhone: (message) => secureTransport.sendUnbufferedApplicationMessage(JSON.stringify(message)),
+  });
   const simulatorApproval = config.simulatorApprovalFixture === true ? (() => {
     const root = configuredRoot();
     if (!root || !managedClient || !mobileRouteFrame || config.followCodexAccount !== true || !initializeForLocalAccount
         || config.codexEndpoint || config.requireCodexStdioPolicy !== true) {
       throw new Error("Simulator approvals require the isolated managed route and pinned native transport.");
     }
-    return createSimulatorApprovalBoundary({
-      root,
-      currentRoute: () => secureTransport.isSecureChannelReady() ? secureRouteGeneration : null,
-      cancellationPending: (threadId, turnId) => turnCancellation.isPending(threadId, turnId),
-      sendNative: (message) => codex.send(JSON.stringify(message)),
-      sendPhone: (message) => secureTransport.sendUnbufferedApplicationMessage(JSON.stringify(message)),
-    });
+    return createSimulatorApprovalBoundary(taskBoundaryOptions());
   })() : null;
-  const simulatorApprovalTimer = simulatorApproval ? setInterval(() => simulatorApproval.expire(), 1_000) : null;
-  simulatorApprovalTimer?.unref();
+  const taskBoundary = desktopLanTaskExecution === true ? (() => {
+    if (!configuredRoot() || managedClient || !mobileRouteFrame || config.followCodexAccount !== true
+        || !initializeForLocalAccount || config.codexEndpoint || config.requireCodexStdioPolicy !== true
+        || simulatorApproval || config.desktopIpcLiveSyncEnabled !== false) {
+      throw new Error("LAN tasks require a scoped local desktop host and pinned native transport.");
+    }
+    const { createSharedCodexTaskBoundary } = require("./munie-shared-task-boundary");
+    return createSharedCodexTaskBoundary(taskBoundaryOptions());
+  })() : simulatorApproval;
+  const approvalTimer = taskBoundary ? setInterval(() => taskBoundary.expire(), 1_000) : null;
+  approvalTimer?.unref();
   const relaySessionUrl = `${relayBaseUrl}/${sessionId}`;
   const notificationSecret = randomBytes(24).toString("hex");
   const desktopRefresher = new CodexDesktopRefresher({
@@ -916,10 +929,11 @@ function startBridge({
     },
     onSecureSessionReady(session) {
       if (mobileRouteReplies) {
-        simulatorApproval?.closeApprovals();
+        taskBoundary?.closeApprovals();
         mobileRouteReplies.clear();
       }
       if (bindSecureRoute) secureRouteGeneration = Symbol();
+      securePhoneId = session?.phoneDeviceId ?? null;
       activityStore.resetSubscriber();
       activePhoneSummary = buildActivePhoneSummary(session, deviceState);
       const lastPublishedBridgeStatus = bridgeStatusPublisher.latest();
@@ -945,15 +959,16 @@ function startBridge({
   }
 
   function changeMobileRoute(routeId) {
-    if (secureRouteGeneration) simulatorApproval?.closeApprovals();
+    if (secureRouteGeneration) taskBoundary?.closeApprovals();
     mobileRouteId = routeId;
     secureRouteGeneration = null;
+    securePhoneId = null;
     mobileRouteReplies.clear();
     secureTransport.invalidateMobileRoute();
   }
   // Only the spawned local runtime needs rollout mirroring; a real endpoint
   // already provides the authoritative live stream for resumed threads.
-  const rolloutLiveMirror = !config.codexEndpoint && !simulatorApproval
+  const rolloutLiveMirror = !config.codexEndpoint && !taskBoundary
     ? createRolloutLiveMirrorController({
       sendApplicationResponse,
       // One live source per thread. The follower keeps fresh/idle Desktop state
@@ -967,7 +982,7 @@ function startBridge({
       ),
     })
     : null;
-  const desktopIpcActionFollower = !config.codexEndpoint && !simulatorApproval
+  const desktopIpcActionFollower = !config.codexEndpoint && !taskBoundary
     ? createDesktopIpcActionFollower({
       sendApplicationResponse,
       readConversationState: async (threadId) => seedConversationStateFromThreadRead(
@@ -1107,7 +1122,7 @@ function startBridge({
         if (config.requireCodexStdioPolicy && result?.munieStdioPolicyVersion !== 1) {
           throw new Error("The bundled Codex runtime did not acknowledge the required stdio policy.");
         }
-        simulatorApproval?.attest();
+        taskBoundary?.attest();
         codex.send(JSON.stringify({ method: "initialized" }));
         codexHandshakeState = "warm";
       } catch (error) {
@@ -1142,8 +1157,8 @@ function startBridge({
   }
 
   function prepareBridgeShutdown() {
-    simulatorApproval?.closeApprovals();
-    if (simulatorApprovalTimer) clearInterval(simulatorApprovalTimer);
+    taskBoundary?.closeApprovals();
+    if (approvalTimer) clearInterval(approvalTimer);
     isShuttingDown = true;
     managedClient?.stop();
     bridgeWakeAssertion.stop();
@@ -1372,14 +1387,14 @@ function startBridge({
       && (typeof parsedMessage?.id === "string" || Number.isSafeInteger(parsedMessage?.id))
       && typeof parsedMessage.method === "string" && parsedMessage.method.length > 0
       && !hasOwn(parsedMessage, "result") && !hasOwn(parsedMessage, "error") && !hasOwn(parsedMessage, "payload")) {
-      if (simulatorApproval?.offer(parsedMessage)) return;
+      if (taskBoundary?.offer(parsedMessage)) return;
       codex.send(createJsonRpcErrorResponse(parsedMessage.id,
         new Error("Phone callbacks are unavailable in the Codex settings preview."),
         "shared_codex_actions_unavailable"));
       return;
     }
-    if (simulatorApproval) {
-      const observed = simulatorApproval.observe(parsedMessage);
+    if (taskBoundary) {
+      const observed = taskBoundary.observe(parsedMessage);
       if (observed === null && parsedMessage !== null) return;
       if (observed !== parsedMessage) {
         parsedMessage = observed;
@@ -1420,7 +1435,7 @@ function startBridge({
   }
 
   codex.onClose(() => {
-    simulatorApproval?.closeApprovals({ nativeAlive: false });
+    taskBoundary?.closeApprovals({ nativeAlive: false });
     activityStore.markSourceStale(APP_SERVER_SOURCE);
     const wasShuttingDown = isShuttingDown;
     clearRelayWatchdog();
@@ -1459,12 +1474,12 @@ function startBridge({
     if (projectRoot) {
       const incoming = parseBridgeMessage(rawMessage);
       if (config.followCodexAccount === true) {
-        if (simulatorApproval && !incoming?.method && incoming?.id != null) {
-          simulatorApproval.reply(incoming);
+        if (taskBoundary && !incoming?.method && incoming?.id != null) {
+          taskBoundary.reply(incoming);
           return;
         }
         try {
-          if (!(simulatorApproval && FIXTURE_ACTIONS.has(incoming?.method))) assertFollowCodexPreview(incoming);
+          if (!(taskBoundary && FIXTURE_ACTIONS.has(incoming?.method))) assertFollowCodexPreview(incoming);
         }
         catch (error) {
           if (incoming?.id != null) {
@@ -1505,8 +1520,8 @@ function startBridge({
         if (incoming?.id != null) sendApplicationResponse(createJsonRpcErrorResponse(incoming.id, error, "project_not_authorized"));
         return;
       }
-      if (simulatorApproval && FIXTURE_ACTIONS.has(incoming?.method)) {
-        // Fixture actions never enter alternate dispatchers or use projected Desktop state.
+      if (taskBoundary && FIXTURE_ACTIONS.has(incoming?.method)) {
+        // Owned tasks never enter alternate dispatchers or use projected Desktop state.
         const bound = parseBridgeMessage(rawMessage);
         if (bound.method !== "turn/interrupt" && turnCancellation.handle(bound)) return;
         forwardInboundRequestToCodex(normalizePhoneRuntimeRequest(rawMessage));
@@ -1677,7 +1692,7 @@ function startBridge({
     const parsedRequest = parseBridgeMessage(codexRequest);
     try {
       assertNativeMethod(parsedRequest);
-      if (simulatorApproval && FIXTURE_ACTIONS.has(parsedRequest?.method)) simulatorApproval.reserve(parsedRequest);
+      if (taskBoundary && FIXTURE_ACTIONS.has(parsedRequest?.method)) taskBoundary.reserve(parsedRequest);
     }
     catch (error) {
       if (parsedRequest?.id != null) sendApplicationResponse(createJsonRpcErrorResponse(parsedRequest.id, error, "native_method_not_authorized"));
@@ -1685,7 +1700,7 @@ function startBridge({
     }
     if (configuredRoot() && parsedRequest?.method === "turn/interrupt"
       && turnCancellation.handle(parsedRequest)) {
-      simulatorApproval?.settlePendingBeforeStop();
+      taskBoundary?.settlePendingBeforeStop();
       return;
     }
     if (parsedRequest?.id != null

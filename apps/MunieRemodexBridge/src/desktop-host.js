@@ -278,7 +278,9 @@ function prepareSimulatorApprovalFixture(fixture, env, { verify = false } = {}) 
   return { directory, project, providerPort, ca, caHash };
 }
 
-function createDesktopHost({ env = process.env, emit = () => {}, spawnImpl = spawn, simulatorApprovalFixture = null } = {}) {
+function createDesktopHost({
+  env = process.env, emit = () => {}, spawnImpl = spawn, simulatorApprovalFixture = null, lanTaskPreviewProject = null,
+} = {}) {
   // Only the local signed test driver constructs this option; no env or protocol method enables it.
   const fixture = simulatorApprovalFixture ? prepareSimulatorApprovalFixture(simulatorApprovalFixture, env) : null;
   let root;
@@ -420,10 +422,16 @@ function createDesktopHost({ env = process.env, emit = () => {}, spawnImpl = spa
     if (ownedGroup !== null) await stop();
     if (!project) throw hostError("project_required");
     project = projectFolder(project.path);
+    const enableLanTaskExecution = project.path === lanTaskPreviewProject;
     const codex = executable(env.MUNIE_CODEX_BINARY || path.resolve(__dirname, "../../../Runtime/bin/codex"));
     const guardian = executable(env.MUNIE_GUARDIAN_BINARY || path.resolve(__dirname, "../../../Runtime/bin/MunieCodexGuardian"));
     const requireCodexStdioPolicy = requiresPackagedCodexPolicy(codex);
     if (fixture && (!requireCodexStdioPolicy || project.path !== fixture.project)) throw hostError("runtime_unavailable");
+    const { loopbackManagedRelayOrigin } = require("./managed-relay-client");
+    const pilotOrigin = loopbackManagedRelayOrigin(env.MUNIE_DEVELOPER_MANAGED_RELAY);
+    if (enableLanTaskExecution && (!requireCodexStdioPolicy || fixture || pilotOrigin)) {
+      throw hostError("runtime_unavailable");
+    }
     state = "starting"; lastError = null; bridge = null; account = null;
     updateLanAvailability(false);
     publish();
@@ -439,10 +447,9 @@ function createDesktopHost({ env = process.env, emit = () => {}, spawnImpl = spa
     if (requireCodexStdioPolicy) childEnv.MUNIE_REQUIRE_CODEX_STDIO_POLICY = "1";
     // Leave Codex's native default unset, including on a fresh Mac where ~/.codex does not yet exist.
     if (env.CODEX_HOME) childEnv.CODEX_HOME = resolveCodexHome(env);
-    const { loopbackManagedRelayOrigin } = require("./managed-relay-client");
-    const pilotOrigin = loopbackManagedRelayOrigin(env.MUNIE_DEVELOPER_MANAGED_RELAY);
     if (pilotOrigin) childEnv.MUNIE_DEVELOPER_MANAGED_RELAY = pilotOrigin;
     const workerArgs = [String(process.pid), process.execPath, __filename, "--worker"];
+    if (enableLanTaskExecution) workerArgs.push("--lan-task-execution");
     if (fixture) {
       childEnv.HOME = fixture.directory;
       childEnv.TMPDIR = fixture.directory;
@@ -589,7 +596,9 @@ function monitorLanRelay(loopbackServer, port, onAvailability) {
   };
 }
 
-async function runWorker({ simulatorApprovalFixture = false, fixtureProviderPort = null, fixtureCertificateHash = null } = {}) {
+async function runWorker({
+  simulatorApprovalFixture = false, fixtureProviderPort = null, fixtureCertificateHash = null, lanTaskExecution = false,
+} = {}) {
   // Imported bridge/relay log text may contain paths or upstream details: discard, never forward it.
   for (const key of ["log", "info", "warn", "error", "debug"]) console[key] = () => {};
   const send = (frame) => writeFrame(process.stdout, frame);
@@ -624,6 +633,7 @@ async function runWorker({ simulatorApprovalFixture = false, fixtureProviderPort
   };
   const bridge = startBridge({ config, printPairingQr: false,
     desktopMobileRouteFrame: MOBILE_ROUTE_FRAME,
+    desktopLanTaskExecution: lanTaskExecution,
     desktopManagedRelay: pilotOrigin ? {
       origin: pilotOrigin, audience: "munie-loopback.invalid", encodeChallenge: managedAdmissionTranscript,
       attachPhone: relay.attachManagedPhone,
@@ -672,10 +682,10 @@ async function runWorker({ simulatorApprovalFixture = false, fixtureProviderPort
   process.stdin.resume();
 }
 
-function runProtocol({ input = process.stdin, output = process.stdout, env = process.env } = {}) {
+function runProtocol({ input = process.stdin, output = process.stdout, env = process.env, lanTaskPreviewProject = null } = {}) {
   const send = (value) => writeFrame(output, { v: 1, ...value });
   let host;
-  try { host = createDesktopHost({ env, emit: (event, data) => send({ event, data }) }); }
+  try { host = createDesktopHost({ env, lanTaskPreviewProject, emit: (event, data) => send({ event, data }) }); }
   catch (error) {
     const failure = publicError(error);
     const failedStatus = { state: "error", project: null, bridge: null, account: null, devices: [], lanAvailable: false, lanRevision: 0,
@@ -734,13 +744,17 @@ if (require.main === module) {
   if (process.argv[2] === "--verify-cleanup") void runCleanupVerification(process.argv.slice(3));
   else if (process.argv[2] === "--worker") runWorker({
     simulatorApprovalFixture: process.argv[3] === "--simulator-approval-fixture",
+    lanTaskExecution: process.argv[3] === "--lan-task-execution",
     fixtureProviderPort: Number(process.argv[4]),
     fixtureCertificateHash: process.argv[5],
   }).catch((error) => {
     writeFrame(process.stdout, { event: "fatal", data: publicError(hostError(error?.code === "EADDRINUSE" ? "relay_port_unavailable" : "runtime_failed")) });
     process.exit(1);
   });
-  else runProtocol();
+  else runProtocol({
+    lanTaskPreviewProject: process.argv[2] === "--lan-task-preview-project" && process.argv.length === 4
+      ? process.argv[3] : null,
+  });
 }
 
 module.exports = { createDesktopHost, readFrames, runProtocol, selectLanAddress, advertisedHost, resolveCodexHome, publicError, groupExists, verifyCleanup, MAX_REQUEST_BYTES, MAX_FRAME_BYTES };

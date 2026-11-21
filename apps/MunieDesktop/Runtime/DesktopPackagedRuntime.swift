@@ -7,11 +7,14 @@ struct DesktopRuntimeConfiguration: Sendable {
   let codex: URL
   let stateDirectory: URL
   let defaultProject: URL
+  var lanTaskPreviewProject: String? = nil
 
   static func bundled(in bundle: Bundle = .main) async throws -> Self {
     guard let resources = bundle.resourceURL else {
       throw DesktopHostFailure.resourcesUnavailable
     }
+    let previewProject =
+      bundle.object(forInfoDictionaryKey: "MunieLANTaskPreviewProject") as? String
     return try await Task.detached {
       let files = FileManager.default
       let support = try files.url(
@@ -29,7 +32,8 @@ struct DesktopRuntimeConfiguration: Sendable {
         node: resources.appending(path: "Runtime/bin/node"),
         entryPoint: resources.appending(path: "Host/MunieRemodexBridge/src/desktop-host.js"),
         codex: resources.appending(path: "Runtime/bin/codex"),
-        stateDirectory: state, defaultProject: project)
+        stateDirectory: state, defaultProject: project,
+        lanTaskPreviewProject: previewProject?.hasPrefix("/") == true ? previewProject : nil)
       guard files.isExecutableFile(atPath: configuration.node.path),
         files.isExecutableFile(atPath: configuration.codex.path),
         files.isReadableFile(atPath: configuration.entryPoint.path)
@@ -94,7 +98,11 @@ actor DesktopPackagedRuntime: DesktopHostRuntime {
     let stdout = Pipe()
     let stderr = Pipe()
     child.executableURL = configuration.node
-    child.arguments = [configuration.entryPoint.path]
+    var arguments = [configuration.entryPoint.path]
+    if let project = configuration.lanTaskPreviewProject {
+      arguments += ["--lan-task-preview-project", project]
+    }
+    child.arguments = arguments
     child.currentDirectoryURL = configuration.defaultProject
     var environment = Self.inheritedHelperEnvironment(ProcessInfo.processInfo.environment)
     environment["PATH"] = "/usr/bin:/bin:/usr/sbin:/sbin"

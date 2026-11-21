@@ -685,7 +685,8 @@ test("packaged LAN drops an old native reply when the trusted phone reconnects",
 
 test("read-only preview denies native writes and approvals on the encrypted route", { timeout: 30000, skip: process.platform !== "darwin" }, async (t) => {
   const fixture = setupRuntime(t, { policyAck: 1, packagedPolicy: true, recordNativeFrames: true });
-  const host = createDesktopHost({ env: fixture.env });
+  // An acceptance build cannot give a different, currently selected folder write access.
+  const host = createDesktopHost({ env: fixture.env, lanTaskPreviewProject: path.join(fixture.project, "other") });
   t.after(() => host.stop());
   const mac = generateKeyPairSync("ed25519"), phone = generateKeyPairSync("ed25519");
   const macDeviceId = randomUUID(), phoneDeviceId = randomUUID();
@@ -815,6 +816,95 @@ test("packaged LAN pairing preserves existing trust until the Mac explicitly rem
   assert.equal(host.status().devices[0]?.id, replacementId);
 });
 
+test("scoped LAN tasks bind writes and approval to the exact authorized route", {
+  timeout: 30000, skip: process.platform !== "darwin",
+}, async (t) => {
+  const fixture = setupRuntime(t, {
+    policyAck: 1, packagedPolicy: true, recordNativeFrames: true, lanTaskLifecycle: true,
+  });
+  const host = createDesktopHost({ env: fixture.env, lanTaskPreviewProject: fixture.project });
+  t.after(() => host.stop());
+  const mac = generateKeyPairSync("ed25519"), phone = generateKeyPairSync("ed25519");
+  const macDeviceId = randomUUID(), phoneDeviceId = randomUUID();
+  const publicKey = (key) => Buffer.from(key.export({ format: "jwk" }).x, "base64url").toString("base64");
+  const state = fixture.env.MUNIE_HOST_STATE_DIR;
+  fs.writeFileSync(path.join(state, "bridge", "device-state.json"), JSON.stringify({
+    version: 1, macDeviceId,
+    macIdentityPublicKey: publicKey(mac.publicKey),
+    macIdentityPrivateKey: Buffer.from(mac.privateKey.export({ format: "jwk" }).d, "base64url").toString("base64"),
+    trustedPhones: { [phoneDeviceId]: publicKey(phone.publicKey) },
+  }), { mode: 0o600 });
+  await host.run("project/set", { path: fixture.project });
+  const initial = await host.run("start");
+  const { payload: { sessionId } } = await host.run("pairing/get");
+  const { relayPort } = JSON.parse(fs.readFileSync(path.join(state, "host.json")));
+  async function connect() {
+    const socket = new WebSocket(`ws://127.0.0.1:${relayPort}/relay/${sessionId}`, {
+      headers: { "x-role": "iphone" }, handshakeTimeout: 3000,
+    });
+    t.after(() => socket.terminate());
+    const messages = [], closed = new Promise((resolve) => socket.once("close", resolve));
+    socket.on("message", (data) => messages.push(JSON.parse(data.toString())));
+    await new Promise((resolve, reject) => { socket.once("open", resolve); socket.once("error", reject); });
+    return { socket, closed, channel: await openFixtureSecureChannel({ socket, messages }, {
+      sessionId, mac, phone, macDeviceId, phoneDeviceId,
+    }) };
+  }
+  async function rpc(channel, id, method, params) {
+    channel.send({ id, method, params });
+    let reply;
+    await until(() => reply = channel.read().find((message) => message.id === id));
+    assert.ok(reply);
+    return reply;
+  }
+  const first = await connect();
+  const opened = await rpc(first.channel, "open", "thread/start", { cwd: fixture.project });
+  assert.equal(opened.result?.thread?.id, "fixture-task");
+  const threadId = opened.result.thread.id;
+  const input = [{ type: "text", text: "Inert synthetic task." }];
+  const firstTurn = await rpc(first.channel, "submit", "turn/start", { threadId, input });
+  assert.equal(firstTurn.result?.turn?.id, "turn-1");
+  const callback = "item/commandExecution/requestApproval";
+  let prompt;
+  await until(() => prompt = first.channel.read().find((message) => message.method === callback));
+  assert.notEqual(prompt.id, "native-approval-1");
+  const approve = { id: prompt.id, result: { decision: "accept" } };
+  first.channel.send(approve);
+  first.channel.send(approve);
+  await until(() => fixture.nativeFrames().some((message) => message.id === "native-approval-1" && message.decision === "accept"));
+  const wrongStop = await rpc(first.channel, "wrong-stop", "turn/interrupt", { threadId, turnId: "other" });
+  assert.ok(wrongStop.error);
+  const stopped = await rpc(first.channel, "stop", "turn/interrupt", { threadId, turnId: "turn-1" });
+  assert.deepEqual(stopped.result, {});
+  await until(() => first.channel.read().some((message) => message.method === "turn/completed"
+    && message.params.turn.id === "turn-1" && message.params.turn.status === "interrupted"));
+
+  const secondTurn = await rpc(first.channel, "submit-again", "turn/start", { threadId, input });
+  assert.equal(secondTurn.result?.turn?.id, "turn-2");
+  let pending;
+  await until(() => pending = first.channel.read().find((message) => message.method === callback && message.params.turnId === "turn-2"));
+  first.socket.close();
+  await first.closed;
+  const second = await connect();
+  second.channel.send({ id: pending.id, result: { decision: "accept" } });
+  const read = await rpc(second.channel, "read", "thread/read", { threadId, includeTurns: true });
+  assert.equal(read.result?.thread?.id, threadId);
+  assert.equal(second.channel.read().some((message) => message.method === callback), false);
+  assert.deepEqual(fixture.nativeFrames().filter((message) => message.decision).map(({ id, decision }) => [id, decision]), [
+    ["native-approval-1", "accept"], ["native-approval-2", "cancel"],
+  ]);
+  const resumedStop = await rpc(second.channel, "stop-active", "turn/interrupt", { threadId, turnId: "turn-2" });
+  assert.deepEqual(resumedStop.result, {});
+  const resumed = await rpc(second.channel, "resume", "thread/resume", { threadId });
+  assert.equal(resumed.result?.thread?.id, threadId);
+  const submissions = fixture.nativeFrames().filter((message) => message.method === "turn/start");
+  assert.equal(submissions.length, 2);
+  assert.deepEqual(fixture.nativeFrames().filter((message) => message.method === "turn/interrupt")
+    .map((message) => message.turnId), ["turn-1", "turn-2"]);
+  assert.deepEqual(host.status().ownership, initial.ownership);
+  assert.deepEqual(host.status().devices.map((device) => device.id), [phoneDeviceId]);
+});
+
 async function openFixtureSecureChannel(peer, {
   sessionId, mac, phone, macDeviceId, phoneDeviceId, handshakeMode = "trusted_reconnect",
   returnPairingError = false,
@@ -901,7 +991,7 @@ function temporary(t) {
 }
 
 let guardian;
-function setupRuntime(t, { policyAck, packagedPolicy = false, recordNativeFrames = false } = {}) {
+function setupRuntime(t, { policyAck, packagedPolicy = false, recordNativeFrames = false, lanTaskLifecycle = false } = {}) {
   assert.equal(process.platform, "darwin", "native guardian acceptance requires macOS");
   const temp = temporary(t), project = path.join(temp, "project");
   fs.mkdirSync(project);
@@ -935,8 +1025,9 @@ const accountFile=require('node:path').join(process.env.CODEX_HOME,'fixture-acco
 const accountType=fs.existsSync(accountFile)?fs.readFileSync(accountFile,'utf8'):null;
 let buffer='',pendingModelList=null;
 const pendingProjectLookups=[];
+let turnNumber=0,nextCallback;
 process.stdin.on('data',chunk=>{buffer+=chunk;let end;while((end=buffer.indexOf('\\n'))>=0){const line=buffer.slice(0,end);buffer=buffer.slice(end+1);if(!line)continue;const r=JSON.parse(line);let result={};
-if (${recordNativeFrames}) fs.appendFileSync(${JSON.stringify(nativeRecord)},JSON.stringify({id:r.id,method:r.method,errorCode:r.error?.code,errorTag:r.error?.data?.errorCode})+'\\n');
+if (${recordNativeFrames}) fs.appendFileSync(${JSON.stringify(nativeRecord)},JSON.stringify({id:r.id,method:r.method,errorCode:r.error?.code,errorTag:r.error?.data?.errorCode,decision:r.result?.decision,turnId:r.params?.turnId})+'\\n');
 if(r.method===undefined && r.error)continue;
 switch(r.method){
 case 'initialize':result={munieStdioPolicyVersion:${JSON.stringify(policyAck)}};break;
@@ -945,6 +1036,28 @@ case 'account/read':
   result={account:accountType?{type:accountType,syntheticToken:'SECRET_TOKEN'}:null,requiresOpenaiAuth:true};
  break;
 case 'getAuthStatus':result={authToken:'SECRET_TOKEN'};break;
+case 'thread/start':case 'thread/resume':
+ if(${lanTaskLifecycle}) result={cwd:process.cwd(),
+  thread:{id:'fixture-task',cwd:process.cwd(),status:{type:'idle'}},activePermissionProfile:{id:r.params.permissions}};
+ break;
+case 'turn/start':
+ if(${lanTaskLifecycle}){
+  const turnId='turn-'+(++turnNumber);
+  result={turn:{id:turnId,status:'inProgress'}};
+  nextCallback={id:'native-approval-'+turnNumber,method:'item/commandExecution/requestApproval',params:{
+   threadId:r.params.threadId,turnId,itemId:'item-'+turnNumber,kind:'command',
+   cwd:process.cwd(),command:'fixture command',availableDecisions:['accept','cancel','acceptForSession'],
+  }};
+ }
+ break;
+case 'turn/interrupt':
+ if(${lanTaskLifecycle}) nextCallback={method:'turn/completed',params:{
+  threadId:r.params.threadId,turn:{id:r.params.turnId,status:'interrupted',items:[]},
+ }};
+ break;
+case 'thread/backgroundTerminals/list':
+ if(${lanTaskLifecycle}) result={data:[],nextCursor:null};
+ break;
 case 'thread/read':
  if(r.params?.threadId==='old-allowed'||r.params?.threadId==='old-denied'){
   pendingProjectLookups.push(r);
@@ -975,6 +1088,7 @@ case 'model/list':
 case 'account/login/start':case 'account/logout':process.exit(92);
 }
 if(r.id!==undefined)console.log(JSON.stringify({id:r.id,result}));
+if(nextCallback){console.log(JSON.stringify(nextCallback));nextCallback=null;}
 }});
 `;
   fs.writeFileSync(codex, source, { mode: 0o700 });

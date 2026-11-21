@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Check repository contracts without downloading or executing reference code."""
 
+import hashlib
 import json
 from pathlib import Path
 import plistlib
@@ -18,34 +19,236 @@ def require(condition, message):
         raise ValueError(message)
 
 
+def localized_or_recorded_debt(source, key, strings, debt):
+    # A path/key pair from the pinned upstream is a migration exception only.
+    # New text in that same file still requires the bilingual catalog.
+    return key in strings or key in debt.get(source, [])
+
+
+APPLE_PLATFORMS = {'ios', 'macos', 'tvos', 'watchos', 'visionos'}
+
+
+def markdown_links(markdown):
+    """Extract the repository's inline links, excluding fenced and inline code examples."""
+    visible = []
+    fence = None
+    for line in markdown.splitlines(keepends=True):
+        if fence:
+            character, length = fence
+            closing = r' {0,3}' + re.escape(character) + '{' + str(length) + r',}[ \t]*\r?\n?'
+            if re.fullmatch(closing, line):
+                fence = None
+            # Retain a block boundary so code spans cannot bridge a removed fence.
+            visible.append('\n')
+            continue
+        opening = re.match(r'^ {0,3}(`{3,}|~{3,})([^\r\n]*)', line)
+        if opening and (opening[1][0] != '`' or '`' not in opening[2]):
+            fence = (opening[1][0], len(opening[1]))
+            visible.append('\n')
+        else:
+            visible.append(line)
+
+    links = []
+    for paragraph in re.split(r'\r?\n[ \t]*\r?\n', ''.join(visible)):
+        runs = list(re.finditer(r'`+', paragraph))
+        next_by_length = {}
+        closing_runs = {}
+        for index in range(len(runs) - 1, -1, -1):
+            length = len(runs[index][0])
+            if length in next_by_length:
+                closing_runs[index] = next_by_length[length]
+            next_by_length[length] = index
+        masked = list(paragraph)
+        index = 0
+        while index < len(runs):
+            start = runs[index].start()
+            preceding = start
+            while preceding > 0 and paragraph[preceding - 1] == '\\':
+                preceding -= 1
+            closing_index = closing_runs.get(index)
+            if (start - preceding) % 2 or closing_index is None:
+                index += 1
+                continue
+            # Only an equally long backtick run closes a code span; escapes inside are literal.
+            end = runs[closing_index].end()
+            masked[start:end] = ' ' * (end - start)
+            index = closing_index + 1
+        links.extend(re.findall(r'\[[^\]]*\]\(([^\s)]+)\)', ''.join(masked)))
+    return links
+
+
+def validate_documentation(root):
+    """Keep topic-named documentation discoverable through the maintained index."""
+    docs = (root / 'docs').resolve()
+    documents = {path.resolve() for path in docs.rglob('*.md')}
+    index = docs / 'README.md'
+    require(index in documents, 'Missing documentation index: docs/README.md')
+    for path in sorted(documents):
+        require(not re.match(r'^\d+[-_]', path.name),
+                f'Use a topic filename without a numeric prefix: {path.relative_to(docs)}')
+    visited = set()
+    pending = [index]
+    while pending:
+        path = pending.pop()
+        if path in visited:
+            continue
+        visited.add(path)
+        for link in markdown_links(path.read_text(encoding='utf-8')):
+            target = unquote(link.split('#')[0])
+            if not target or re.match(r'[a-zA-Z]+:', target):
+                continue
+            resolved = (path.parent / target).resolve()
+            if resolved in documents and resolved not in visited:
+                pending.append(resolved)
+    orphans = documents - visited
+    require(not orphans, 'Unindexed documentation: ' +
+            ', '.join(str(path.relative_to(docs)) for path in sorted(orphans)))
+
+
+def validate_swift_package(package_root, manifest, required_platforms=None):
+    """Reject local packages that silently drop a shipping platform or conventional source roots."""
+    platforms = {item['platformName'] for item in manifest.get('platforms', [])}
+    required_platforms = APPLE_PLATFORMS if required_platforms is None else required_platforms
+    require(required_platforms <= platforms,
+            f'{package_root.name} must declare every Apple platform: '
+            f'{", ".join(sorted(required_platforms - platforms))}')
+    for target in manifest['targets']:
+        # Local shipping packages use SwiftPM's standard Sources/Tests layout.
+        # The root host-only presentation harness intentionally uses custom app paths.
+        target_root = 'Tests' if target['type'] == 'test' else 'Sources'
+        expected = f"{target_root}/{target['name']}"
+        require(target.get('path') in (None, expected),
+                f"{package_root.name}/{target['name']} must use {expected}")
+        require((package_root / expected).is_dir(),
+                f'Missing SwiftPM target source directory: {package_root.name}/{expected}')
+
+
+def check_swift_packages(root):
+    manifests = sorted((root / 'packages').glob('*/Package.swift'))
+    require(bool(manifests), 'No reusable Swift package found under packages/')
+    for manifest in manifests:
+        result = subprocess.run(['swift', 'package', '--package-path', str(manifest.parent),
+                                 'dump-package'], check=True, text=True, capture_output=True)
+        # This shared pairing package is consumed only by the iPhone and Mac
+        # targets. Declaring Watch/TV/Vision would imply unimplemented support.
+        required = {'ios', 'macos'} if manifest.parent.name == 'MunieNearby' else APPLE_PLATFORMS
+        validate_swift_package(manifest.parent, json.loads(result.stdout), required)
+
+
+def validate_xcode_project(project):
+    """Check the generated graph, rather than trusting labels in the source spec."""
+    objects = project['objects']
+    targets = {item['name']: item for item in objects.values()
+               if item.get('isa') == 'PBXNativeTarget'}
+    require({'Munie', 'MunieWatch'} <= targets.keys(),
+            'Generated project must contain native Munie and MunieWatch app targets')
+    expected_sdks = {'iphoneos', 'iphonesimulator', 'macosx', 'appletvos',
+                     'appletvsimulator', 'xros', 'xrsimulator'}
+    for name in ('Munie', 'MunieWatch'):
+        target = targets[name]
+        require(target['productType'] == 'com.apple.product-type.application',
+                f'{name} must be a native application target')
+        configurations = objects[target['buildConfigurationList']]['buildConfigurations']
+        require(bool(configurations), f'Missing build configurations for {name}')
+        for configuration in configurations:
+            settings = objects[configuration]['buildSettings']
+            if name == 'Munie':
+                sdks = set(settings.get('SUPPORTED_PLATFORMS', '').split())
+                require(expected_sdks <= sdks and not sdks & {'watchos', 'watchsimulator'},
+                        'Munie must support native iOS, macOS, tvOS and visionOS SDKs; '
+                        'watchOS belongs in its own target')
+                devices = settings.get('TARGETED_DEVICE_FAMILY[sdk=iphone*]',
+                                       settings.get('TARGETED_DEVICE_FAMILY', ''))
+                require({'1', '2'} <= {item.strip() for item in devices.split(',')},
+                        'Munie iOS device family must include both iPhone and iPad')
+            else:
+                require(settings.get('SDKROOT') == 'watchos',
+                        'MunieWatch must use the native watchOS SDK')
+    for dependency in targets['Munie'].get('dependencies', []):
+        linked_target = objects[dependency].get('target')
+        require(linked_target is None or objects[linked_target]['name'] != 'MunieWatch',
+                'Do not embed the standalone Watch app into every Munie platform')
+
+
+def check_xcode_project(root):
+    project = root / 'Munie.xcodeproj/project.pbxproj'
+    require(project.is_file(), 'Missing generated Xcode project; run ./scripts/bootstrap.sh')
+    result = subprocess.run(['plutil', '-convert', 'json', '-o', '-', str(project)],
+                            check=True, text=True, capture_output=True)
+    validate_xcode_project(json.loads(result.stdout))
+
+
+def check_identity_research(root):
+    """Verify the opt-in fixture lock and archived notices without resolving packages."""
+    archive = root / 'references/licenses/device-identity'
+    manifest = json.loads((archive / 'manifest.json').read_text())
+    lock = json.loads((root / 'scripts/fixtures/device-identity/Package.resolved').read_text())
+    packages = manifest['packages']
+    pins = lock['pins']
+    expected = {item['identity']: (item['repository'], item['revision']) for item in packages}
+    actual = {item['identity']: (item['location'], item['state']['revision']) for item in pins}
+    require(len(expected) == len(packages) == len(actual) == len(pins) == 3 and expected == actual,
+            'Identity fixture lock does not match its reviewed license source revisions')
+    files = manifest['files']
+    require(len(files) == 8 and len({item['path'] for item in files}) == 8,
+            'Identity fixture must preserve eight distinct core license/notice files')
+    for item in files:
+        name = item['path']
+        require(Path(name).name == name and name.endswith('.txt'), 'Invalid license archive path')
+        data = (archive / name).read_bytes()
+        require(type(item['bytes']) is int and len(data) == item['bytes'] and
+                hashlib.sha256(data).hexdigest() == item['sha256'],
+                f'Identity license archive bytes changed: {name}')
+
+
 def main():
     for name in ('README.md', 'README.zh-Hans.md', 'AGENTS.md', 'CONTRIBUTING.md',
                  'SECURITY.md', 'docs/project-status.md', 'references/manifest.json'):
         require((ROOT / name).is_file(), f'Missing maintained file: {name}')
 
-    catalog = json.loads((ROOT / 'apps/ios/Munie/Resources/Localizable.xcstrings').read_text())
-    strings = catalog['strings']
-    for key, item in strings.items():
-        for language in ('en', 'zh-Hans'):
-            unit = item['localizations'][language]['stringUnit']
-            require(unit['state'] == 'translated' and bool(unit['value'].strip()),
-                    f'Missing {language} translation: {key}')
+    validate_documentation(ROOT)
+    check_identity_research(ROOT)
+    subprocess.run([sys.executable, str(ROOT / 'scripts/catalog-codex.py'),
+                    '--validate-catalog', str(ROOT / 'references/codex-capabilities.json')], check=True)
+    check_swift_packages(ROOT)
+    check_xcode_project(ROOT)
+    subprocess.run([sys.executable, str(ROOT / 'scripts/check-remodex-adoption.py')], check=True)
+    debt_manifest = json.loads((ROOT / 'references/licenses/remodex-localization-debt.json').read_text())
+    source_manifest = json.loads((ROOT / 'references/licenses/remodex-source-manifest.json').read_text())
+    require(debt_manifest['revision'] == source_manifest['revision'], 'Localization debt pin changed')
+    adopted_paths = {item['destination'] for item in source_manifest['files']}
+    debt = debt_manifest['files']
+    require(set(debt).issubset(adopted_paths), 'Localization debt may only cover adopted source files')
+
+    strings = {}
+    for catalog_path in sorted((ROOT / 'apps').rglob('*.xcstrings')):
+        catalog = json.loads(catalog_path.read_text())
+        for key, item in catalog['strings'].items():
+            for language in ('en', 'zh-Hans'):
+                unit = item['localizations'][language]['stringUnit']
+                require(unit['state'] == 'translated' and bool(unit['value'].strip()),
+                        f'Missing {language} translation in {catalog_path.name}: {key}')
+            strings[key] = item
     patterns = [
-        r'\b(?:Text|Button|Label|ContentUnavailableView)\(\s*"([^"\\\n]+)"',
+        r'\b(?:Text|TextField|SecureField|Button|Label|ContentUnavailableView)\(\s*"([^"\\\n]+)"',
         r'String\(localized:\s*"([^"\\\n]+)"',
         r'\.(?:navigationTitle|accessibilityLabel|alert|confirmationDialog)\(\s*"([^"\\]+)"',
         r'prompt:\s*"([^"\\]+)"',
+        r'\b(?:hostText|remoteString)\(\s*"([^"\\\n]+)"',
     ]
-    for source in (ROOT / 'apps/ios/Munie').rglob('*.swift'):
+    for source in (ROOT / 'apps').rglob('*.swift'):
         for pattern in patterns:
             for key in re.findall(pattern, source.read_text()):
-                require(key in strings, f'Unlocalized string in {source.name}: {key}')
+                if not key.strip():
+                    continue
+                require(localized_or_recorded_debt(str(source.relative_to(ROOT)), key, strings, debt),
+                        f'Unlocalized string in {source.name}: {key}')
 
     for file in (ROOT / 'apps').rglob('*.xcprivacy'):
         plistlib.loads(file.read_bytes())
     for file in (ROOT / 'apps').rglob('Contents.json'):
         json.loads(file.read_text())
-    icon = ROOT / 'apps/ios/Munie/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png'
+    icon = ROOT / 'apps/Munie/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png'
     png = icon.read_bytes()
     require(png[:8] == b'\x89PNG\r\n\x1a\n', 'App icon must be PNG')
     width, height, depth, color_type = struct.unpack('>IIBB', png[16:26])
@@ -56,10 +259,12 @@ def main():
         require(file.stat().st_mode & 0o111, f'Script is not executable: {file.name}')
 
     # Historical research retains original links; maintained guidance must be navigable.
-    markdown = [*ROOT.glob('*.md'), *ROOT.glob('docs/*.md'),
-                *ROOT.glob('docs/decisions/*.md'), *ROOT.glob('references/*.md')]
+    markdown = [*ROOT.glob('*.md'),
+                *(path for path in (ROOT / 'docs').rglob('*.md')
+                  if 'research' not in path.relative_to(ROOT / 'docs').parts),
+                *ROOT.glob('references/*.md')]
     for file in markdown:
-        for link in re.findall(r'\[[^\]]*\]\(([^\s)]+)\)', file.read_text()):
+        for link in markdown_links(file.read_text(encoding='utf-8')):
             target = unquote(link.split('#')[0])
             if not target or re.match(r'[a-zA-Z]+:', target):
                 continue
@@ -74,7 +279,8 @@ def main():
                     'ARGV.each { |p| YAML.load_file(p) }; puts "Workflow YAML parsed"',
                     *workflows], check=True)
     subprocess.run(['git', 'diff', '--check'], cwd=ROOT, check=True)
-    print(f'Repository checks passed; {len(strings)} UI strings cover en and zh-Hans.')
+    print(f'Repository checks passed; {len(strings)} catalog keys cover en and zh-Hans; '
+          f'{sum(map(len, debt.values()))} pinned upstream literals remain localization debt.')
 
 
 if __name__ == '__main__':

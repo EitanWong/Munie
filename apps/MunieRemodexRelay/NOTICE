@@ -1,0 +1,9 @@
+Munie incorporates Remodex source from https://github.com/Emanuele-web04/remodex
+Commit: c06dcb16a7059603a41e26a2cb4a81b6d4b5514d
+Original directory: relay
+Author: Emanuele Di Pietro and Remodex contributors
+License: Apache License 2.0 (see LICENSE).
+
+Imported source, upstream tests and dependency lock files are retained.
+Munie modifications are marked in the affected files and recorded in UPSTREAM.json
+by comparison with the original per-file SHA-256 hashes.

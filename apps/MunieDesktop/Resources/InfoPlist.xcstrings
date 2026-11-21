@@ -1,0 +1,22 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "NSLocalNetworkUsageDescription": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Find your iPhone and securely pair with it when you choose to connect."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查找你的 iPhone，并在你选择连接时安全配对。"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

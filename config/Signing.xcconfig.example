@@ -2,3 +2,5 @@
 // Replace the placeholder bundle identifier and enter your own Apple signing team.
 PRODUCT_BUNDLE_IDENTIFIER = app.munie.ios
 DEVELOPMENT_TEAM =
+// Optional: override the standalone Watch app identity independently.
+// MUNIE_WATCH_BUNDLE_IDENTIFIER = app.munie.ios.watchkitapp

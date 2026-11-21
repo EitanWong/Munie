@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "checkedOn": "2026-11-17",
+  "scope": "Core license and attribution archive for the opt-in device-identity Swift fixture, not root/shipping dependency adoption or a complete audit of all upstream test/vendored source.",
+  "packages": [
+    {
+      "identity": "swift-certificates",
+      "repository": "https://github.com/apple/swift-certificates.git",
+      "revision": "8789d7e78f996d56272836c8bf3590c5bd9c9754"
+    },
+    {
+      "identity": "swift-crypto",
+      "repository": "https://github.com/apple/swift-crypto.git",
+      "version": "5.1.1",
+      "revision": "f8fad2f95ad67b45f6340c0960e2396094d67e07"
+    },
+    {
+      "identity": "swift-asn1",
+      "repository": "https://github.com/apple/swift-asn1.git",
+      "version": "1.7.4",
+      "revision": "917b472dbe53ba699cbb0495f9a95a084bc6364d"
+    }
+  ],
+  "boringSSL": {
+    "revision": "0226f30467f540a3f62ef48d453f93927da199b6",
+    "vendorMetadataURL": "https://github.com/apple/swift-crypto/blob/f8fad2f95ad67b45f6340c0960e2396094d67e07/Sources/CCryptoBoringSSL/hash.txt",
+    "vendorMetadataSHA256": "31fb466314c7e2ad27ac255a53f4d195dbd05c0df48eacba5ef2ef67e0761969"
+  },
+  "muslSourceSHA256": "96135d14eef88b5cd918e36f537e2054469c1ab3f97912d684eb7cfcb4df0544",
+  "files": [
+    {
+      "path": "BoringSSL-LICENSE.txt",
+      "bytes": 13115,
+      "sha256": "827c8d8fc207c2392794eef9e00fe246f9f61fdcc132556c275be3dd8c3cd97f",
+      "repository": "https://github.com/google/boringssl.git",
+      "revision": "0226f30467f540a3f62ef48d453f93927da199b6",
+      "sourcePath": "LICENSE",
+      "url": "https://github.com/google/boringssl/blob/0226f30467f540a3f62ef48d453f93927da199b6/LICENSE",
+      "copied": "verbatim complete upstream file; vendored revision identified by SwiftCrypto Sources/CCryptoBoringSSL/hash.txt"
+    },
+    {
+      "path": "swift-asn1-LICENSE.txt",
+      "bytes": 11359,
+      "sha256": "8c6db340475136df3c1201d458fa5755698eace76e510471ecc9d857d6083dac",
+      "repository": "https://github.com/apple/swift-asn1.git",
+      "revision": "917b472dbe53ba699cbb0495f9a95a084bc6364d",
+      "sourcePath": "LICENSE.txt",
+      "url": "https://github.com/apple/swift-asn1/blob/917b472dbe53ba699cbb0495f9a95a084bc6364d/LICENSE.txt",
+      "copied": "verbatim complete file"
+    },
+    {
+      "path": "swift-asn1-NOTICE.txt",
+      "bytes": 1450,
+      "sha256": "11dd3b3b783e6ec26098dd38ebc962986ea109b85447e28e62867b83bd0f8c5b",
+      "repository": "https://github.com/apple/swift-asn1.git",
+      "revision": "917b472dbe53ba699cbb0495f9a95a084bc6364d",
+      "sourcePath": "NOTICE.txt",
+      "url": "https://github.com/apple/swift-asn1/blob/917b472dbe53ba699cbb0495f9a95a084bc6364d/NOTICE.txt",
+      "copied": "verbatim complete file"
+    },
+    {
+      "path": "swift-certificates-LICENSE.txt",
+      "bytes": 11359,
+      "sha256": "8c6db340475136df3c1201d458fa5755698eace76e510471ecc9d857d6083dac",
+      "repository": "https://github.com/apple/swift-certificates.git",
+      "revision": "8789d7e78f996d56272836c8bf3590c5bd9c9754",
+      "sourcePath": "LICENSE.txt",
+      "url": "https://github.com/apple/swift-certificates/blob/8789d7e78f996d56272836c8bf3590c5bd9c9754/LICENSE.txt",
+      "copied": "verbatim complete file"
+    },
+    {
+      "path": "swift-certificates-NOTICE.txt",
+      "bytes": 2589,
+      "sha256": "57d7797703d906b63c2be50d891cf70bdec307ae6f77a881638c33343f3dd195",
+      "repository": "https://github.com/apple/swift-certificates.git",
+      "revision": "8789d7e78f996d56272836c8bf3590c5bd9c9754",
+      "sourcePath": "NOTICE.txt",
+      "url": "https://github.com/apple/swift-certificates/blob/8789d7e78f996d56272836c8bf3590c5bd9c9754/NOTICE.txt",
+      "copied": "verbatim complete file"
+    },
+    {
+      "path": "swift-certificates-musl-MIT.txt",
+      "bytes": 2154,
+      "sha256": "feb8889436a66965983522b6770287f63247c9b8a22f449add3b7700f4e640a1",
+      "repository": "https://github.com/apple/swift-certificates.git",
+      "revision": "8789d7e78f996d56272836c8bf3590c5bd9c9754",
+      "sourcePath": "Sources/X509/X509BaseTypes/TimeCalculations.swift",
+      "url": "https://github.com/apple/swift-certificates/blob/8789d7e78f996d56272836c8bf3590c5bd9c9754/Sources/X509/X509BaseTypes/TimeCalculations.swift",
+      "copied": "verbatim leading source comments before extension Int64; includes complete original musl MIT notice"
+    },
+    {
+      "path": "swift-crypto-LICENSE.txt",
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "repository": "https://github.com/apple/swift-crypto.git",
+      "revision": "f8fad2f95ad67b45f6340c0960e2396094d67e07",
+      "sourcePath": "LICENSE.txt",
+      "url": "https://github.com/apple/swift-crypto/blob/f8fad2f95ad67b45f6340c0960e2396094d67e07/LICENSE.txt",
+      "copied": "verbatim complete file"
+    },
+    {
+      "path": "swift-crypto-NOTICE.txt",
+      "bytes": 1563,
+      "sha256": "b3ddc2ae068e76b3beb71be03c0400f90090f9469aa491bf7b1ac42320af37b8",
+      "repository": "https://github.com/apple/swift-crypto.git",
+      "revision": "f8fad2f95ad67b45f6340c0960e2396094d67e07",
+      "sourcePath": "NOTICE.txt",
+      "url": "https://github.com/apple/swift-crypto/blob/f8fad2f95ad67b45f6340c0960e2396094d67e07/NOTICE.txt",
+      "copied": "verbatim complete file"
+    }
+  ]
+}

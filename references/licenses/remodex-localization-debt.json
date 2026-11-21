@@ -1,0 +1,407 @@
+{
+  "schemaVersion": 1,
+  "revision": "c06dcb16a7059603a41e26a2cb4a81b6d4b5514d",
+  "scope": "Existing source literals only; this is untranslated migration debt, not bilingual acceptance. New literals must be in bilingual catalogs.",
+  "files": {
+    "apps/MunieRemodex/App/ContentView.swift": [
+      "AB23CD34EF"
+    ],
+    "apps/MunieRemodex/App/Views/AboutRemodexView.swift": [
+      "->",
+      "About Remodex",
+      "Continue Codex and OpenCode chats from your iPhone.",
+      "ISC License",
+      "Remodex"
+    ],
+    "apps/MunieRemodex/App/Views/Home/BridgeUpdateSheet.swift": [
+      "Copy bridge update command",
+      "Install the latest Remodex build on this iPhone, then come back here and reconnect.",
+      "Run this on your device",
+      "Scan New QR Code"
+    ],
+    "apps/MunieRemodex/App/Views/Home/HomeEmptyStateView.swift": [
+      "Remodex"
+    ],
+    "apps/MunieRemodex/App/Views/Home/ThreadCompletionBannerView.swift": [
+      "Dismiss notification"
+    ],
+    "apps/MunieRemodex/App/Views/Home/WhatsNewSheet.swift": [
+      "Here’s what changed in this build.",
+      "We'll only show this once for each app version.",
+      "What's New"
+    ],
+    "apps/MunieRemodex/App/Views/Payments/RevenueCatPaywallView.swift": [
+      " · ",
+      "37% OFF",
+      "Everything runs on your device. Your phone is the remote.",
+      "Here's what you'll get",
+      "Manage",
+      "Privacy",
+      "Pro is already active on this account.",
+      "Redeem Code",
+      "Terms",
+      "Unlock Remodex Pro"
+    ],
+    "apps/MunieRemodex/App/Views/Payments/SubscriptionGateView.swift": [
+      " · ",
+      "$0.00 / month",
+      "Couldn’t load subscription status",
+      "Loading pricing...",
+      "Monthly, yearly, and lifetime plans will appear here in a moment.",
+      "Pricing",
+      "Pricing is unavailable right now.",
+      "Privacy",
+      "Redeem Code",
+      "Remodex Pro",
+      "Remodex Pro Required",
+      "Remodex connects to Codex running on your device. Buying Pro unlocks the app, but you still need Codex already logged in on that device.",
+      "Remodex couldn’t confirm your Pro access yet. Check your connection, retry, or restore your App Store purchases.",
+      "Retry",
+      "Retry pricing",
+      "Terms",
+      "Unlock Now",
+      "Unlock monthly, yearly, or lifetime access to connect your iPhone to Codex running on your device.",
+      "Use with Your Device",
+      "We couldn't load the available plans yet. Try again in a moment.",
+      "What you get"
+    ],
+    "apps/MunieRemodex/App/Views/QRScannerView.swift": [
+      "Scan the Remodex QR code"
+    ],
+    "apps/MunieRemodex/App/Views/Settings/SettingsCommandReferenceCard.swift": [
+      "Run these in Terminal on your paired Mac when you need to start, repair, or inspect the local Remodex bridge.",
+      "Terminal Commands"
+    ],
+    "apps/MunieRemodex/App/Views/Settings/SettingsConnectionCard.swift": [
+      "Disconnect from this Mac?",
+      "Your pairing stays saved so you can reconnect later."
+    ],
+    "apps/MunieRemodex/App/Views/Settings/SettingsSupportCards.swift": [
+      "Device name",
+      "Edit Device Name",
+      "Edit device name",
+      "Save",
+      "This nickname stays on this iPhone and appears anywhere this device is shown.",
+      "Use Default"
+    ],
+    "apps/MunieRemodex/App/Views/Settings/SettingsView.swift": [
+      "BETA",
+      "Companion Pet",
+      "Message Bubble",
+      "Message Bubble color",
+      "Settings"
+    ],
+    "apps/MunieRemodex/App/Views/Shared/ThreadRenamePrompt.swift": [
+      "Name",
+      "Rename",
+      "Rename Conversation"
+    ],
+    "apps/MunieRemodex/App/Views/Shared/UsageStatusSummaryContent.swift": [
+      "Context window",
+      "Loading current limits...",
+      "Rate limits",
+      "Rate limits are unavailable for this account."
+    ],
+    "apps/MunieRemodex/App/Views/Sidebar/ArchivedChatsView.swift": [
+      "Archived Chats",
+      "Could not load archived chats",
+      "No archived chats",
+      "Remove",
+      "Remove from Phone",
+      "This only removes the chat from Remodex on this phone. Nothing is removed from your Mac."
+    ],
+    "apps/MunieRemodex/App/Views/Sidebar/ManagedWorktreeCleanupSheet.swift": [
+      "Contains local files",
+      "Could not remove worktree",
+      "Git will remove this clean checkout. Chats and local files in use block removal.",
+      "Managed Worktrees",
+      "No managed worktrees",
+      "Remove Worktree",
+      "Remove this worktree?",
+      "This project has no managed worktrees to clean up."
+    ],
+    "apps/MunieRemodex/App/Views/Sidebar/SidebarFloatingSettingsButton.swift": [
+      "Terminal"
+    ],
+    "apps/MunieRemodex/App/Views/Sidebar/SidebarHeaderView.swift": [
+      "More actions",
+      "Remodex"
+    ],
+    "apps/MunieRemodex/App/Views/Sidebar/SidebarPinIcon.swift": [
+      "Investigate flaky tests",
+      "Pinned"
+    ],
+    "apps/MunieRemodex/App/Views/Sidebar/SidebarSearchField.swift": [
+      "Dismiss search",
+      "Search Chats"
+    ],
+    "apps/MunieRemodex/App/Views/Sidebar/SidebarThreadRowView.swift": [
+      "Archived",
+      "Stored locally"
+    ],
+    "apps/MunieRemodex/App/Views/Sidebar/SidebarThreadRunBadgeView.swift": [
+      "Running"
+    ],
+    "apps/MunieRemodex/App/Views/SidebarView.swift": [
+      "Action failed",
+      "All active chats in this project will be archived.",
+      "Archive Project",
+      "Chats for this project will be deleted only from Remodex on this phone. Nothing is removed from your device or Codex observer.",
+      "Remove from Phone",
+      "Syncing chats",
+      "This only removes the chat from Remodex on this phone. Nothing is removed from your device or Codex observer."
+    ],
+    "apps/MunieRemodex/App/Views/Terminal/TerminalConnectionEditorFields.swift": [
+      "Passphrase (optional)",
+      "Private key",
+      "Private key saved",
+      "ssh",
+      "user@hostname"
+    ],
+    "apps/MunieRemodex/App/Views/Terminal/TerminalConnectionEditorSheet.swift": [
+      "Connect",
+      "New Server",
+      "Reset Host Key",
+      "Reset saved SSH host key?",
+      "SSH setup guide",
+      "The next connection to this host will trust the key it presents."
+    ],
+    "apps/MunieRemodex/App/Views/Terminal/TerminalConnectionHelpSheet.swift": [
+      "Connect to Windows with SSH",
+      "Copy a ready-made prompt and paste it into any AI.",
+      "Need help?",
+      "Run these in an Administrator PowerShell on the Windows PC, then create a terminal profile in Remodex.",
+      "SSH Setup",
+      "SSH is the secure tunnel Remodex uses to reach your Mac or PC. You need an address, a username, SSH enabled, and a private key."
+    ],
+    "apps/MunieRemodex/App/Views/Terminal/TerminalFallbackSurface.swift": [
+      "Ctrl-C",
+      "type and press return"
+    ],
+    "apps/MunieRemodex/App/Views/Terminal/TerminalOptionsMenu.swift": [
+      "Clear",
+      "Open new terminal",
+      "Terminal options"
+    ],
+    "apps/MunieRemodex/App/Views/Terminal/TerminalRouteChrome.swift": [
+      "Arrow key controller",
+      "SSH connection"
+    ],
+    "apps/MunieRemodex/App/Views/Terminal/TerminalSelectableTextSheet.swift": [
+      "Select Text"
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Composer/AllModelsSheet.swift": [
+      "Choose model",
+      "Reconnect to your local Codex bridge to refresh the model list."
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Composer/ComposerRuntimeSliderOverlay.swift": [
+      "This chat's model is fixed. Start a new chat to choose a different model."
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Composer/QueuedDraftsPanel.swift": [
+      "Move draft into input",
+      "Queued",
+      "Queued messages",
+      "Steer"
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Composer/SkillAutocompletePanel.swift": [
+      "Searching skills..."
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Composer/TurnMentionChips.swift": [
+      "can you"
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Core/ChatEmptyStatePlaceholder.swift": [
+      "?",
+      "Hi! How can I help you?",
+      "What should we do in "
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Core/TurnToolbarContent.swift": [
+      "Path",
+      "Rename conversation",
+      "Thread",
+      "Thread actions"
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Core/TurnView.swift": [
+      "Creating fork...",
+      "Keep Worktree",
+      "Open Chat",
+      "Opening the new chat",
+      "Remove Worktree",
+      "Remove the old worktree?",
+      "The old checkout will be removed only if no chats use it and it contains no local files."
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Core/TurnViewAlertModifier.swift": [
+      "Remodex will force close and reopen Codex.app on this device. Any desktop runs in progress will be stopped, and unsaved draft text there may be lost before this chat is opened."
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Core/TurnViewSupportViews.swift": [
+      "Clear",
+      "Copy",
+      "Runtime Logs",
+      "Start a Plan Mode turn and the RPC events will appear here.",
+      "Subagent"
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Diff/TurnDiffSheet.swift": [
+      "This diff is too large to display in full."
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Diff/TurnFileChangeSummaryViews.swift": [
+      "File changes",
+      "Open diff"
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Git/AssistantRevertSheet.swift": [
+      "Checking whether the reverse patch applies cleanly...",
+      "Could not safely undo this response.",
+      "Error",
+      "This action will try to undo only the changes from this response. Later local edits stay untouched unless they overlap.",
+      "This response can be undone cleanly.",
+      "Undo looks clean, but other chats touched some of these files.",
+      "Undo this response"
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Git/TurnGitActionsToolbar.swift": [
+      "Git actions"
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Git/TurnGitBranchSelector.swift": [
+      "Branch will be created locally and checked out. Uncommitted changes stay with this working copy.",
+      "New branch",
+      "Search branches",
+      "Switching...",
+      "Try a different search or refresh the branch list.",
+      "remodex/my-feature"
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Git/TurnWorktreeHandoffOverlay.swift": [
+      "Base branch",
+      "Branch name",
+      "Starts from this base branch.",
+      "feature-name",
+      "main"
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Messages/AsyncUserInputCardView.swift": [
+      "Answered",
+      "Answers queued until this run finishes",
+      "Could not confirm whether these answers arrived",
+      "Questions",
+      "Remodex cannot tell if Codex received them. Check the chat on your Mac first: sending them again could create a duplicate.",
+      "Retry these answers?",
+      "Review and retry",
+      "Review answers",
+      "Sending answers…"
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Messages/AutoApprovalReviewRow.swift": [
+      "Approval recorded; the retry will still be reviewed",
+      "Approve one retry"
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Messages/CommandExecutionStatusCard.swift": [
+      "Image",
+      "Image Preview"
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Messages/CopyBlockButton.swift": [
+      "Copy response",
+      "Running a response right now.",
+      "This is a sample assistant response with some content that the user might want to copy."
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Messages/FileChangeStatusCapsule.swift": [
+      "Open file changes diff"
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Messages/SubagentViews.swift": [
+      "No extra details yet.",
+      "Open child thread",
+      "Status"
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Messages/TurnMermaidRenderer.swift": [
+      "Image",
+      "Rendering diagram…",
+      "Save diagram"
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Messages/TurnMessageAccessoryViews.swift": [
+      "Deny"
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Messages/TurnMessageComponents.swift": [
+      "Copy",
+      "Select Text",
+      "Show more",
+      "Show more text"
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Messages/WorkspaceImagePreview.swift": [
+      "Copy file contents",
+      "Loading file",
+      "Reload file",
+      "Retry"
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Plan/PlanAccessoryCard.swift": [
+      "Ask Codex to continue...",
+      "Open active plan",
+      "Plan Accessory"
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Plan/StructuredUserInputCardView.swift": [
+      "Next",
+      "Questions"
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Plan/TurnPlanModeComponents.swift": [
+      "Active plan",
+      "Open the prompt to review the plan and respond.",
+      "Proposed plan",
+      "Questions"
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Support/ContextWindowProgressRing.swift": [
+      "Context window"
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Support/GoalStatusChip.swift": [
+      "Codex stops pursuing the objective and forgets its progress accounting.",
+      "Remove Goal",
+      "Remove this goal?"
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Support/GoalStatusSheet.swift": [
+      "Clear Goal",
+      "Clear this goal?",
+      "Codex keeps working toward this goal whenever the chat is idle, until it is complete, paused, or out of budget.",
+      "Codex stops pursuing the objective and forgets its goal progress accounting.",
+      "Describe the outcome, how to verify it, and what must not regress. Codex keeps working toward it across turns.",
+      "Goal",
+      "Replace Goal",
+      "Replace the current goal?",
+      "The current goal is not complete. Replacing it starts the new objective from scratch.",
+      "Token budget (optional)"
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Support/TerminalRunningIndicator.swift": [
+      "Here is the beginning of an assistant response that is still streaming content...",
+      "Remodex is thinking"
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Support/TurnErrorReportCard.swift": [
+      "Continue the interrupted task",
+      "Dismiss issue",
+      "Report",
+      "Report issue"
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Support/TurnImagePreview.swift": [
+      "Image"
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Support/TurnStatusSheet.swift": [
+      "Status"
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Timeline/TurnTimelineFooter.swift": [
+      "Scroll to latest message"
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Timeline/TurnTimelineRows.swift": [
+      "Loading recent messages..."
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Voice/GPTVoiceSetupSheet.swift": [
+      "GPT voice uses ChatGPT on your device",
+      "How GPT Voice Works",
+      "In short: iPhone voice in, device ChatGPT session for transcription, transcript back to the iPhone.",
+      "Remodex does not keep a separate GPT voice secret on the iPhone. It uses the ChatGPT session already active on your paired device."
+    ],
+    "apps/MunieRemodex/App/Views/Turn/Voice/VoiceRecordingCapsule.swift": [
+      "Ask anything... @plugins, $skills, /commands",
+      "GPT-5.3-Codex"
+    ],
+    "apps/MunieRemodex/Tests/CodexStructuredUserInputDecodeTests.swift": [
+      "Inspect the parser",
+      "Review the latest unstaged git changes"
+    ],
+    "apps/MunieRemodex/Widget/RemodexControlCenterWidget.swift": [
+      "Remodex"
+    ],
+    "apps/MunieRemodex/Widget/RemodexLockScreenWidget.swift": [
+      "Open Codex chat",
+      "Remodex"
+    ]
+  }
+}

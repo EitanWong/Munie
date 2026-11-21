@@ -1,0 +1,2421 @@
+// Munie modification: explicit-project cancellation waits for native background-terminal cleanup.
+// FILE: bridge-desktop-ipc-integration.test.js
+// Purpose: Verifies the bridge wires phone-origin replies to Codex Desktop IPC actions.
+// Layer: Integration test
+// Exports: node:test suite
+// Depends on: node:test, ws, net, ../src/bridge with mocked runtime transports
+
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const Module = require("node:module");
+const net = require("node:net");
+const os = require("node:os");
+const path = require("node:path");
+const { setTimeout: wait } = require("node:timers/promises");
+const WebSocket = require("ws");
+
+test("bridge resumes an old Desktop task from read-only metadata before any IPC snapshot", async (t) => {
+  const { tempDir, socketPath: ipcSocketPath } = createIpcTestSocket("remodex-bridge-resume-bootstrap-");
+  const ipcFrames = [];
+  const ipcServer = net.createServer((socket) => {
+    attachFrameReader(socket, (frame) => {
+      ipcFrames.push(frame);
+      if (frame.method === "initialize") {
+        writeFrame(socket, {
+          type: "response", requestId: frame.requestId,
+          resultType: "success", method: "initialize",
+          handledByClientId: "desktop", result: { clientId: "bridge-test" },
+        });
+      } else if (frame.method === "thread-owner-discovery") {
+        writeFrame(socket, {
+          type: "response", requestId: frame.requestId,
+          resultType: "success", method: frame.method,
+          handledByClientId: "desktop", result: { supportsUntrustedAppInput: true },
+        });
+      } else if (frame.method === "thread-follower-load-complete-history") {
+        writeFrame(socket, {
+          type: "response", requestId: frame.requestId,
+          resultType: "success", method: frame.method,
+          handledByClientId: "desktop", result: { revision: 1 },
+        });
+      } else if (frame.method === "thread-follower-update-thread-settings") {
+        writeFrame(socket, {
+          type: "response", requestId: frame.requestId,
+          resultType: "success", method: frame.method,
+          handledByClientId: "desktop", result: { applied: true },
+        });
+      }
+    });
+  });
+  await new Promise((resolve) => ipcServer.listen(ipcSocketPath, resolve));
+  const relayServer = new WebSocket.Server({ port: 0 });
+  const relayMessages = [];
+  let relaySocket = null;
+  let bridge = null;
+  let fakeCodex = null;
+  await new Promise((resolve) => relayServer.once("listening", resolve));
+  relayServer.on("connection", (socket) => {
+    relaySocket = socket;
+    socket.on("message", (data) => {
+      const parsed = safeParseJSON(data.toString("utf8"));
+      if (parsed) relayMessages.push(parsed);
+    });
+  });
+  const { startBridge } = loadBridgeWithTestDoubles({
+    createCodexTransportImpl() {
+      fakeCodex = createFakeCodexTransport({
+        threadReadResult: {
+          thread: {
+            id: "desktop-bootstrap-task",
+            name: "Old Desktop task",
+            source: "vscode",
+            originator: "Codex Desktop",
+            turns: [],
+          },
+        },
+      });
+      return fakeCodex;
+    },
+  });
+  t.after(() => {
+    bridge?.stop();
+    relaySocket?.close();
+    relayServer.close();
+    ipcServer.close();
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+  bridge = startBridge({
+    printPairingQr: false,
+    config: {
+      relayUrl: `ws://127.0.0.1:${relayServer.address().port}`,
+      pushServiceUrl: "",
+      refreshEnabled: false,
+      keepMacAwakeEnabled: false,
+      codexEndpoint: "",
+      refreshCommand: "",
+      codexBundleId: "",
+      codexAppPath: "",
+      desktopIpcSocketPath: ipcSocketPath,
+      desktopIpcLiveSyncEnabled: false,
+    },
+  });
+  await waitFor(() => relaySocket && relaySocket.readyState === WebSocket.OPEN);
+  relaySocket.send(JSON.stringify({
+    id: "resume-bootstrap",
+    method: "thread/resume",
+    params: { threadId: "desktop-bootstrap-task", excludeTurns: true },
+  }));
+  const response = await waitForMessage(relayMessages, (message) => message.id === "resume-bootstrap");
+  assert.equal(response.result?.thread?.id, "desktop-bootstrap-task");
+  assert.equal(response.result?.remodexDesktopIpcMirror, true);
+  assert.deepEqual(response.result?.thread?.turns, []);
+  assert.deepEqual(fakeCodex.sent.filter((message) => message.method === "thread/read")
+    .map((message) => message.params), [{ threadId: "desktop-bootstrap-task", includeTurns: false }]);
+  assert.equal(fakeCodex.sent.some((message) => message.method === "thread/resume"), false);
+  assert.equal(ipcFrames.some((frame) => frame.method === "thread-follower-load-complete-history"), true);
+  relaySocket.send(JSON.stringify({
+    id: "settings-bootstrap", method: "thread/settings/update",
+    params: { threadId: "desktop-bootstrap-task", model: "gpt-test" },
+  }));
+  const settings = await waitForMessage(relayMessages, (message) => message.id === "settings-bootstrap");
+  assert.equal(settings.error, undefined);
+  const desktopSettings = ipcFrames.find((frame) => frame.method === "thread-follower-update-thread-settings");
+  assert.equal(desktopSettings?.targetClientId, "desktop");
+  assert.equal(fakeCodex.sent.some((message) => message.method === "thread/settings/update"), false);
+});
+
+for (const desktopIpcLiveSyncEnabled of [true, false]) {
+test(`bridge transfers a dormant Desktop-origin task after local resume succeeds (live sync ${desktopIpcLiveSyncEnabled})`, async (t) => {
+  const { tempDir, socketPath: ipcSocketPath } = createIpcTestSocket("remodex-bridge-local-takeover-");
+  const relayServer = new WebSocket.Server({ port: 0 });
+  const relayMessages = [];
+  const ipcFrames = [];
+  let relaySocket = null;
+  let bridge = null;
+  let fakeCodex = null;
+  await new Promise((resolve) => relayServer.once("listening", resolve));
+  relayServer.on("connection", (socket) => {
+    relaySocket = socket;
+    socket.on("message", (data) => {
+      const parsed = safeParseJSON(data.toString("utf8"));
+      if (parsed) relayMessages.push(parsed);
+    });
+  });
+  const ipcServer = net.createServer((socket) => {
+    attachFrameReader(socket, (frame) => {
+      ipcFrames.push(frame);
+      if (frame.method === "initialize") {
+        writeFrame(socket, {
+          type: "response", requestId: frame.requestId,
+          resultType: "success", method: "initialize",
+          handledByClientId: "desktop", result: { clientId: "bridge-test" },
+        });
+      } else if (frame.method === "thread-owner-discovery") {
+        writeFrame(socket, {
+          type: "response", requestId: frame.requestId,
+          resultType: "error", error: "no-client-found",
+        });
+      }
+    });
+  });
+  await new Promise((resolve) => ipcServer.listen(ipcSocketPath, resolve));
+  const { startBridge } = loadBridgeWithTestDoubles({
+    createCodexTransportImpl() {
+      fakeCodex = createFakeCodexTransport({
+        threadReadResult: { thread: {
+          id: "dormant-desktop-task", source: "vscode", originator: "Codex Desktop", turns: [],
+        } },
+      });
+      return fakeCodex;
+    },
+  });
+  t.after(() => {
+    bridge?.stop();
+    relaySocket?.close();
+    relayServer.close();
+    ipcServer.close();
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+  bridge = startBridge({
+    printPairingQr: false,
+    config: bridgeTestConfig(relayServer, {
+      desktopIpcSocketPath: ipcSocketPath,
+      desktopIpcLiveSyncEnabled,
+    }),
+  });
+  await waitFor(() => relaySocket && relaySocket.readyState === WebSocket.OPEN);
+  relaySocket.send(JSON.stringify({
+    id: "resume-dormant", method: "thread/resume",
+    params: { threadId: "dormant-desktop-task", excludeTurns: true },
+  }));
+  relaySocket.send(JSON.stringify({
+    id: "settings-dormant", method: "thread/settings/update",
+    params: { threadId: "dormant-desktop-task", model: "gpt-test" },
+  }));
+  await waitFor(() => fakeCodex.sent.some((message) => message.method === "thread/resume"));
+  assert.equal(fakeCodex.sent.some((message) => message.method === "thread/settings/update"), false);
+  const localResume = fakeCodex.sent.find((message) => message.method === "thread/resume");
+  fakeCodex.emitMessage({ id: localResume.id, result: {
+    thread: { id: "dormant-desktop-task", source: "vscode", originator: "Codex Desktop", turns: [] },
+  } });
+  const resume = await waitForMessage(relayMessages, (message) => message.id === "resume-dormant");
+  assert.equal(resume.result?.thread?.id, "dormant-desktop-task");
+  assert.notEqual(resume.result?.remodexDesktopIpcMirror, true);
+  await waitFor(() => fakeCodex.sent.some((message) => message.method === "thread/settings/update"));
+  const localSettings = fakeCodex.sent.find((message) => message.method === "thread/settings/update");
+  fakeCodex.emitMessage({ id: localSettings.id, result: {} });
+  const settings = await waitForMessage(relayMessages, (message) => message.id === "settings-dormant");
+  assert.equal(settings.error, undefined);
+  assert.equal(ipcFrames.some((frame) => frame.method === "thread-follower-update-thread-settings"), false);
+  if (!desktopIpcLiveSyncEnabled) {
+    // Unsubscribe alone does not release Codex's writer. The app-server's
+    // thread/closed notification is the confirmed loss of this local claim.
+    fakeCodex.emitMessage({ method: "thread/closed", params: { threadId: "dormant-desktop-task" } });
+    relaySocket.send(JSON.stringify({
+      id: "settings-after-close", method: "thread/settings/update",
+      params: { threadId: "dormant-desktop-task", model: "another-model" },
+    }));
+    const afterClose = await waitForMessage(relayMessages, (message) => message.id === "settings-after-close");
+    assert.equal(afterClose.error?.code, -32000);
+    assert.equal(fakeCodex.sent.filter((message) => message.method === "thread/settings/update").length, 1);
+
+    // A successful start or fork also proves local ownership when live
+    // mirroring is disabled. Settings on the new task must remain usable.
+    for (const [method, params, newThreadId] of [
+      ["thread/start", { cwd: tempDir }, "new-local-task"],
+      ["thread/fork", { threadId: "new-local-task" }, "forked-local-task"],
+    ]) {
+      const requestId = `create-${newThreadId}`;
+      relaySocket.send(JSON.stringify({ id: requestId, method, params }));
+      await waitFor(() => fakeCodex.sent.some((message) => message.id === requestId));
+      fakeCodex.emitMessage({ id: requestId, result: { thread: { id: newThreadId, turns: [] } } });
+      const created = await waitForMessage(relayMessages, (message) => message.id === requestId);
+      assert.equal(created.result?.thread?.id, newThreadId);
+
+      const settingsId = `settings-${newThreadId}`;
+      relaySocket.send(JSON.stringify({
+        id: settingsId, method: "thread/settings/update",
+        params: { threadId: newThreadId, model: "gpt-test" },
+      }));
+      await waitFor(() => fakeCodex.sent.some((message) => message.method === "thread/settings/update"
+        && message.params?.threadId === newThreadId));
+      const localSettings = fakeCodex.sent.find((message) => message.method === "thread/settings/update"
+        && message.params?.threadId === newThreadId);
+      fakeCodex.emitMessage({ id: localSettings.id, result: {} });
+      const createdSettings = await waitForMessage(relayMessages, (message) => message.id === settingsId);
+      assert.equal(createdSettings.error, undefined);
+    }
+  }
+});
+}
+
+test("bridge forwards desktop IPC actions to the phone and routes replies back to Codex Desktop", async (t) => {
+  const { tempDir, socketPath: ipcSocketPath } = createIpcTestSocket("remodex-bridge-ipc-");
+  const relayServer = new WebSocket.Server({ port: 0 });
+  const relayMessages = [];
+  const ipcFrames = [];
+  let relaySocket = null;
+  let ipcServerSocket = null;
+  let bridge = null;
+  let fakeCodex = null;
+
+  await new Promise((resolve) => relayServer.once("listening", resolve));
+  relayServer.on("connection", (socket) => {
+    relaySocket = socket;
+    socket.on("message", (data) => {
+      const parsed = safeParseJSON(data.toString("utf8"));
+      if (parsed) {
+        relayMessages.push(parsed);
+      }
+    });
+  });
+
+  const ipcServer = net.createServer((socket) => {
+    ipcServerSocket = socket;
+    attachFrameReader(socket, (frame) => {
+      ipcFrames.push(frame);
+      if (frame.method === "initialize") {
+        writeFrame(socket, {
+          type: "response",
+          requestId: frame.requestId,
+          resultType: "success",
+          method: "initialize",
+          handledByClientId: "desktop",
+          result: { clientId: "desktop-test" },
+        });
+      }
+      if (frame.method === "thread-follower-submit-user-input") {
+        writeFrame(socket, {
+          type: "response",
+          requestId: frame.requestId,
+          resultType: "success",
+          method: frame.method,
+          handledByClientId: "desktop",
+          result: { ok: true },
+        });
+      }
+    });
+  });
+  await new Promise((resolve) => ipcServer.listen(ipcSocketPath, resolve));
+
+  const { startBridge } = loadBridgeWithTestDoubles({
+    createCodexTransportImpl() {
+      fakeCodex = createFakeCodexTransport({
+        threadReadResult: {
+          thread: {
+            id: "thread-ipc", source: "vscode", originator: "Codex Desktop", turns: [],
+          },
+        },
+      });
+      return fakeCodex;
+    },
+  });
+
+  t.after(() => {
+    bridge?.stop();
+    relaySocket?.close();
+    relayServer.close();
+    ipcServer.close();
+    ipcServerSocket?.destroy();
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  bridge = startBridge({
+    printPairingQr: false,
+    config: {
+      relayUrl: `ws://127.0.0.1:${relayServer.address().port}`,
+      pushServiceUrl: "",
+      pushPreviewMaxChars: 160,
+      refreshEnabled: false,
+      refreshDebounceMs: 1,
+      keepMacAwakeEnabled: false,
+      codexEndpoint: "",
+      refreshCommand: "",
+      codexBundleId: "",
+      codexAppPath: "",
+      desktopIpcSocketPath: ipcSocketPath,
+      desktopIpcLiveSyncEnabled: false,
+    },
+  });
+
+  await waitFor(() => relaySocket && relaySocket.readyState === WebSocket.OPEN);
+  relaySocket.send(JSON.stringify({
+    id: "resume-from-phone",
+    method: "thread/resume",
+    params: { threadId: "thread-ipc", excludeTurns: true },
+  }));
+
+  await waitFor(() => ipcServerSocket, 2_000);
+  await wait(25);
+  assert.deepEqual(fakeCodex.sent.filter((message) => message.method === "thread/read")
+    .map((message) => message.params), [{ threadId: "thread-ipc", includeTurns: false }]);
+  assert.equal(fakeCodex.sent.some((message) => message.method === "thread/resume"), false);
+
+  writeFrame(ipcServerSocket, {
+    type: "broadcast",
+    method: "thread-stream-state-changed",
+    sourceClientId: "desktop",
+    version: 1,
+    params: {
+      conversationId: "thread-ipc",
+      change: {
+        type: "snapshot",
+        conversationState: {
+          requests: [{
+            id: 36,
+            method: "item/tool/requestUserInput",
+            params: {
+              threadId: "thread-ipc",
+              turnId: "turn-ipc",
+              itemId: "item-ipc",
+              questions: [{ id: "q1", question: "Continue?" }],
+            },
+          }],
+        },
+      },
+    },
+  });
+  await wait(1_650);
+  assert.equal(fakeCodex.sent.some((message) => message.method === "thread/resume"), false,
+    "an arriving Desktop snapshot must cancel the speculative local writer acquisition");
+
+  const actionMessage = await waitForMessage(relayMessages, (message) => message.id === 36);
+  assert.equal(actionMessage.method, "item/tool/requestUserInput");
+
+  relaySocket.send(JSON.stringify({
+    id: 36,
+    result: {
+      answers: {
+        q1: { answers: ["Yes"] },
+      },
+    },
+  }));
+
+  const ipcReply = await waitForMessage(
+    ipcFrames,
+    (frame) => frame.method === "thread-follower-submit-user-input"
+  );
+  assert.deepEqual(ipcReply.params, {
+    conversationId: "thread-ipc",
+    requestId: 36,
+    response: {
+      answers: {
+        q1: { answers: ["Yes"] },
+      },
+    },
+  });
+  assert.equal(fakeCodex.sent.some((message) => message.id === 36), false);
+
+  const resolvedMessage = await waitForMessage(
+    relayMessages,
+    (message) => message.method === "serverRequest/resolved"
+      && message.params?.requestId === 36
+  );
+  assert.equal(resolvedMessage.params.threadId, "thread-ipc");
+});
+
+test("bridge recovers desktop IPC state when the first live update is patch-only", async (t) => {
+  const { tempDir, socketPath: ipcSocketPath } = createIpcTestSocket("remodex-bridge-ipc-recovery-");
+  const relayServer = new WebSocket.Server({ port: 0 });
+  const relayMessages = [];
+  let relaySocket = null;
+  let ipcServerSocket = null;
+  let bridge = null;
+  let fakeCodex = null;
+
+  await new Promise((resolve) => relayServer.once("listening", resolve));
+  relayServer.on("connection", (socket) => {
+    relaySocket = socket;
+    socket.on("message", (data) => {
+      const parsed = safeParseJSON(data.toString("utf8"));
+      if (parsed) {
+        relayMessages.push(parsed);
+      }
+    });
+  });
+
+  const ipcServer = net.createServer((socket) => {
+    ipcServerSocket = socket;
+    attachFrameReader(socket, (frame) => {
+      if (frame.method === "initialize") {
+        writeFrame(socket, {
+          type: "response",
+          requestId: frame.requestId,
+          resultType: "success",
+          method: "initialize",
+          handledByClientId: "desktop",
+          result: { clientId: "desktop-test" },
+        });
+      }
+    });
+  });
+  await new Promise((resolve) => ipcServer.listen(ipcSocketPath, resolve));
+
+  const { startBridge } = loadBridgeWithTestDoubles({
+    createCodexTransportImpl() {
+      fakeCodex = createFakeCodexTransport({
+        threadReadResult: {
+          conversationState: {
+            turns: [],
+            requests: [{
+              id: "req-recovered",
+              method: "item/tool/requestUserInput",
+              completed: true,
+              params: {
+                threadId: "thread-ipc-recovery",
+                turnId: "turn-ipc-recovery",
+                itemId: "item-ipc-recovery",
+                questions: [{ id: "q1", question: "Continue?" }],
+              },
+            }],
+          },
+        },
+      });
+      return fakeCodex;
+    },
+  });
+
+  t.after(() => {
+    bridge?.stop();
+    relaySocket?.close();
+    relayServer.close();
+    ipcServer.close();
+    ipcServerSocket?.destroy();
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  bridge = startBridge({
+    printPairingQr: false,
+    config: {
+      relayUrl: `ws://127.0.0.1:${relayServer.address().port}`,
+      pushServiceUrl: "",
+      pushPreviewMaxChars: 160,
+      refreshEnabled: false,
+      refreshDebounceMs: 1,
+      keepMacAwakeEnabled: false,
+      codexEndpoint: "",
+      refreshCommand: "",
+      codexBundleId: "",
+      codexAppPath: "",
+      desktopIpcSocketPath: ipcSocketPath,
+      desktopIpcLiveSyncEnabled: false,
+    },
+  });
+
+  await waitFor(() => relaySocket && relaySocket.readyState === WebSocket.OPEN);
+  relaySocket.send(JSON.stringify({
+    id: "resume-for-recovery",
+    method: "thread/resume",
+    params: { threadId: "thread-ipc-recovery" },
+  }));
+
+  await waitFor(() => ipcServerSocket, 2_000);
+  writeFrame(ipcServerSocket, {
+    type: "broadcast",
+    method: "thread-stream-state-changed",
+    sourceClientId: "desktop",
+    version: 1,
+    params: {
+      conversationId: "thread-ipc-recovery",
+      change: {
+        type: "patches",
+        patches: [{
+          op: "replace",
+          path: ["requests", 0, "completed"],
+          value: false,
+        }],
+      },
+    },
+  });
+
+  const recoveredRequest = await waitForMessage(
+    relayMessages,
+    (message) => message.id === "req-recovered"
+  );
+  assert.equal(recoveredRequest.method, "item/tool/requestUserInput");
+  assert.equal(
+    fakeCodex.sent.some((message) => message.method === "thread/read"),
+    true
+  );
+});
+
+test("bridge forwards live desktop assistant deltas to the phone", async (t) => {
+  const { tempDir, socketPath: ipcSocketPath } = createIpcTestSocket("remodex-bridge-ipc-delta-");
+  const relayServer = new WebSocket.Server({ port: 0 });
+  const relayMessages = [];
+  let relaySocket = null;
+  let ipcServerSocket = null;
+  let bridge = null;
+  let fakeCodex = null;
+
+  await new Promise((resolve) => relayServer.once("listening", resolve));
+  relayServer.on("connection", (socket) => {
+    relaySocket = socket;
+    socket.on("message", (data) => {
+      const parsed = safeParseJSON(data.toString("utf8"));
+      if (parsed) {
+        relayMessages.push(parsed);
+      }
+    });
+  });
+
+  const ipcServer = net.createServer((socket) => {
+    ipcServerSocket = socket;
+    attachFrameReader(socket, (frame) => {
+      if (frame.method === "initialize") {
+        writeFrame(socket, {
+          type: "response",
+          requestId: frame.requestId,
+          resultType: "success",
+          method: "initialize",
+          handledByClientId: "desktop",
+          result: { clientId: "desktop-test" },
+        });
+      }
+    });
+  });
+  await new Promise((resolve) => ipcServer.listen(ipcSocketPath, resolve));
+
+  const { startBridge } = loadBridgeWithTestDoubles({
+    createCodexTransportImpl() {
+      fakeCodex = createFakeCodexTransport();
+      return fakeCodex;
+    },
+  });
+
+  t.after(() => {
+    bridge?.stop();
+    relaySocket?.close();
+    relayServer.close();
+    ipcServer.close();
+    ipcServerSocket?.destroy();
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  bridge = startBridge({
+    printPairingQr: false,
+    config: {
+      relayUrl: `ws://127.0.0.1:${relayServer.address().port}`,
+      pushServiceUrl: "",
+      pushPreviewMaxChars: 160,
+      refreshEnabled: false,
+      refreshDebounceMs: 1,
+      keepMacAwakeEnabled: false,
+      codexEndpoint: "",
+      refreshCommand: "",
+      codexBundleId: "",
+      codexAppPath: "",
+      desktopIpcSocketPath: ipcSocketPath,
+      desktopIpcLiveSyncEnabled: false,
+    },
+  });
+
+  await waitFor(() => relaySocket && relaySocket.readyState === WebSocket.OPEN);
+  relaySocket.send(JSON.stringify({
+    id: "resume-from-phone-delta",
+    method: "thread/resume",
+    params: { threadId: "thread-ipc-delta" },
+  }));
+
+  await waitFor(() => ipcServerSocket, 2_000);
+  writeFrame(ipcServerSocket, {
+    type: "broadcast",
+    method: "thread-stream-state-changed",
+    sourceClientId: "desktop",
+    version: 1,
+    params: {
+      conversationId: "thread-ipc-delta",
+      change: {
+        type: "snapshot",
+        conversationState: {
+          turns: [{
+            id: "turn-ipc-delta",
+            status: "inProgress",
+            items: [{
+              id: "assistant-ipc-delta",
+              type: "assistant_message",
+              text: "Hello",
+            }],
+          }],
+        },
+      },
+    },
+  });
+  writeFrame(ipcServerSocket, {
+    type: "broadcast",
+    method: "thread-stream-state-changed",
+    sourceClientId: "desktop",
+    version: 1,
+    params: {
+      conversationId: "thread-ipc-delta",
+      change: {
+        type: "patches",
+        patches: [{
+          op: "replace",
+          path: ["turns", 0, "items", 0, "text"],
+          value: "Hello world",
+        }],
+      },
+    },
+  });
+
+  const deltaMessage = await waitForMessage(
+    relayMessages,
+    (message) => message.method === "item/agentMessage/delta"
+  );
+  assert.equal(deltaMessage.params.threadId, "thread-ipc-delta");
+  assert.equal(deltaMessage.params.turnId, "turn-ipc-delta");
+  assert.equal(deltaMessage.params.itemId, "assistant-ipc-delta");
+  assert.equal(deltaMessage.params.delta, " world");
+  assert.equal(deltaMessage.params.remodexDesktopMirror, true);
+  assert.equal(deltaMessage.params.remodexDesktopIpcMirror, true);
+});
+
+test("bridge serves Desktop-owned thread history from cached IPC state", async (t) => {
+  const { tempDir, socketPath: ipcSocketPath } = createIpcTestSocket("remodex-bridge-ipc-read-");
+  const relayServer = new WebSocket.Server({ port: 0 });
+  const relayMessages = [];
+  let relaySocket = null;
+  let ipcServerSocket = null;
+  let bridge = null;
+
+  await new Promise((resolve) => relayServer.once("listening", resolve));
+  relayServer.on("connection", (socket) => {
+    relaySocket = socket;
+    socket.on("message", (data) => {
+      const parsed = safeParseJSON(data.toString("utf8"));
+      if (parsed) {
+        relayMessages.push(parsed);
+      }
+    });
+  });
+
+  const ipcServer = net.createServer((socket) => {
+    ipcServerSocket = socket;
+    attachFrameReader(socket, (frame) => {
+      if (frame.method === "initialize") {
+        writeFrame(socket, {
+          type: "response",
+          requestId: frame.requestId,
+          resultType: "success",
+          method: "initialize",
+          handledByClientId: "desktop",
+          result: { clientId: "desktop-test" },
+        });
+      }
+    });
+  });
+  await new Promise((resolve) => ipcServer.listen(ipcSocketPath, resolve));
+
+  const { startBridge } = loadBridgeWithTestDoubles({
+    createCodexTransportImpl() {
+      return createFakeCodexTransport();
+    },
+  });
+
+  t.after(() => {
+    bridge?.stop();
+    relaySocket?.close();
+    relayServer.close();
+    ipcServer.close();
+    ipcServerSocket?.destroy();
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  bridge = startBridge({
+    printPairingQr: false,
+    config: {
+      relayUrl: `ws://127.0.0.1:${relayServer.address().port}`,
+      pushServiceUrl: "",
+      pushPreviewMaxChars: 160,
+      refreshEnabled: false,
+      refreshDebounceMs: 1,
+      keepMacAwakeEnabled: false,
+      codexEndpoint: "",
+      refreshCommand: "",
+      codexBundleId: "",
+      codexAppPath: "",
+      desktopIpcSocketPath: ipcSocketPath,
+      desktopIpcLiveSyncEnabled: false,
+    },
+  });
+
+  await waitFor(() => relaySocket && relaySocket.readyState === WebSocket.OPEN);
+  relaySocket.send(JSON.stringify({
+    id: "resume-before-read",
+    method: "thread/resume",
+    params: { threadId: "thread-ipc-read" },
+  }));
+  await waitFor(() => ipcServerSocket, 2_000);
+  writeFrame(ipcServerSocket, {
+    type: "broadcast",
+    method: "thread-stream-state-changed",
+    sourceClientId: "desktop",
+    version: 5,
+    params: {
+      conversationId: "thread-ipc-read",
+      change: {
+        type: "snapshot",
+        conversationState: {
+          title: "Cached Desktop Thread",
+          cwd: "/repo",
+          turns: [{
+            turnId: "turn-ipc-read",
+            status: "completed",
+            params: {
+              input: [{ type: "text", text: "read me" }],
+            },
+            items: [{ id: "assistant-ipc-read", type: "agentMessage", text: "cached reply" }],
+          }],
+        },
+      },
+    },
+  });
+
+  await waitForMessage(relayMessages, (message) => message.method === "thread/started");
+  relaySocket.send(JSON.stringify({
+    id: "read-cached-desktop-thread",
+    method: "thread/read",
+    params: { threadId: "thread-ipc-read" },
+  }));
+
+  const readResponse = await waitForMessage(
+    relayMessages,
+    (message) => message.id === "read-cached-desktop-thread"
+  );
+  assert.equal(readResponse.result.thread.id, "thread-ipc-read");
+  assert.equal(readResponse.result.thread.name, "Cached Desktop Thread");
+  assert.deepEqual(
+    readResponse.result.thread.turns[0].items.map((item) => item.type),
+    ["userMessage", "agentMessage"]
+  );
+});
+
+test("bridge maps Desktop IPC archive broadcasts to phone notifications", async (t) => {
+  const { tempDir, socketPath: ipcSocketPath } = createIpcTestSocket("remodex-bridge-ipc-archive-");
+  const relayServer = new WebSocket.Server({ port: 0 });
+  const relayMessages = [];
+  let relaySocket = null;
+  let ipcServerSocket = null;
+  let bridge = null;
+
+  await new Promise((resolve) => relayServer.once("listening", resolve));
+  relayServer.on("connection", (socket) => {
+    relaySocket = socket;
+    socket.on("message", (data) => {
+      const parsed = safeParseJSON(data.toString("utf8"));
+      if (parsed) {
+        relayMessages.push(parsed);
+      }
+    });
+  });
+
+  const ipcServer = net.createServer((socket) => {
+    ipcServerSocket = socket;
+    attachFrameReader(socket, (frame) => {
+      if (frame.method === "initialize") {
+        writeFrame(socket, {
+          type: "response",
+          requestId: frame.requestId,
+          resultType: "success",
+          method: "initialize",
+          handledByClientId: "desktop",
+          result: { clientId: "desktop-test" },
+        });
+      }
+    });
+  });
+  await new Promise((resolve) => ipcServer.listen(ipcSocketPath, resolve));
+
+  const { startBridge } = loadBridgeWithTestDoubles({
+    createCodexTransportImpl() {
+      return createFakeCodexTransport();
+    },
+  });
+
+  t.after(() => {
+    bridge?.stop();
+    relaySocket?.close();
+    relayServer.close();
+    ipcServer.close();
+    ipcServerSocket?.destroy();
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  bridge = startBridge({
+    printPairingQr: false,
+    config: {
+      relayUrl: `ws://127.0.0.1:${relayServer.address().port}`,
+      pushServiceUrl: "",
+      pushPreviewMaxChars: 160,
+      refreshEnabled: false,
+      refreshDebounceMs: 1,
+      keepMacAwakeEnabled: false,
+      codexEndpoint: "",
+      refreshCommand: "",
+      codexBundleId: "",
+      codexAppPath: "",
+      desktopIpcSocketPath: ipcSocketPath,
+      desktopIpcLiveSyncEnabled: false,
+    },
+  });
+
+  await waitFor(() => relaySocket && relaySocket.readyState === WebSocket.OPEN);
+  relaySocket.send(JSON.stringify({
+    id: "resume-before-archive",
+    method: "thread/resume",
+    params: { threadId: "thread-ipc-archive" },
+  }));
+  await waitFor(() => ipcServerSocket, 2_000);
+  writeFrame(ipcServerSocket, {
+    type: "broadcast",
+    method: "thread-archived",
+    sourceClientId: "desktop",
+    version: 2,
+    params: {
+      hostId: "desktop",
+      conversationId: "thread-ipc-archive",
+      cwd: "/repo",
+    },
+  });
+
+  const archiveMessage = await waitForMessage(
+    relayMessages,
+    (message) => message.method === "thread/archived"
+  );
+  assert.equal(archiveMessage.params.threadId, "thread-ipc-archive");
+  assert.equal(archiveMessage.params.cwd, "/repo");
+  assert.equal(archiveMessage.params.remodexDesktopIpcMirror, true);
+
+  writeFrame(ipcServerSocket, {
+    type: "broadcast",
+    method: "thread-unarchived",
+    sourceClientId: "desktop",
+    version: 2,
+    params: {
+      hostId: "desktop",
+      conversationId: "thread-ipc-archive",
+      cwd: "/repo",
+    },
+  });
+
+  const unarchiveMessage = await waitForMessage(
+    relayMessages,
+    (message) => message.method === "thread/unarchived"
+  );
+  assert.equal(unarchiveMessage.params.threadId, "thread-ipc-archive");
+  assert.equal(unarchiveMessage.params.cwd, "/repo");
+  assert.equal(unarchiveMessage.params.remodexDesktopIpcMirror, true);
+});
+
+test("bridge observes held desktop IPC turns only after local fallback", async (t) => {
+  const relayServer = new WebSocket.Server({ port: 0 });
+  let relaySocket = null;
+  let bridge = null;
+  let fakeCodex = null;
+  let followerOptions = null;
+  let heldTurnStart = null;
+  let liveOwnerOptions = null;
+  const liveOwnerInbound = [];
+
+  await new Promise((resolve) => relayServer.once("listening", resolve));
+  relayServer.on("connection", (socket) => {
+    relaySocket = socket;
+  });
+
+  const { startBridge } = loadBridgeWithTestDoubles({
+    createCodexTransportImpl() {
+      fakeCodex = createFakeCodexTransport();
+      return fakeCodex;
+    },
+    desktopIpcActionFollowerModule: {
+      createDesktopIpcActionFollower(options) {
+        followerOptions = options;
+        return {
+          observeInbound(rawMessage) {
+            const parsed = safeParseJSON(rawMessage);
+            if (parsed?.method !== "turn/start") {
+              return false;
+            }
+            heldTurnStart = rawMessage;
+            return true;
+          },
+          stopAll() {},
+        };
+      },
+      seedConversationStateFromThreadRead() {
+        return null;
+      },
+    },
+    desktopIpcLiveOwnerModule: {
+      createDesktopIpcLiveOwner(options) {
+        liveOwnerOptions = options;
+        return {
+          observeInbound(rawMessage) {
+            liveOwnerInbound.push(JSON.parse(rawMessage));
+          },
+          observeOutbound() {},
+          isThreadHandoffInProgress() { return false; },
+          stopAll() {},
+        };
+      },
+    },
+  });
+
+  t.after(() => {
+    bridge?.stop();
+    relaySocket?.close();
+    relayServer.close();
+  });
+
+  bridge = startBridge({
+    printPairingQr: false,
+    config: {
+      relayUrl: `ws://127.0.0.1:${relayServer.address().port}`,
+      pushServiceUrl: "",
+      pushPreviewMaxChars: 160,
+      refreshEnabled: false,
+      refreshDebounceMs: 1,
+      keepMacAwakeEnabled: false,
+      codexEndpoint: "",
+      refreshCommand: "",
+      codexBundleId: "",
+      codexAppPath: "",
+      desktopIpcLiveSyncEnabled: true,
+    },
+  });
+
+  await waitFor(() => relaySocket && relaySocket.readyState === WebSocket.OPEN);
+  assert.equal(typeof liveOwnerOptions?.onFollowerStateChanged, "function");
+  await followerOptions.readConversationState("thread-complete-baseline");
+  assert.deepEqual(
+    fakeCodex.sent.find((message) => message.method === "thread/read")?.params,
+    {
+      threadId: "thread-complete-baseline",
+      includeTurns: true,
+    }
+  );
+  relaySocket.send(JSON.stringify({
+    id: "held-turn-start",
+    method: "turn/start",
+    params: {
+      threadId: "thread-held-live-owner",
+      input: [{ type: "input_text", text: "start locally if unowned" }],
+    },
+  }));
+
+  await waitFor(() => heldTurnStart);
+  await wait(25);
+  assert.equal(liveOwnerInbound.length, 0);
+  assert.equal(fakeCodex.sent.some((message) => message.id === "held-turn-start"), false);
+
+  followerOptions.forwardToLocalCodex(heldTurnStart);
+  await waitFor(() => liveOwnerInbound.some((message) => message.id === "held-turn-start"));
+  assert.equal(
+    liveOwnerInbound.filter((message) => message.id === "held-turn-start").length,
+    1
+  );
+  assert.equal(fakeCodex.sent.filter((message) => message.id === "held-turn-start").length, 1);
+});
+
+test("bridge preserves catalog request limits and excludes archived or cursor pages", async (t) => {
+  const relayServer = new WebSocket.Server({ port: 0 });
+  const relayMessages = [];
+  const catalogs = [];
+  let relaySocket = null;
+  let bridge = null;
+  let fakeCodex = null;
+  await new Promise((resolve) => relayServer.once("listening", resolve));
+  relayServer.on("connection", (socket) => {
+    relaySocket = socket;
+    socket.on("message", (data) => relayMessages.push(JSON.parse(data.toString("utf8"))));
+  });
+  const { startBridge } = loadBridgeWithTestDoubles({
+    createCodexTransportImpl() {
+      fakeCodex = createFakeCodexTransport();
+      return fakeCodex;
+    },
+    createOpenCodeRuntimeImpl() {
+      return {
+        handlesThreadId() { return false; },
+        shutdown() {},
+        async listThreadCatalog() { return { active: [], archived: [] }; },
+      };
+    },
+    desktopIpcActionFollowerModule: {
+      createDesktopIpcActionFollower() {
+        return {
+          observeInbound() { return false; },
+          observeThreadListResponse(result, options) { catalogs.push({ result, options }); },
+          stopAll() {},
+        };
+      },
+    },
+  });
+  t.after(() => {
+    bridge?.stop();
+    relaySocket?.close();
+    relayServer.close();
+  });
+  bridge = startBridge({ printPairingQr: false, config: bridgeTestConfig(relayServer) });
+  await waitFor(() => relaySocket?.readyState === WebSocket.OPEN);
+
+  const requests = [
+    { id: "catalog", params: { limit: 70, cursor: null } },
+    { id: "probe", params: { limit: 1, cursor: null } },
+    { id: "archived", params: { limit: 70, archived: true } },
+    { id: "page", params: { limit: 70, cursor: "next-page" } },
+  ];
+  let deletionScope;
+  for (const request of requests) {
+    relaySocket.send(JSON.stringify({ ...request, method: "thread/list" }));
+    await waitFor(() => fakeCodex.sent.some((message) => message.id === request.id));
+    fakeCodex.emitMessage({ id: request.id, result: { data: [{ id: request.id }], nextCursor: "next-page" } });
+    const response = await waitForMessage(relayMessages, (message) => message.id === request.id);
+    assert.match(response.result.remodexCatalogDeletionScope, /^[a-f0-9]{32}$/);
+    deletionScope ||= response.result.remodexCatalogDeletionScope;
+    assert.equal(response.result.remodexCatalogDeletionScope, deletionScope);
+  }
+  assert.deepEqual(catalogs.map(({ result, options }) => ({ id: result.data[0].id, limit: options?.limit })), [
+    { id: "catalog", limit: 70 },
+    { id: "probe", limit: 1 },
+  ]);
+});
+
+test("bridge pages mixed active and archived catalogs without forwarding its cursor to Codex", async (t) => {
+  const relayServer = new WebSocket.Server({ port: 0 });
+  const relayMessages = [];
+  let relaySocket = null;
+  let bridge = null;
+  let fakeCodex = null;
+  let movedToArchive = false;
+  await new Promise((resolve) => relayServer.once("listening", resolve));
+  relayServer.on("connection", (socket) => {
+    relaySocket = socket;
+    socket.on("message", (data) => relayMessages.push(JSON.parse(data.toString("utf8"))));
+  });
+  const { startBridge } = loadBridgeWithTestDoubles({
+    createCodexTransportImpl() {
+      fakeCodex = createFakeCodexTransport();
+      return fakeCodex;
+    },
+    createOpenCodeRuntimeImpl() {
+      return {
+        handlesThreadId() { return false; },
+        shutdown() {},
+        async listThreadCatalog() {
+          return {
+            active: (movedToArchive ? [2, 1] : [3, 2, 1]).map((number) => ({
+              id: `opencode:ses_${number}`, runtimeProvider: "opencode", updatedAt: number,
+            })),
+            archived: [...(movedToArchive ? [{
+              id: "opencode:ses_3", runtimeProvider: "opencode",
+              syncState: "archivedLocal", updatedAt: 3,
+            }] : []), {
+              id: "opencode:ses_archived", runtimeProvider: "opencode",
+              syncState: "archivedLocal", updatedAt: 1,
+            }],
+          };
+        },
+      };
+    },
+  });
+  t.after(() => {
+    bridge?.stop();
+    relaySocket?.close();
+    relayServer.close();
+  });
+  bridge = startBridge({ printPairingQr: false, config: bridgeTestConfig(relayServer) });
+  await waitFor(() => relaySocket?.readyState === WebSocket.OPEN);
+
+  relaySocket.send(JSON.stringify({ id: "mixed-1", method: "thread/list", params: { limit: 2 } }));
+  await waitFor(() => fakeCodex.sent.some((message) => message.id === "mixed-1"));
+  fakeCodex.emitMessage({ id: "mixed-1", result: { data: [
+    { id: "codex-5", updatedAt: 5 }, { id: "codex-4", updatedAt: 4 },
+  ], nextCursor: "codex-page-2" } });
+  const first = await waitForMessage(relayMessages, (message) => message.id === "mixed-1");
+  assert.equal(first.result.data.length, 2);
+  assert.ok(first.result.nextCursor.startsWith("remodex-opencode-list-v1:"));
+
+  relaySocket.send(JSON.stringify({ id: "mixed-2", method: "thread/list", params: {
+    limit: 2, cursor: first.result.nextCursor,
+  } }));
+  await waitFor(() => fakeCodex.sent.some((message) => message.id === "mixed-2"));
+  assert.equal(fakeCodex.sent.find((message) => message.id === "mixed-2").params.cursor, "codex-page-2");
+  fakeCodex.emitMessage({ id: "mixed-2", result: {
+    data: [{ id: "codex-3", updatedAt: 3 }], nextCursor: null,
+  } });
+  const second = await waitForMessage(relayMessages, (message) => message.id === "mixed-2");
+  assert.deepEqual(second.result.data.map((row) => row.id), ["codex-3", "opencode:ses_3"]);
+
+  const codexRequestsBeforeOpenCodeOnlyPage = fakeCodex.sent.length;
+  relaySocket.send(JSON.stringify({ id: "mixed-3", method: "thread/list", params: {
+    limit: 2, cursor: second.result.nextCursor,
+  } }));
+  const third = await waitForMessage(relayMessages, (message) => message.id === "mixed-3");
+  assert.deepEqual(third.result.data.map((row) => row.id), ["opencode:ses_2", "opencode:ses_1"]);
+  assert.equal(third.result.nextCursor, null);
+  assert.equal(fakeCodex.sent.length, codexRequestsBeforeOpenCodeOnlyPage);
+
+  relaySocket.send(JSON.stringify({ id: "archived-mixed", method: "thread/list", params: {
+    archived: true, limit: 2,
+  } }));
+  await waitFor(() => fakeCodex.sent.some((message) => message.id === "archived-mixed"));
+  fakeCodex.emitMessage({ id: "archived-mixed", result: { data: [], nextCursor: null } });
+  const archived = await waitForMessage(relayMessages, (message) => message.id === "archived-mixed");
+  assert.equal(archived.result.data[0].id, "opencode:ses_archived");
+  assert.equal(archived.result.data[0].runtimeProvider, "opencode");
+  assert.equal(archived.result.data[0].syncState, "archivedLocal");
+
+  movedToArchive = true;
+  relaySocket.send(JSON.stringify({ id: "after-mac-archive", method: "thread/list", params: { limit: 2 } }));
+  await waitFor(() => fakeCodex.sent.some((message) => message.id === "after-mac-archive"));
+  fakeCodex.emitMessage({ id: "after-mac-archive", result: { data: [], nextCursor: null } });
+  await waitForMessage(relayMessages, (message) => message.id === "after-mac-archive");
+  await waitForMessage(relayMessages, (message) => message.method === "thread/archived"
+    && message.params?.threadId === "opencode:ses_3");
+});
+
+test("local Codex catalog keeps legacy home chats rootless and repairs a recorded Desktop move", async (t) => {
+  const { tempDir, socketPath } = createIpcTestSocket("remodex-desktop-project-");
+  const relayServer = new WebSocket.Server({ port: 0 });
+  const messages = [];
+  const fakeCodex = createFakeCodexTransport();
+  const home = os.homedir();
+  const repo = path.join(tempDir, "moved-project");
+  const previousCodexHome = process.env.CODEX_HOME;
+  process.env.CODEX_HOME = tempDir;
+  const sessionsDir = path.join(tempDir, "sessions", "2026", "11", "03");
+  fs.mkdirSync(sessionsDir, { recursive: true });
+  const rollout = path.join(sessionsDir, "rollout-2026-11-03T00-00-00-moved.jsonl");
+  fs.writeFileSync(rollout, [
+    JSON.stringify({ type: "session_meta", payload: { id: "moved", cwd: home } }),
+    JSON.stringify({ type: "turn_context", payload: { cwd: repo } }),
+    "",
+  ].join("\n"));
+
+  let relaySocket;
+  let bridge;
+  t.after(() => {
+    bridge?.stop();
+    relaySocket?.close();
+    relayServer.close();
+    if (previousCodexHome == null) {
+      delete process.env.CODEX_HOME;
+    } else {
+      process.env.CODEX_HOME = previousCodexHome;
+    }
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+  await new Promise((resolve) => relayServer.once("listening", resolve));
+  relayServer.on("connection", (socket) => {
+    relaySocket = socket;
+    socket.on("message", (data) => messages.push(JSON.parse(data.toString("utf8"))));
+  });
+  const { startBridge } = loadBridgeWithTestDoubles({ createCodexTransportImpl: () => fakeCodex });
+  bridge = startBridge({
+    printPairingQr: false,
+    config: bridgeTestConfig(relayServer, { desktopIpcSocketPath: socketPath }),
+  });
+  await waitFor(() => relaySocket?.readyState === WebSocket.OPEN);
+  relaySocket.send(JSON.stringify({ id: "catalog", method: "thread/list", params: { limit: 6 } }));
+  await waitFor(() => fakeCodex.sent.some((message) => message.id === "catalog"));
+  fakeCodex.emitMessage({
+    id: "catalog",
+    result: { data: [
+      { id: "legacy", cwd: home, projectId: null },
+      { id: "moved", cwd: home, projectId: "project-id", path: rollout },
+      { id: "gone", cwd: home, projectId: "other", path: path.join(tempDir, "missing.jsonl") },
+      { id: "canonical", cwd: path.join(tempDir, "newer"), projectId: "project-id", path: rollout },
+      { id: "wrong-thread", cwd: home, projectId: "other", path: rollout },
+      { id: "directory", cwd: home, projectId: "other", path: tempDir },
+    ], nextCursor: null },
+  });
+  const result = await waitForMessage(messages, (message) => message.id === "catalog", 1_500);
+  const rows = Object.fromEntries(result.result.data.map((thread) => [thread.id, thread]));
+  assert.equal(rows.legacy.cwd, home);
+  assert.equal(rows.legacy.metadata.remodexLegacyProjectlessCwd, home);
+  assert.equal(rows.moved.cwd, repo);
+  assert.equal(rows.gone.cwd, home);
+  assert.equal(rows.gone.metadata.remodexLegacyProjectlessCwd, null);
+  assert.equal(rows.canonical.cwd, path.join(tempDir, "newer"));
+  assert.equal(rows["wrong-thread"].cwd, home);
+  assert.equal(rows.directory.cwd, home);
+
+  const newRepo = path.join(tempDir, "moved-again");
+  fs.appendFileSync(rollout, JSON.stringify({ type: "turn_context", payload: { cwd: newRepo } }) + "\n");
+  relaySocket.send(JSON.stringify({ id: "updated-catalog", method: "thread/list", params: { limit: 1 } }));
+  await waitFor(() => fakeCodex.sent.some((message) => message.id === "updated-catalog"));
+  fakeCodex.emitMessage({
+    id: "updated-catalog",
+    result: { data: [
+      { id: "moved", cwd: home, projectId: "project-id", path: rollout },
+    ], nextCursor: null },
+  });
+  const updated = await waitForMessage(messages, (message) => message.id === "updated-catalog", 1_500);
+  assert.equal(updated.result.data[0].cwd, newRepo);
+
+  // Establish local ownership so these are ordinary app-server responses,
+  // rather than the follower's legacy conversation-state projection.
+  relaySocket.send(JSON.stringify({ id: "start-local", method: "thread/start", params: { cwd: home } }));
+  await waitFor(() => fakeCodex.sent.some((message) => message.id === "start-local"));
+  fakeCodex.emitMessage({ id: "start-local", result: { thread: { id: "moved", cwd: home, turns: [] } } });
+  await waitForMessage(messages, (message) => message.id === "start-local", 1_500);
+
+  const explicitCwd = path.join(tempDir, "explicit-project");
+  for (const [id, params, serverCwd, expectedCwd] of [
+    ["resume", { threadId: "moved" }, home, newRepo],
+    ["resume-explicit", { threadId: "moved", cwd: explicitCwd }, explicitCwd, explicitCwd],
+  ]) {
+    relaySocket.send(JSON.stringify({ id, method: "thread/resume", params }));
+    await waitFor(() => fakeCodex.sent.some((message) => message.id === id));
+    fakeCodex.emitMessage({
+      id,
+      result: { thread: { id: "moved", cwd: serverCwd, projectId: "project-id", path: rollout, turns: [] } },
+    });
+    const reply = await waitForMessage(messages, (message) => message.id === id, 1_500);
+    assert.equal(reply.result?.thread?.cwd, expectedCwd, JSON.stringify(reply));
+  }
+});
+
+test("endpoint routing delegates only selected extensions and passes through Codex project requests", async (t) => {
+  const relayServer = new WebSocket.Server({ port: 0 });
+  const relayMessages = [];
+  const fakeCodex = createFakeCodexTransport();
+  let relaySocket;
+  let bridge;
+  t.after(() => {
+    bridge?.stop();
+    relaySocket?.close();
+    relayServer.close();
+  });
+  await new Promise((resolve) => relayServer.once("listening", resolve));
+  relayServer.on("connection", (socket) => {
+    relaySocket = socket;
+    socket.on("message", (data) => relayMessages.push(JSON.parse(data.toString("utf8"))));
+  });
+
+  const { readBridgeConfig } = require("../src/codex-desktop-refresher");
+  const config = readBridgeConfig({ env: {
+    REMODEX_RELAY: `ws://127.0.0.1:${relayServer.address().port}`,
+    REMODEX_CODEX_ENDPOINT: "ws://fake-codex",
+    REMODEX_CODEX_ENDPOINT_METHODS: " project/createDirectory, workspace/readImage, workspace/readFile ",
+  } });
+  const { startBridge } = loadBridgeWithTestDoubles({
+    createCodexTransportImpl: () => fakeCodex,
+    createOpenCodeRuntimeImpl: () => ({
+      handlesThreadId() { return false; },
+      shutdown() {},
+      async listThreadCatalog() { return { active: [], archived: [] }; },
+    }),
+  });
+  bridge = startBridge({ printPairingQr: false, config });
+  await waitFor(() => relaySocket?.readyState === WebSocket.OPEN);
+
+  const request = (method, params = {}) => {
+    relaySocket.send(JSON.stringify({ id: method, method, params }));
+    return waitForMessage(relayMessages, (message) => message.id === method);
+  };
+  let upstreamRequestId = 0;
+  const upstreamRequest = async (method, params, response, expected = response) => {
+    const id = `upstream-${++upstreamRequestId}`;
+    relaySocket.send(JSON.stringify({ id, method, params }));
+    await waitFor(() => fakeCodex.sent.some((message) => message.id === id)
+      || relayMessages.some((message) => message.id === id));
+    assert.deepEqual(fakeCodex.sent.find((message) => message.id === id), { id, method, params });
+    fakeCodex.emitMessage({ id, ...response });
+    assert.deepEqual(await waitForMessage(relayMessages, (message) => message.id === id), { id, ...expected });
+  };
+
+  await upstreamRequest("project/list", { limit: 2 }, { result: { data: [] } });
+  await upstreamRequest("thread/list", { limit: 2 }, {
+    result: { data: [], nextCursor: null, remodexCatalogDeletionScope: "endpoint-supplied" },
+  }, {
+    result: { data: [], nextCursor: null, remodexCatalogDeletionScope: null },
+  });
+  await upstreamRequest("project/createDirectory", { name: "remote-folder" }, {
+    error: { code: -32601, message: "Method not found" },
+  });
+  await upstreamRequest("workspace/readImage", { path: "/runtime/image.png" }, {
+    result: { dataBase64: "aW1hZ2U=" },
+  });
+  await upstreamRequest("workspace/readImage", { path: "/runtime/image.png", maxPixelDimension: 512 }, {
+    result: { dataBase64: Buffer.alloc(2 * 1024 * 1024 + 1).toString("base64") },
+  }, {
+    error: {
+      code: -32000,
+      message: "This image is too large to send to the phone.",
+      data: { errorCode: "image_too_large" },
+    },
+  });
+  assert.equal((await request("project/validatePath")).error?.data?.errorCode, "missing_path");
+  assert.equal((await request("workspace/readFile")).error?.data?.errorCode, "missing_file_path");
+  fakeCodex.emitMessage({ id: "untracked-image", result: { dataBase64: "a".repeat(12 * 1024 * 1024) } });
+  const oversized = await waitForMessage(relayMessages, (message) => message.id === "untracked-image");
+  assert.equal(oversized.error?.data?.errorCode, "relay_response_too_large");
+  assert.deepEqual(fakeCodex.sent.map((message) => message.method), [
+    "project/list", "thread/list", "project/createDirectory", "workspace/readImage", "workspace/readImage",
+  ]);
+});
+
+test("overlapping phone initializes can reconnect to the same spawned Codex transport", async (t) => {
+  const relayServer = new WebSocket.Server({ port: 0 });
+  const messages = [];
+  const fakeCodex = createFakeCodexTransport();
+  let relaySocket;
+  let bridge;
+  t.after(() => {
+    bridge?.stop();
+    relaySocket?.close();
+    relayServer.close();
+  });
+  await new Promise((resolve) => relayServer.once("listening", resolve));
+  relayServer.on("connection", (socket) => {
+    relaySocket = socket;
+    socket.on("message", (data) => messages.push(JSON.parse(data.toString("utf8"))));
+  });
+
+  const { startBridge } = loadBridgeWithTestDoubles({ createCodexTransportImpl: () => fakeCodex });
+  bridge = startBridge({ printPairingQr: false, config: bridgeTestConfig(relayServer) });
+  await waitFor(() => relaySocket?.readyState === WebSocket.OPEN);
+
+  const params = {
+    clientInfo: { name: "remodex-test", version: "1.0.0" },
+    capabilities: { experimentalApi: true },
+  };
+  const sendInitialize = (id) => relaySocket.send(JSON.stringify({ id, method: "initialize", params }));
+  const reply = (id) => waitForMessage(messages, (message) => message.id === id && !message.method);
+
+  // An actual initialize failure stays visible and leaves the bridge cold.
+  sendInitialize("invalid-phone");
+  await waitFor(() => fakeCodex.sent.some(({ id }) => id === "invalid-phone"));
+  const invalidError = { code: -32602, message: "Invalid params" };
+  fakeCodex.emitMessage({ id: "invalid-phone", error: invalidError });
+  assert.deepEqual((await reply("invalid-phone")).error, invalidError);
+
+  // Both requests leave the bridge before Codex answers the first. Stock Codex
+  // accepts that first initialize and returns -32600 for the second request.
+  sendInitialize("old-phone");
+  sendInitialize("reconnected-phone");
+  await waitFor(() => fakeCodex.sent.some(({ id }) => id === "reconnected-phone"));
+  // Server-initiated requests have an independent ID space.
+  const serverRequest = {
+    id: "reconnected-phone",
+    method: "item/commandExecution/requestApproval",
+    params: { threadId: "thread-reconnect", turnId: "turn-reconnect", itemId: "command-reconnect" },
+  };
+  fakeCodex.emitMessage(serverRequest);
+  assert.deepEqual(await waitForMessage(messages, ({ method }) => method === serverRequest.method), serverRequest);
+
+  fakeCodex.emitMessage({ id: "old-phone", result: { userAgent: "codex-test" } });
+  const alreadyInitialized = { code: -32600, message: "Already initialized" };
+  fakeCodex.emitMessage({ id: "reconnected-phone", error: alreadyInitialized });
+
+  assert.deepEqual((await reply("old-phone")).result, {
+    userAgent: "codex-test",
+    remodexRuntimeSettingsVersion: 2,
+  });
+  const reconnected = await reply("reconnected-phone");
+  assert.equal(reconnected.error, undefined);
+  assert.deepEqual(reconnected.result, { bridgeManaged: true, remodexRuntimeSettingsVersion: 2 });
+
+  sendInitialize("warm-phone");
+  assert.deepEqual((await reply("warm-phone")).result, reconnected.result);
+  assert.deepEqual(fakeCodex.sent.filter(({ method }) => method === "initialize").map(({ id }) => id), [
+    "invalid-phone", "old-phone", "reconnected-phone",
+  ]);
+
+  relaySocket.send(JSON.stringify({ id: "other-request", method: "thread/list" }));
+  await waitFor(() => fakeCodex.sent.some(({ id }) => id === "other-request"));
+  fakeCodex.emitMessage({ id: "other-request", error: alreadyInitialized });
+  assert.deepEqual((await reply("other-request")).error, alreadyInitialized);
+});
+
+test("stock endpoint initializes once before phone requests", async (t) => {
+  const relayServer = new WebSocket.Server({ port: 0 });
+  const messages = [];
+  const fakeCodex = createFakeCodexTransport();
+  let relaySocket;
+  const publishedPairings = [];
+  let bridge;
+  t.after(() => {
+    bridge?.stop();
+    relaySocket?.close();
+    relayServer.close();
+  });
+  await new Promise((resolve) => relayServer.once("listening", resolve));
+  relayServer.on("connection", (socket) => {
+    relaySocket = socket;
+    socket.on("message", (data) => messages.push(JSON.parse(data.toString("utf8"))));
+  });
+  const { readBridgeConfig } = require("../src/codex-desktop-refresher");
+  const config = readBridgeConfig({ env: {
+    REMODEX_RELAY: `ws://127.0.0.1:${relayServer.address().port}`,
+    REMODEX_CODEX_ENDPOINT: "ws://fake-codex",
+    REMODEX_CODEX_ENDPOINT_INITIALIZE: "true",
+  } });
+  const { startBridge } = loadBridgeWithTestDoubles({ createCodexTransportImpl: () => fakeCodex });
+  bridge = startBridge({
+    printPairingQr: false, config,
+    onPairingSession: (pairing) => publishedPairings.push(pairing),
+  });
+
+  await waitFor(() => fakeCodex.sent.length > 0 || relaySocket?.readyState === WebSocket.OPEN);
+  assert.equal(Boolean(relaySocket), false);
+  assert.equal(publishedPairings.length, 0);
+  const initialize = fakeCodex.sent[0];
+  assert.equal(initialize.method, "initialize");
+  assert.equal(initialize.params.capabilities.experimentalApi, true);
+  fakeCodex.emitMessage({ id: initialize.id, result: { userAgent: "codex-test" } });
+  await waitFor(() => relaySocket?.readyState === WebSocket.OPEN);
+  assert.deepEqual(fakeCodex.sent[1], { method: "initialized" });
+  assert.equal(publishedPairings.length, 1);
+  assert.equal(messages.some((message) => message.id === initialize.id), false);
+
+  for (const id of ["first-phone", "reconnected-phone"]) {
+    relaySocket.send(JSON.stringify({ id, method: "initialize" }));
+    const reply = await waitForMessage(messages, (message) => message.id === id);
+    assert.equal(reply.result?.bridgeManaged, true);
+  }
+  assert.deepEqual(fakeCodex.sent.map((message) => message.method), ["initialize", "initialized"]);
+});
+
+test("a timed-out private auth response cannot reach the phone", async (t) => {
+  const relayServer = new WebSocket.Server({ port: 0 });
+  const messages = [];
+  const fakeCodex = createFakeCodexTransport();
+  let relaySocket;
+  let bridge;
+  t.after(() => {
+    bridge?.stop();
+    relaySocket?.close();
+    relayServer.close();
+  });
+  t.mock.method(globalThis, "fetch", async () => ({ body: null }));
+  const originalSetTimeout = globalThis.setTimeout;
+  t.mock.method(globalThis, "setTimeout", (callback, delay, ...args) =>
+    originalSetTimeout(callback, delay === 20_000 ? 15 : delay, ...args));
+  await new Promise((resolve) => relayServer.once("listening", resolve));
+  relayServer.on("connection", (socket) => {
+    relaySocket = socket;
+    socket.on("message", (data) => messages.push(JSON.parse(data.toString("utf8"))));
+  });
+  const { startBridge } = loadBridgeWithTestDoubles({ createCodexTransportImpl: () => fakeCodex });
+  bridge = startBridge({
+    printPairingQr: false,
+    config: bridgeTestConfig(relayServer, { codexEndpoint: "ws://fake-codex" }),
+  });
+  await waitFor(() => relaySocket?.readyState === WebSocket.OPEN);
+
+  relaySocket.send(JSON.stringify({ id: "prewarm", method: "voice/prewarm" }));
+  await waitForMessage(messages, (message) => message.id === "prewarm");
+  const privateAuth = fakeCodex.sent.find((message) => message.method === "getAuthStatus");
+  assert.ok(privateAuth);
+  await wait(35);
+
+  fakeCodex.emitMessage({ id: privateAuth.id, result: { authToken: "fixture-token" } });
+  fakeCodex.emitMessage({
+    id: privateAuth.id,
+    method: "item/commandExecution/requestApproval",
+    params: { threadId: "fixture-thread" },
+  });
+  await waitForMessage(messages, (message) => message.method === "item/commandExecution/requestApproval");
+  assert.equal(messages.some((message) => message.id === privateAuth.id && "result" in message), false);
+});
+
+test("bridge Activity is opt-in and canonical-only endpoints need no Desktop IPC", async (t) => {
+  const relayServer = new WebSocket.Server({ port: 0 });
+  const relayMessages = [];
+  let relaySocket = null;
+  let bridge = null;
+  let fakeCodex = null;
+
+  await new Promise((resolve) => relayServer.once("listening", resolve));
+  relayServer.on("connection", (socket) => {
+    relaySocket = socket;
+    socket.on("message", (data) => relayMessages.push(JSON.parse(data.toString("utf8"))));
+  });
+  const { startBridge } = loadBridgeWithTestDoubles({
+    createCodexTransportImpl() {
+      fakeCodex = createFakeCodexTransport();
+      return fakeCodex;
+    },
+  });
+  t.after(() => {
+    bridge?.stop();
+    relaySocket?.close();
+    relayServer.close();
+  });
+
+  bridge = startBridge({
+    printPairingQr: false,
+    config: bridgeTestConfig(relayServer, { codexEndpoint: "ws://fake-codex" }),
+  });
+  await waitFor(() => relaySocket?.readyState === WebSocket.OPEN);
+
+  fakeCodex.emitMessage({
+    method: "thread/started",
+    params: {
+      thread: {
+        id: "canonical-thread",
+        name: "Canonical task",
+        cwd: "/repo/canonical",
+        status: { type: "idle" },
+      },
+    },
+  });
+  await waitFor(() => relayMessages.some((message) => message.method === "thread/started"));
+  assert.equal(
+    relayMessages.some((message) => message.method === "remodex/activity/updated"),
+    false
+  );
+
+  relaySocket.send(JSON.stringify({
+    id: 91,
+    method: "remodex/activity/subscribe",
+    params: { schemaVersion: 1 },
+  }));
+  const snapshot = await waitForMessage(relayMessages, (message) => message.id === 91);
+  assert.equal(snapshot.result.entries[0].threadId, "canonical-thread");
+  assert.equal(snapshot.result.entries[0].source, "app-server");
+  assert.equal(fakeCodex.sent.some((message) => message.id === 91), false);
+
+  fakeCodex.emitMessage({
+    method: "turn/started",
+    params: {
+      threadId: "canonical-thread",
+      turn: { id: "canonical-turn", status: "inProgress", startedAt: 1_700_000_000 },
+    },
+  });
+  const update = await waitForMessage(
+    relayMessages,
+    (message) => message.method === "remodex/activity/updated"
+  );
+  assert.equal(update.params.baseRevision, snapshot.result.revision);
+  assert.deepEqual(update.params.upserts[0].activeTurnIds, ["canonical-turn"]);
+
+  relaySocket.send(JSON.stringify({
+    id: "stop-activity",
+    method: "remodex/activity/unsubscribe",
+  }));
+  await waitForMessage(relayMessages, (message) => message.id === "stop-activity");
+  const activityCount = relayMessages.filter(
+    (message) => message.method === "remodex/activity/updated"
+  ).length;
+  fakeCodex.emitMessage({
+    method: "item/started",
+    params: {
+      threadId: "canonical-thread",
+      turnId: "canonical-turn",
+      item: { id: "reasoning", type: "reasoning", content: ["private"] },
+      startedAtMs: 1_700_000_000_100,
+    },
+  });
+  await wait(250);
+  assert.equal(
+    relayMessages.filter((message) => message.method === "remodex/activity/updated").length,
+    activityCount
+  );
+});
+
+test("Activity subscribe performs no reads and snapshots an unopened Desktop thread", async (t) => {
+  const { tempDir, socketPath: ipcSocketPath } = createIpcTestSocket("remodex-activity-ipc-");
+  const relayServer = new WebSocket.Server({ port: 0 });
+  const ipcServer = net.createServer();
+  const relayMessages = [];
+  const ipcFrames = [];
+  let relaySocket = null;
+  let ipcSocket = null;
+  let bridge = null;
+  let fakeCodex = null;
+
+  await new Promise((resolve) => relayServer.once("listening", resolve));
+  await new Promise((resolve) => ipcServer.listen(ipcSocketPath, resolve));
+  relayServer.on("connection", (socket) => {
+    relaySocket = socket;
+    socket.on("message", (data) => relayMessages.push(JSON.parse(data.toString("utf8"))));
+  });
+  ipcServer.on("connection", (socket) => {
+    ipcSocket = socket;
+    attachFrameReader(socket, (frame) => {
+      ipcFrames.push(frame);
+      if (frame.method === "initialize") {
+        writeFrame(socket, {
+          type: "response",
+          requestId: frame.requestId,
+          resultType: "success",
+          method: "initialize",
+          handledByClientId: "desktop",
+          result: { clientId: "activity-test" },
+        });
+      }
+    });
+  });
+  const { startBridge } = loadBridgeWithTestDoubles({
+    createCodexTransportImpl() {
+      fakeCodex = createFakeCodexTransport();
+      return fakeCodex;
+    },
+  });
+  t.after(() => {
+    bridge?.stop();
+    relaySocket?.close();
+    ipcSocket?.destroy();
+    ipcServer.close();
+    relayServer.close();
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  bridge = startBridge({
+    printPairingQr: false,
+    config: bridgeTestConfig(relayServer, {
+      desktopIpcSocketPath: ipcSocketPath,
+      desktopIpcLiveSyncEnabled: false,
+    }),
+  });
+  await waitFor(() => relaySocket?.readyState === WebSocket.OPEN);
+  relaySocket.send(JSON.stringify({ id: "activity-first", method: "remodex/activity/subscribe" }));
+  await waitForMessage(relayMessages, (message) => message.id === "activity-first");
+  await wait(20);
+  assert.equal(ipcSocket, null, "Activity subscription must not connect to Desktop IPC");
+  assert.equal(fakeCodex.sent.some((message) => message.id === "activity-first"), false);
+
+  relaySocket.send(JSON.stringify({ id: "existing-sidebar", method: "thread/list", params: {} }));
+  await waitFor(() => fakeCodex.sent.some((message) => message.id === "existing-sidebar"));
+  fakeCodex.emitMessage({
+    id: "existing-sidebar",
+    result: { data: [{ id: "unopened-desktop-thread", cwd: "/repo/desktop" }] },
+  });
+  await waitFor(() => ipcFrames.some((frame) => (
+    frame.method === "thread-stream-following-changed"
+      && frame.params?.conversationId === "unopened-desktop-thread"
+      && frame.params.following
+  )));
+  writeFrame(ipcSocket, {
+    type: "broadcast",
+    method: "thread-stream-state-changed",
+    sourceClientId: "desktop",
+    version: 11,
+    params: {
+      conversationId: "unopened-desktop-thread",
+      change: {
+        type: "snapshot",
+        conversationState: {
+          title: "Unopened Desktop task",
+          cwd: "/repo/desktop",
+          threadRuntimeStatus: { type: "active", activeFlags: [] },
+          hasUnreadTurn: true,
+          unreadMessageCount: 2,
+          requests: [],
+          turns: [{
+            id: "desktop-turn",
+            status: "inProgress",
+            turnStartedAtMs: 1_700_000_000_500,
+            items: [{
+              id: "desktop-tool",
+              type: "mcpToolCall",
+              arguments: { secret: "not relayed" },
+            }],
+          }],
+        },
+      },
+    },
+  });
+  const update = await waitForMessage(
+    relayMessages,
+    (message) => message.method === "remodex/activity/updated"
+      && message.params?.upserts?.[0]?.threadId === "unopened-desktop-thread"
+  );
+  assert.equal(update.params.upserts[0].source, "desktop-ipc");
+  assert.equal(update.params.upserts[0].runtime, "active");
+  assert.equal(JSON.stringify(update).includes("not relayed"), false);
+  assert.deepEqual(
+    ipcFrames.map((frame) => frame.method).filter(Boolean),
+    ["initialize", "thread-stream-following-changed"]
+  );
+  relaySocket.send(JSON.stringify({ id: "archived-sidebar", method: "thread/list", params: { archived: true } }));
+  await waitFor(() => fakeCodex.sent.some((message) => message.id === "archived-sidebar"));
+  fakeCodex.emitMessage({ id: "archived-sidebar", result: { data: [{ id: "archived-thread" }] } });
+  // The bridge briefly waits for OpenCode's archived catalog so a fresh phone
+  // can see server-archived sessions on the first request.
+  await waitForMessage(relayMessages, (message) => message.id === "archived-sidebar", 3_000);
+  assert.equal(ipcFrames.length, 2, "archived lists must not change active subscriptions");
+  fakeCodex.emitMessage({
+    method: "thread/name/updated",
+    params: { threadId: "unopened-desktop-thread", threadName: "Renamed task" },
+  });
+  fakeCodex.emitMessage({
+    method: "thread/status/changed",
+    params: { threadId: "unopened-desktop-thread", status: { type: "notLoaded" } },
+  });
+  const renamed = await waitForMessage(relayMessages, (message) => (
+    message.method === "remodex/activity/updated"
+      && message.params?.upserts?.[0]?.title === "Renamed task"
+  ));
+  assert.equal(renamed.params.upserts[0].source, "desktop-ipc");
+  assert.equal(renamed.params.upserts[0].runtime, "active");
+  assert.equal(renamed.params.upserts[0].desktopUnread.hasUnreadTurn, true);
+});
+
+test("bridge recovers a growing rollout behind a connected stale Desktop stream", async (t) => {
+  const { tempDir, socketPath } = createIpcTestSocket("remodex-stale-stream-");
+  const threadId = "thread-stale-stream";
+  const turnId = "turn-stale-stream";
+  let fakeNow = Date.now();
+  const snapshotAt = fakeNow;
+  const sessionsDir = path.join(tempDir, "sessions", "2026", "09", "11");
+  fs.mkdirSync(sessionsDir, { recursive: true });
+  const rolloutPath = path.join(sessionsDir, `rollout-${threadId}.jsonl`);
+  const record = (type, payload) => JSON.stringify({
+    timestamp: new Date(fakeNow).toISOString(), type, payload,
+  });
+  fs.writeFileSync(rolloutPath, [
+    record("session_meta", { id: threadId, cwd: "/repo", originator: "Codex Desktop", source: "desktop" }),
+    record("event_msg", { type: "task_started", turn_id: turnId }),
+    record("event_msg", { type: "user_message", message: "Continue this chat" }),
+    "",
+  ].join("\n"));
+  fs.utimesSync(rolloutPath, new Date(snapshotAt - 1_000), new Date(snapshotAt - 1_000));
+  const previousCodexHome = process.env.CODEX_HOME;
+  process.env.CODEX_HOME = tempDir;
+
+  const messages = [];
+  let relaySocket = null;
+  let ipcSocket = null;
+  let bridge = null;
+  let follower = null;
+  let mirror = null;
+  let tick = null;
+  let directoryReads = 0;
+  let contentReads = 0;
+  const relayServer = new WebSocket.Server({ port: 0 });
+  relayServer.on("connection", (socket) => {
+    relaySocket = socket;
+    socket.on("message", (data) => messages.push(JSON.parse(data.toString())));
+  });
+  const ipcServer = net.createServer((socket) => {
+    ipcSocket = socket;
+    attachFrameReader(socket, (frame) => {
+      if (frame.method === "initialize") {
+        writeFrame(socket, {
+          type: "response", requestId: frame.requestId, resultType: "success",
+          method: "initialize", result: { clientId: "remodex-test" },
+        });
+      }
+    });
+  });
+  t.after(() => {
+    bridge?.stop();
+    relaySocket?.close();
+    relayServer.close();
+    ipcSocket?.destroy();
+    ipcServer.close();
+    if (previousCodexHome === undefined) delete process.env.CODEX_HOME;
+    else process.env.CODEX_HOME = previousCodexHome;
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+  await new Promise((resolve) => relayServer.once("listening", resolve));
+  await new Promise((resolve) => ipcServer.listen(socketPath, resolve));
+
+  const followerModule = require("../src/desktop-ipc-action-follower");
+  const mirrorModule = require("../src/rollout-live-mirror");
+  const { startBridge } = loadBridgeWithTestDoubles({
+    createCodexTransportImpl: () => createFakeCodexTransport(),
+    desktopIpcActionFollowerModule: {
+      ...followerModule,
+      createDesktopIpcActionFollower(options) {
+        follower = followerModule.createDesktopIpcActionFollower({ ...options, now: () => fakeNow });
+        return follower;
+      },
+    },
+    rolloutLiveMirrorModule: {
+      createRolloutLiveMirrorController(options) {
+        mirror = mirrorModule.createRolloutLiveMirrorController({
+          ...options,
+          now: () => fakeNow,
+          fsModule: {
+            ...fs,
+            readdirSync(...args) { directoryReads += 1; return fs.readdirSync(...args); },
+            readSync(...args) { contentReads += 1; return fs.readSync(...args); },
+          },
+          setIntervalFn(callback) { tick = callback; return 1; },
+          clearIntervalFn() {},
+          setImmediateFn() { return 2; },
+          clearImmediateFn() {},
+        });
+        return mirror;
+      },
+    },
+  });
+  bridge = startBridge({
+    printPairingQr: false,
+    config: {
+      relayUrl: `ws://127.0.0.1:${relayServer.address().port}`,
+      pushServiceUrl: "", pushPreviewMaxChars: 160,
+      refreshEnabled: false, refreshDebounceMs: 1, keepMacAwakeEnabled: false,
+      codexEndpoint: "", refreshCommand: "", codexBundleId: "", codexAppPath: "",
+      desktopIpcSocketPath: socketPath, desktopIpcLiveSyncEnabled: false,
+    },
+  });
+  await waitFor(() => relaySocket?.readyState === WebSocket.OPEN);
+  relaySocket.send(JSON.stringify({ id: "resume-stale-stream", method: "thread/resume", params: { threadId } }));
+  await waitFor(() => ipcSocket && tick);
+  writeFrame(ipcSocket, {
+    type: "broadcast", method: "thread-stream-state-changed", sourceClientId: "desktop", version: 11,
+    params: {
+      conversationId: threadId,
+      change: { type: "snapshot", conversationState: {
+        turns: [{ turnId, status: "inProgress", items: [] }], requests: [],
+      } },
+    },
+  });
+  await waitFor(() => follower.hasLiveThreadState(threadId));
+  tick();
+  assert.equal(directoryReads, 0, "fresh Desktop state must not scan the rollout");
+  assert.equal(mirror.getActiveTurnId(threadId), null);
+
+  fakeNow += 21_000;
+  tick();
+  assert.ok(directoryReads > 0, "stale Desktop state must check for newer file activity");
+  assert.equal(contentReads, 0, "quiet work must not replay an older rollout");
+  assert.equal(mirror.getActiveTurnId(threadId), null);
+  const firstLookupReads = directoryReads;
+  tick();
+  assert.equal(directoryReads, firstLookupReads, "retain the resolved path during quiet work");
+
+  fs.appendFileSync(rolloutPath, `${record("event_msg", {
+    type: "agent_message", message: "New output while Desktop is stale", phase: "commentary",
+  })}\n`);
+  fs.utimesSync(rolloutPath, new Date(fakeNow), new Date(fakeNow));
+  tick();
+  await waitForMessage(messages, (message) => (
+    message.method === "codex/event/agent_message"
+      && message.params?.message === "New output while Desktop is stale"
+  ));
+  assert.equal(mirror.getActiveTurnId(threadId), turnId);
+  assert.ok(contentReads > 0);
+
+  // A fresh Desktop snapshot takes over again without a second file replay.
+  fakeNow += 1_000;
+  writeFrame(ipcSocket, {
+    type: "broadcast", method: "thread-stream-state-changed", sourceClientId: "desktop", version: 11,
+    params: {
+      conversationId: threadId,
+      change: { type: "snapshot", conversationState: {
+        turns: [{ turnId, status: "inProgress", items: [{
+          id: "desktop-output", type: "agentMessage", text: "New output while Desktop is stale",
+        }] }], requests: [],
+      } },
+    },
+  });
+  await waitFor(() => follower.hasFreshLiveThreadState(threadId, { probeFallbackActivity: true }));
+  const readsBeforeDesktopRecovery = contentReads;
+  tick();
+  assert.equal(contentReads, readsBeforeDesktopRecovery);
+  assert.equal(mirror.getActiveTurnId(threadId), null);
+});
+
+test("bridge-generated lifecycle notifications reach completion tracking", async (t) => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "remodex-bridge-push-"));
+  const relayServer = new WebSocket.Server({ port: 0 });
+  let relaySocket = null;
+  let bridge = null;
+  let emitBridgeNotification = null;
+  let fakeCodex = null;
+  const pushRequests = [];
+  const originalFetch = globalThis.fetch;
+  t.after(() => {
+    bridge?.stop();
+    relaySocket?.close();
+    relayServer.close();
+    globalThis.fetch = originalFetch;
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+  globalThis.fetch = async (url, options) => {
+    pushRequests.push({ url, body: JSON.parse(options.body) });
+    return {
+      ok: true,
+      status: 200,
+      async text() {
+        return JSON.stringify({ ok: true });
+      },
+    };
+  };
+  await new Promise((resolve) => relayServer.once("listening", resolve));
+  relayServer.on("connection", (socket) => {
+    relaySocket = socket;
+  });
+  const { startBridge } = loadBridgeWithTestDoubles({
+    createCodexTransportImpl: () => {
+      fakeCodex = createFakeCodexTransport({ threadReadResult: { thread: {
+        id: "thread-ambiguous-push",
+        turns: [
+          { id: "previous-turn", status: "completed" },
+          { id: "next-turn", status: "completed" },
+        ],
+      } } });
+      return fakeCodex;
+    },
+    rolloutLiveMirrorModule: {
+      createRolloutLiveMirrorController({ sendApplicationResponse }) {
+        emitBridgeNotification = (message) => {
+          sendApplicationResponse(JSON.stringify(message));
+        };
+        return {
+          getActiveTurnId() { return null; },
+          observeInbound() {},
+          stopAll() {},
+        };
+      },
+    },
+  });
+  bridge = startBridge({
+    printPairingQr: false,
+    config: bridgeTestConfig(relayServer, {
+      pushServiceUrl: "https://push.example.test",
+      pushCompletionStatePath: null,
+      desktopIpcSocketPath: path.join(tempDir, "missing-ipc.sock"),
+    }),
+  });
+  await waitFor(() => relaySocket?.readyState === WebSocket.OPEN && emitBridgeNotification);
+  emitBridgeNotification({
+    method: "turn/started",
+    params: { threadId: "thread-bridge-push", turnId: "turn-bridge-push" },
+  });
+  emitBridgeNotification({
+    method: "turn/completed",
+    params: {
+      threadId: "thread-bridge-push",
+      turnId: "turn-bridge-push",
+      status: "completed",
+    },
+  });
+
+  await waitFor(() => pushRequests.length === 1);
+  assert.equal(
+    pushRequests[0].url,
+    "https://push.example.test/v1/push/session/notify-completion"
+  );
+  assert.equal(pushRequests[0].body.threadId, "thread-bridge-push");
+  assert.equal(pushRequests[0].body.turnId, "turn-bridge-push");
+
+  const emitRuntimeTurn = (method, turnId) => fakeCodex.emitMessage({
+    method, params: {
+      threadId: "thread-ambiguous-push",
+      ...(turnId ? { turnId } : {}),
+      ...(method === "turn/completed" ? { status: "completed" } : {}),
+    },
+  });
+  emitRuntimeTurn("turn/started");
+  emitRuntimeTurn("turn/completed");
+  await waitFor(() => pushRequests.length === 2);
+  emitRuntimeTurn("turn/started");
+  emitRuntimeTurn("turn/started", "previous-turn");
+  emitRuntimeTurn("turn/completed", "previous-turn");
+  emitRuntimeTurn("turn/completed", "next-turn");
+  await waitFor(() => pushRequests.length === 3);
+  assert.deepEqual(pushRequests.slice(1).map(({ body }) => body.turnId), [null, "next-turn"]);
+  assert.deepEqual(fakeCodex.sent.filter(({ method }) => method === "thread/read")
+    .map(({ params }) => params), [{ threadId: "thread-ambiguous-push", includeTurns: true }]);
+});
+
+test("bridge restores a newer completed text turn on a stale canonical first page", async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "remodex-canonical-text-history-"));
+  const previousCodexHome = process.env.CODEX_HOME;
+  process.env.CODEX_HOME = directory;
+  const relayServer = new WebSocket.Server({ port: 0 });
+  let socket;
+  let bridge;
+  const messages = [];
+  t.after(() => {
+    bridge?.stop();
+    socket?.close();
+    relayServer.close();
+    if (previousCodexHome === undefined) delete process.env.CODEX_HOME;
+    else process.env.CODEX_HOME = previousCodexHome;
+    fs.rmSync(directory, { recursive: true, force: true });
+  });
+
+  const threadId = "thread-completed-text-history";
+  const sessionsDir = path.join(directory, "sessions");
+  fs.mkdirSync(sessionsDir);
+  let timestamp = Date.now() - 60_000;
+  const oldStartedAt = Math.floor(timestamp / 1000);
+  const record = (type, payload) => {
+    timestamp += 1000;
+    return JSON.stringify({ timestamp: new Date(timestamp).toISOString(), type, payload });
+  };
+  const turnRecords = (turnId, answer, plan = false) => [
+    record("event_msg", { type: "task_started", turn_id: turnId }),
+    record("event_msg", { type: "user_message", turn_id: turnId, message: "Show the result" }),
+    ...(plan ? [record("response_item", {
+      type: "function_call", name: "update_plan", call_id: "older-plan",
+      arguments: JSON.stringify({ plan: [{ step: "Keep the older artifact", status: "completed" }] }),
+    })] : []),
+    record("response_item", {
+      id: `${turnId}-answer`, type: "message", role: "assistant", phase: "final_answer",
+      content: [{ type: "output_text", text: answer }],
+    }),
+    record("event_msg", { type: "task_complete", turn_id: turnId }),
+  ];
+  fs.writeFileSync(path.join(sessionsDir, `rollout-${threadId}.jsonl`), [
+    record("session_meta", { id: threadId, cwd: directory }),
+    ...turnRecords("turn-canonical", "Previously loaded answer", true),
+    ...turnRecords("turn-newest", "Recovered final answer"),
+    "",
+  ].join("\n"));
+
+  relayServer.on("connection", (connection) => {
+    socket = connection;
+    socket.on("message", (data) => messages.push(JSON.parse(data.toString())));
+  });
+  await new Promise((resolve) => relayServer.once("listening", resolve));
+  const { startBridge } = loadBridgeWithTestDoubles({
+    createCodexTransportImpl: () => createFakeCodexTransport({
+      turnsListResult: (params) => ({
+        data: [{ id: "turn-canonical", status: "completed", startedAt: oldStartedAt, items: [] }],
+        nextCursor: params.cursor || params.limit !== 1 ? null : "canonical-next",
+      }),
+    }),
+  });
+  bridge = startBridge({
+    printPairingQr: false,
+    config: bridgeTestConfig(relayServer, { desktopIpcSocketPath: path.join(directory, "missing-ipc.sock") }),
+  });
+  await waitFor(() => socket?.readyState === WebSocket.OPEN);
+  const request = async (id, params = {}) => {
+    socket.send(JSON.stringify({
+      id, method: "thread/turns/list",
+      params: { threadId, limit: 1, sortDirection: "desc", itemsView: "full", ...params },
+    }));
+    await waitFor(() => messages.some((message) => message.id === id));
+    return messages.find((message) => message.id === id).result;
+  };
+
+  const recovered = await request("stale-first-page");
+  assert.deepEqual(recovered.data.map((turn) => turn.id), ["turn-newest", "turn-canonical"]);
+  assert.equal(recovered.nextCursor, "canonical-next");
+  assert.equal(recovered.remodexJsonlMergedLatest, true);
+  assert.equal(recovered.remodexJsonlFallback, undefined, "the canonical cursor must remain usable on iOS");
+  const answer = recovered.data[0].items.find((item) => item.id === "turn-newest-answer");
+  assert.equal(answer?.content?.[0]?.text ?? answer?.text, "Recovered final answer");
+  assert.ok(recovered.data[1].items.some((item) => item.id === "older-plan"));
+
+  const directoryReads = t.mock.method(fs, "readdirSync");
+  const warmPage = await request("warm-stale-first-page");
+  assert.deepEqual(warmPage.data.map((turn) => turn.id), ["turn-newest", "turn-canonical"]);
+  assert.equal(directoryReads.mock.callCount(), 0);
+  directoryReads.mock.restore();
+
+  for (const [id, params] of [
+    ["canonical-only", { remodexRequireCanonical: true }],
+    ["older-page", { cursor: "canonical-next" }],
+    ["summary-page", { itemsView: "summary" }],
+    ["ascending-page", { sortDirection: "asc" }],
+    ["state-probe", { remodexTurnStateOnly: true }],
+  ]) {
+    const page = await request(id, params);
+    assert.deepEqual(page.data.map((turn) => turn.id), ["turn-canonical"], id);
+    assert.equal(page.remodexJsonlMergedLatest, undefined, id);
+  }
+});
+
+// Loads bridge.js with plaintext test transports while leaving the production module untouched.
+function loadBridgeWithTestDoubles({
+  createCodexTransportImpl,
+  createOpenCodeRuntimeImpl = null,
+  desktopIpcActionFollowerModule = null,
+  desktopIpcLiveOwnerModule = null,
+  rolloutLiveMirrorModule = null,
+}) {
+  const bridgePath = require.resolve("../src/bridge");
+  const originalLoad = Module._load;
+  delete require.cache[bridgePath];
+  Module._load = function loadWithBridgeDoubles(request, parent, isMain) {
+    if (parent?.filename === bridgePath && request === "./codex-transport") {
+      return { createCodexTransport: createCodexTransportImpl };
+    }
+    if (parent?.filename === bridgePath && request === "./opencode-runtime" && createOpenCodeRuntimeImpl) {
+      return { createOpenCodeRuntime: createOpenCodeRuntimeImpl };
+    }
+    if (parent?.filename === bridgePath && request === "./rollout-live-mirror" && rolloutLiveMirrorModule) {
+      return rolloutLiveMirrorModule;
+    }
+    if (parent?.filename === bridgePath
+      && request === "./desktop-ipc-action-follower"
+      && desktopIpcActionFollowerModule) {
+      return desktopIpcActionFollowerModule;
+    }
+    if (parent?.filename === bridgePath
+      && request === "./desktop-ipc-live-owner"
+      && desktopIpcLiveOwnerModule) {
+      return desktopIpcLiveOwnerModule;
+    }
+    if (parent?.filename === bridgePath && request === "./secure-transport") {
+      return { createBridgeSecureTransport: createPlaintextSecureTransport };
+    }
+    if (parent?.filename === bridgePath && request === "./secure-device-state") {
+      return createSecureDeviceStateDouble();
+    }
+    if (parent?.filename === bridgePath && request === "./session-state") {
+      return {
+        rememberActiveThread() {
+          return true;
+        },
+      };
+    }
+    return originalLoad.call(this, request, parent, isMain);
+  };
+
+  try {
+    return require("../src/bridge");
+  } finally {
+    Module._load = originalLoad;
+    delete require.cache[bridgePath];
+  }
+}
+
+// Uses plaintext relay messages so this test can focus on bridge routing, not encryption.
+function createPlaintextSecureTransport() {
+  return {
+    createPairingPayload() {
+      return { v: 1, expiresAt: Date.now() + 60_000 };
+    },
+    bindLiveSendWireMessage() {},
+    handleIncomingWireMessage(message, { onApplicationMessage }) {
+      onApplicationMessage(message);
+      return true;
+    },
+    queueOutboundApplicationMessage(message, sendWireMessage) {
+      sendWireMessage(message);
+    },
+  };
+}
+
+function createSecureDeviceStateDouble() {
+  return {
+    loadOrCreateBridgeDeviceState() {
+      return {
+        macDeviceId: "mac-test",
+        macIdentityPublicKey: "mac-key-test",
+        trustedPhones: {},
+      };
+    },
+    rememberLastSeenPhoneAppVersion(deviceState) {
+      return deviceState;
+    },
+    resolveBridgeRelaySession(deviceState) {
+      return {
+        sessionId: "session-test",
+        deviceState,
+      };
+    },
+  };
+}
+
+test("explicit Munie cancellation withholds terminal state until its native background session disappears", async (t) => {
+  const directory = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "munie-cancel-boundary-")));
+  const previousRoot = process.env.REMODEX_PROJECT_ROOT;
+  process.env.REMODEX_PROJECT_ROOT = directory;
+  const relayServer = new WebSocket.Server({ port: 0 });
+  await new Promise((resolve) => relayServer.once("listening", resolve));
+  const messages = [];
+  const requests = [];
+  let socket, bridge, native;
+  let resolveTermination;
+  let terminalAlive = true;
+  relayServer.on("connection", (connected) => {
+    socket = connected;
+    socket.on("message", (data) => messages.push(JSON.parse(data)));
+  });
+  const { startBridge } = loadBridgeWithTestDoubles({ createCodexTransportImpl() {
+    const listeners = {};
+    native = {
+      describe: () => "synthetic Codex for cancellation wiring",
+      send(raw) {
+        const request = JSON.parse(raw);
+        requests.push(request);
+        const reply = (result) => listeners.message?.(JSON.stringify({ id: request.id, result }));
+        if (request.method === "thread/read") reply({ thread: { id: "thread-1", cwd: directory, turns: [] } });
+        else if (request.method === "turn/interrupt") {
+          listeners.message(JSON.stringify({ method: "error", params: {
+            threadId: "thread-1", turnId: "turn-1", willRetry: false,
+            error: { message: "synthetic tool interruption" },
+          } }));
+          listeners.message(JSON.stringify({ method: "turn/completed", params: {
+            threadId: "thread-1", turn: { id: "turn-1", status: "interrupted", items: [
+              { id: "tool-item-1", type: "commandExecution" },
+            ] },
+          } }));
+          reply({});
+        } else if (request.method === "thread/items/list") {
+          listeners.message(JSON.stringify({ id: request.id, error: { code: -32601, message: "thread/items/list is not supported yet" } }));
+        }
+        else if (request.method === "thread/backgroundTerminals/list") reply({ data: terminalAlive
+          ? [{ itemId: "tool-item-1", processId: "native-process-1" }] : [] });
+        else if (request.method === "thread/backgroundTerminals/terminate") {
+          resolveTermination = () => { terminalAlive = false; reply({ terminated: true }); };
+        } else if (request.method === "turn/start") reply({ turn: { id: "turn-2" } });
+      },
+      onMessage: (handler) => { listeners.message = handler; },
+      onClose: (handler) => { listeners.close = handler; },
+      onError() {}, onStarted: (handler) => setImmediate(() => handler({ mode: "test" })),
+      shutdown: () => listeners.close?.(),
+    };
+    return native;
+  } });
+  t.after(() => {
+    bridge?.stop(); socket?.close(); relayServer.close();
+    if (previousRoot === undefined) delete process.env.REMODEX_PROJECT_ROOT;
+    else process.env.REMODEX_PROJECT_ROOT = previousRoot;
+    fs.rmSync(directory, { recursive: true, force: true });
+  });
+  bridge = startBridge({ printPairingQr: false, config: bridgeTestConfig(relayServer) });
+  await waitFor(() => socket?.readyState === WebSocket.OPEN);
+  socket.send(JSON.stringify({ id: "cancel", method: "turn/interrupt", params: { threadId: "thread-1", turnId: "turn-1" } }));
+  await waitFor(() => resolveTermination);
+  assert.equal(messages.some((message) => message.id === "cancel" || message.method === "turn/completed" || message.method === "error"), false);
+  assert.deepEqual(requests.find((request) => request.method === "thread/backgroundTerminals/terminate")?.params,
+    { threadId: "thread-1", processId: "native-process-1" });
+  socket.send(JSON.stringify({ id: "too-soon", method: "turn/start", params: { threadId: "thread-1", input: [] } }));
+  const denied = await waitForMessage(messages, (message) => message.id === "too-soon");
+  assert.equal(denied.error.data.errorCode, "cancellation_cleanup_pending");
+  assert.equal(requests.some((request) => request.method === "turn/start"), false);
+  resolveTermination();
+  const cancelled = await waitForMessage(messages, (message) => message.id === "cancel");
+  assert.deepEqual(cancelled.result, {});
+  const terminal = await waitForMessage(messages, (message) => message.method === "turn/completed");
+  assert.equal(terminal.params.turn.status, "interrupted");
+  assert.equal(messages.some((message) => message.method === "error"), true);
+  assert.equal(messages.some((message) => typeof message.id === "string" && message.id.startsWith("remodex-bridge-")), false);
+  socket.send(JSON.stringify({ id: "continue", method: "turn/start", params: { threadId: "thread-1", input: [] } }));
+  const continued = await waitForMessage(messages, (message) => message.id === "continue");
+  assert.equal(continued.result.turn.id, "turn-2");
+});
+
+function createFakeCodexTransport({
+  turnsListResult = null,
+  threadReadResult = {
+    conversationState: {
+      turns: [],
+      requests: [],
+    },
+  },
+} = {}) {
+  const listeners = {};
+  const sent = [];
+  return {
+    sent,
+    describe() {
+      return "fake codex app-server";
+    },
+    send(message) {
+      const parsed = JSON.parse(message);
+      sent.push(parsed);
+      if (parsed.method === "thread/read") {
+        listeners.message?.(JSON.stringify({
+          id: parsed.id,
+          result: threadReadResult,
+        }));
+      } else if (parsed.method === "thread/turns/list" && turnsListResult) {
+        listeners.message?.(JSON.stringify({ id: parsed.id, result: turnsListResult(parsed.params) }));
+      }
+    },
+    onMessage(handler) {
+      listeners.message = handler;
+    },
+    onClose(handler) {
+      listeners.close = handler;
+    },
+    onError(handler) {
+      listeners.error = handler;
+    },
+    onStarted(handler) {
+      listeners.started = handler;
+      setImmediate(() => handler({ mode: "test" }));
+    },
+    emitMessage(message) {
+      listeners.message?.(JSON.stringify(message));
+    },
+    shutdown() {
+      this.emitClose();
+    },
+    emitClose() {
+      listeners.close?.();
+    },
+  };
+}
+
+function bridgeTestConfig(relayServer, overrides = {}) {
+  return {
+    relayUrl: `ws://127.0.0.1:${relayServer.address().port}`,
+    pushServiceUrl: "",
+    pushPreviewMaxChars: 160,
+    refreshEnabled: false,
+    desktopAutoFollowEnabled: false,
+    refreshDebounceMs: 1,
+    keepMacAwakeEnabled: false,
+    codexEndpoint: "",
+    refreshCommand: "",
+    codexBundleId: "",
+    codexAppPath: "",
+    desktopIpcLiveSyncEnabled: false,
+    ...overrides,
+  };
+}
+
+function attachFrameReader(socket, onFrame) {
+  let buffer = Buffer.alloc(0);
+  socket.on("data", (chunk) => {
+    buffer = Buffer.concat([buffer, chunk]);
+    while (buffer.length >= 4) {
+      const frameLength = buffer.readUInt32LE(0);
+      if (buffer.length < 4 + frameLength) {
+        return;
+      }
+
+      const payload = buffer.slice(4, 4 + frameLength).toString("utf8");
+      buffer = buffer.slice(4 + frameLength);
+      onFrame(JSON.parse(payload));
+    }
+  });
+}
+
+function writeFrame(socket, payload) {
+  const body = Buffer.from(JSON.stringify(payload), "utf8");
+  const header = Buffer.alloc(4);
+  header.writeUInt32LE(body.length, 0);
+  socket.write(Buffer.concat([header, body]));
+}
+
+async function waitForMessage(messages, predicate, timeoutMs = 500) {
+  await waitFor(() => messages.find(predicate), timeoutMs);
+  return messages.find(predicate);
+}
+
+async function waitFor(predicate, timeoutMs = 500) {
+  const startedAt = Date.now();
+  while (!predicate()) {
+    if (Date.now() - startedAt > timeoutMs) {
+      throw new Error("Timed out waiting for condition");
+    }
+    await wait(5);
+  }
+}
+
+function safeParseJSON(value) {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
+function createIpcTestSocket(prefix) {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  const socketPath = process.platform === "win32"
+    ? `\\\\.\\pipe\\${path.basename(tempDir)}-ipc`
+    : path.join(tempDir, "ipc.sock");
+  return { tempDir, socketPath };
+}

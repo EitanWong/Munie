@@ -1,0 +1,2 @@
+# Preserve archived upstream license/NOTICE bytes, including trailing whitespace.
+references/licenses/device-identity/*.txt -whitespace

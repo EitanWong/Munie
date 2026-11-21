@@ -1,0 +1,740 @@
+{
+  "repository": "https://github.com/Emanuele-web04/remodex",
+  "revision": "c06dcb16a7059603a41e26a2cb4a81b6d4b5514d",
+  "directory": "phodex-bridge",
+  "license": "Apache-2.0",
+  "files": [
+    {
+      "path": "README.md",
+      "mode": "120000",
+      "sha256": "dbcc210d7f4962499db6d4cfa18658e26d05ee700c962a811cac911f095e22fd",
+      "bytes": 12
+    },
+    {
+      "path": "bin/phodex.js",
+      "mode": "100755",
+      "sha256": "bf45c9b483662ff8ede20220ffb8a3e08c92fc5dc753214dd7f83bd5054c1b2e",
+      "bytes": 252
+    },
+    {
+      "path": "bin/remodex-jsonl-diagnose.js",
+      "mode": "100755",
+      "sha256": "ffde7a11456cd2f52873a7fd1748be32748fa34a237279e101d14680ebcb0cdf",
+      "bytes": 15948
+    },
+    {
+      "path": "bin/remodex.js",
+      "mode": "100755",
+      "sha256": "0b6ff39f6938a8dde9541c2a8d78f9d300bd604d014d025375d51aee326902e8",
+      "bytes": 10581
+    },
+    {
+      "path": "package-lock.json",
+      "mode": "100644",
+      "sha256": "ee0c89ac4cf981b2c78f7400d2f016cc47461ab7e9d3c92f6d33c61515fd1673",
+      "bytes": 1415
+    },
+    {
+      "path": "package.json",
+      "mode": "100644",
+      "sha256": "872660b64542bb2c31ce5a35e2e0721b30abfe47379adb2b562e8e7c41e22485",
+      "bytes": 1128
+    },
+    {
+      "path": "scripts/cleanup-private-defaults.js",
+      "mode": "100644",
+      "sha256": "35374cffe825092d47fba3e5cf803603dee9914337f85cdbc5692e5710b878d4",
+      "bytes": 277
+    },
+    {
+      "path": "scripts/prepare-private-defaults.js",
+      "mode": "100644",
+      "sha256": "9a81c190e960db1989794a52ba516760037ee53ba010ba3663a1e437093742df",
+      "bytes": 897
+    },
+    {
+      "path": "src/account-status.js",
+      "mode": "100644",
+      "sha256": "a13c20eca6141ef424e310adf1eee2e0f3b2c76f1c201ab61235dcf93baf1a44",
+      "bytes": 6269
+    },
+    {
+      "path": "src/apply-patch-changes.js",
+      "mode": "100644",
+      "sha256": "ecca705587ee37298486c960c31ef891e90a3aee0cba27e423eb65da0005e756",
+      "bytes": 4888
+    },
+    {
+      "path": "src/bootstrap-codex-cli.js",
+      "mode": "100644",
+      "sha256": "05bfffb31981870932ce899a032de2ed155fd310bac0d9e9bc36a2e342dd2f46",
+      "bytes": 1501
+    },
+    {
+      "path": "src/bridge-status.js",
+      "mode": "100644",
+      "sha256": "bd8a90828743fcffa60bc116a0e38d3a1dce5bb421bf5ca94e596e080879c8d8",
+      "bytes": 3125
+    },
+    {
+      "path": "src/bridge.js",
+      "mode": "100644",
+      "sha256": "fc943551ccdc7dcc6096aede9aadef73e17b5b85d8607a1e42c46be750982580",
+      "bytes": 196509
+    },
+    {
+      "path": "src/codex-cli-bootstrap.js",
+      "mode": "100644",
+      "sha256": "10a02cbb89c1ef98ea898b79786a935ec3e7e852d980ac0d1a2562b066fe2ca9",
+      "bytes": 4735
+    },
+    {
+      "path": "src/codex-desktop-app.js",
+      "mode": "100644",
+      "sha256": "41ce2e9f9d2daf3e050b7ae4baeaa6baecc81ee0e377066cb351a6632e3edf64",
+      "bytes": 1556
+    },
+    {
+      "path": "src/codex-desktop-refresher.js",
+      "mode": "100644",
+      "sha256": "47d876e1cdc03a7e77c1b543d2f3537851b2c92c93489baa7d7afd42b063dfb7",
+      "bytes": 31249
+    },
+    {
+      "path": "src/codex-home.js",
+      "mode": "100644",
+      "sha256": "751bae04bd5cd80ac8b98ae16d6eaf8f908af77fe32125a26177ff687825185f",
+      "bytes": 548
+    },
+    {
+      "path": "src/codex-runtime-settings.js",
+      "mode": "100644",
+      "sha256": "3f3c4dfa6d7c7a36f66c9fa2593b7973abafed2da3f8569cf12b952233f460dc",
+      "bytes": 5417
+    },
+    {
+      "path": "src/codex-tool-wrapper.js",
+      "mode": "100644",
+      "sha256": "4f123e7990b8a2bee8ee0d0091d61cf64d6a5ede56dbe235fe8cc63e79866e28",
+      "bytes": 14158
+    },
+    {
+      "path": "src/codex-transport.js",
+      "mode": "100644",
+      "sha256": "93abfedd14ac41557a298c87b1d655ace8719305c966b43f4e616ce644db4787",
+      "bytes": 10411
+    },
+    {
+      "path": "src/daemon-state.js",
+      "mode": "100644",
+      "sha256": "951be27fa11353f574e2f08fe0234b4a47fe1cb14ff275b0a38ea08715c8b6c0",
+      "bytes": 4913
+    },
+    {
+      "path": "src/desktop-handler.js",
+      "mode": "100644",
+      "sha256": "ba563e83ef2e6d374a9cf05f7c1a2611658582f8f5c34f4035186db39965420d",
+      "bytes": 15914
+    },
+    {
+      "path": "src/desktop-ipc-action-follower.js",
+      "mode": "100644",
+      "sha256": "f34dbdee3af4bd10492d047bef3f630b75e88965c4078a195c3915339a91534b",
+      "bytes": 161155
+    },
+    {
+      "path": "src/desktop-ipc-conversation-adapter.js",
+      "mode": "100644",
+      "sha256": "9a36f36332040c03d7aceb9b8964a9b2fa14ad2385732844db0f81a8f1d749cd",
+      "bytes": 49504
+    },
+    {
+      "path": "src/desktop-ipc-conversation-projector.js",
+      "mode": "100644",
+      "sha256": "69a198d5cfbc315a9183ad82da6e3068418f3e12d19f43a9c8cc5abc78ecbb05",
+      "bytes": 44042
+    },
+    {
+      "path": "src/desktop-ipc-live-owner.js",
+      "mode": "100644",
+      "sha256": "76106b071e7aaca206bafef9e2caee54aa869e01e4b43dc8367e95a189b9a23b",
+      "bytes": 87924
+    },
+    {
+      "path": "src/desktop-ipc-owner-transport.js",
+      "mode": "100644",
+      "sha256": "fe126fa3a132362ed68e96e9150f3ddd1d0894374318e8d77aa5ecbf46c0c687",
+      "bytes": 24357
+    },
+    {
+      "path": "src/desktop-ipc-shared.js",
+      "mode": "100644",
+      "sha256": "6149100b3d4a92262b67876503a409f8e92826a9369cd18ffa02ffc5b6bf711e",
+      "bytes": 28396
+    },
+    {
+      "path": "src/desktop-ipc-state-patches.js",
+      "mode": "100644",
+      "sha256": "ee15e02cc99b5d88e9eefa7525945c008bd233b79215afe3c3cdfadec69dfcc0",
+      "bytes": 6127
+    },
+    {
+      "path": "src/git-handler.js",
+      "mode": "100644",
+      "sha256": "be2d9cba39ecc17dbf8bea19ef491f07997fee40095dca30f05b65d152acff27",
+      "bytes": 100427
+    },
+    {
+      "path": "src/index.js",
+      "mode": "100644",
+      "sha256": "7ffa0ba654c39c2e33cb3a93df9f5a58e885912f7a577d667881da7e7674ebcd",
+      "bytes": 1361
+    },
+    {
+      "path": "src/ios-app-compatibility.js",
+      "mode": "100644",
+      "sha256": "53fbedbf22b7d2d48fab16a69c800265e4f175486203ec06a5864e737f909e96",
+      "bytes": 7014
+    },
+    {
+      "path": "src/macos-launch-agent.js",
+      "mode": "100644",
+      "sha256": "32c5d3093392c2b8898ab88ddff504a29454f690b2f086bbc8a2f261272ddb0d",
+      "bytes": 20616
+    },
+    {
+      "path": "src/notifications-handler.js",
+      "mode": "100644",
+      "sha256": "ff2737da73e6f9ca39c5c597fe6f0527d467fafe319961b60796848e7a5b8e25",
+      "bytes": 2845
+    },
+    {
+      "path": "src/opencode-runtime.js",
+      "mode": "100644",
+      "sha256": "c489f471e14092c8a99a4b9ef056e96ddb3d789f043eec071a4ef262c9a39364",
+      "bytes": 61538
+    },
+    {
+      "path": "src/package-version-status.js",
+      "mode": "100644",
+      "sha256": "24ccf9c1b0b508ba46ce1a0b4d82dff0e8989aa544eaee5ad6e9047e28e53497",
+      "bytes": 5593
+    },
+    {
+      "path": "src/pet-handler.js",
+      "mode": "100644",
+      "sha256": "6d945197f77d6875400512fd6ffbf78d56ff0f946160bce8839293b2ff3b162f",
+      "bytes": 15296
+    },
+    {
+      "path": "src/project-handler.js",
+      "mode": "100644",
+      "sha256": "52a92be06821e5e9c43976204045f345ff894664d2103b3d2d844d652d82847b",
+      "bytes": 20684
+    },
+    {
+      "path": "src/push-notification-completion-dedupe.js",
+      "mode": "100644",
+      "sha256": "eca7c7fdccea30329fe4001e1faf1eaa20067cc2284bf0d1ec54aa0b7e4290a2",
+      "bytes": 3071
+    },
+    {
+      "path": "src/push-notification-service-client.js",
+      "mode": "100644",
+      "sha256": "6f12dbb115decb5b65948533e598b4576e229884686938035754ce88596d0b11",
+      "bytes": 5200
+    },
+    {
+      "path": "src/push-notification-tracker.js",
+      "mode": "100644",
+      "sha256": "16d9fd81db73b1edba3272d1b90cc8c1545751a54471c952b033a5fd0182571f",
+      "bytes": 31203
+    },
+    {
+      "path": "src/qr.js",
+      "mode": "100644",
+      "sha256": "d89c5e72c523f216fcd64e38523e6a7d02f8fb4442152831d068a14f05702ff1",
+      "bytes": 2974
+    },
+    {
+      "path": "src/relay-watchdog.js",
+      "mode": "100644",
+      "sha256": "43a044c9fea924d957621a5408d16cff7733c5eacab2470f7be761117fc3844d",
+      "bytes": 1661
+    },
+    {
+      "path": "src/rollout-live-mirror.js",
+      "mode": "100644",
+      "sha256": "c8229f8cec342b40aed2a0131d30bf823bafcee10d7760ebfd2fc89096bdfb8b",
+      "bytes": 76004
+    },
+    {
+      "path": "src/rollout-turn-semantics.js",
+      "mode": "100644",
+      "sha256": "60e83450dc023d4fde1d4bed6ed0b0698a3dec1c461f6ef282b35b2abf859f3a",
+      "bytes": 927
+    },
+    {
+      "path": "src/rollout-watch.js",
+      "mode": "100644",
+      "sha256": "23e341d9b66a745a768a32a05ab7370fb22c4501e7d49f9b0c3cee9f61202fc6",
+      "bytes": 25285
+    },
+    {
+      "path": "src/scripts/codex-handoff.applescript",
+      "mode": "100644",
+      "sha256": "a51b586625ec8cee9b8e67c6f8f3a08e48e6a0d8af7f0d8ea0d4daa0ea45908f",
+      "bytes": 2395
+    },
+    {
+      "path": "src/scripts/codex-refresh.applescript",
+      "mode": "100644",
+      "sha256": "a3f3ae89aace234b3552d1079615961ba5568745c442856b47dba91ea524cae6",
+      "bytes": 2106
+    },
+    {
+      "path": "src/secure-device-state.js",
+      "mode": "100644",
+      "sha256": "febccb30ef1f9efa8dcffcbee6de6db908f43ac0497eed8d4a76d3df4f1fada6",
+      "bytes": 13949
+    },
+    {
+      "path": "src/secure-transport.js",
+      "mode": "100644",
+      "sha256": "76dc535f92881b7240b55052c190d28c195bf7a30d5ae8cae2f89befd6210947",
+      "bytes": 32615
+    },
+    {
+      "path": "src/session-jsonl-history.js",
+      "mode": "100644",
+      "sha256": "61d3a7deaa4e81582c4b8fff57dc3fded1d53f973e920a3499b5a1e6d7179e5a",
+      "bytes": 53450
+    },
+    {
+      "path": "src/session-state.js",
+      "mode": "100644",
+      "sha256": "9a36e66b31c33300866c5f3edebabc4d2c810a91ced692f801eb03c497375b42",
+      "bytes": 1573
+    },
+    {
+      "path": "src/thread-activity-projector.js",
+      "mode": "100644",
+      "sha256": "9982a1d84d945d886c17a0e708d961f6d8cda2f9948f8d76dad0ed2a43f3e752",
+      "bytes": 22384
+    },
+    {
+      "path": "src/thread-activity-store.js",
+      "mode": "100644",
+      "sha256": "c509376d068f064fd6700a95a5bb298193506e04465732200d14a7e2918c6282",
+      "bytes": 9043
+    },
+    {
+      "path": "src/thread-context-handler.js",
+      "mode": "100644",
+      "sha256": "1b3d4a22ba237238be915e6536c124c77cc82d16e952569c282a89e7b4a355dd",
+      "bytes": 2197
+    },
+    {
+      "path": "src/thread-list-provenance.js",
+      "mode": "100644",
+      "sha256": "525dc66ff9f9d97cce61d17bba159ee9f852e575ba24c47e122022e067cfa23f",
+      "bytes": 4099
+    },
+    {
+      "path": "src/thread-row-enrichment.js",
+      "mode": "100644",
+      "sha256": "736e8b580f524bbc7c2ff36070916a69541636bdd116e836d128dec1fa29790c",
+      "bytes": 1285
+    },
+    {
+      "path": "src/thread-runtime-settings-store.js",
+      "mode": "100644",
+      "sha256": "bf0d70bdaf92b86fd57465acda1b95a8a5039db41788dbce965caa11766da610",
+      "bytes": 7899
+    },
+    {
+      "path": "src/voice-audio.js",
+      "mode": "100644",
+      "sha256": "b29ad05dada6dd8f6f6574729dfe0e418baef26ddea14a3ffb11dfd16d2550ad",
+      "bytes": 10692
+    },
+    {
+      "path": "src/voice-handler.js",
+      "mode": "100644",
+      "sha256": "f93e0f8a18dfac40be40af339ed017d1a430989cf0d5dfd0bbbd0939c4c4deab",
+      "bytes": 18774
+    },
+    {
+      "path": "src/workspace-checkpoints.js",
+      "mode": "100644",
+      "sha256": "a427daf2737183772430679bf6aaa430c252468ecc7899342d125f5140c6a990",
+      "bytes": 12754
+    },
+    {
+      "path": "src/workspace-handler.js",
+      "mode": "100644",
+      "sha256": "e1931de00e47d3de7054f3e5efd050ad2cbe15feff53cdf7771dc1a13e27aeb4",
+      "bytes": 44797
+    },
+    {
+      "path": "src/worktree-origin.js",
+      "mode": "100644",
+      "sha256": "07d2c23c0f488747257c69a8a13fb1725cb7c81a885968ea1ad8e58d5105e0b3",
+      "bytes": 6155
+    },
+    {
+      "path": "test/account-status.test.js",
+      "mode": "100644",
+      "sha256": "4cf6f72694da8b3490b7212ea4d2c70fc2446958205744772c971ad220f2df32",
+      "bytes": 10236
+    },
+    {
+      "path": "test/bridge-desktop-ipc-integration.test.js",
+      "mode": "100644",
+      "sha256": "7f394a5dc8c65f267b3128cbdf2d28c766697cc1c4e085fc3d4fffe5837071f2",
+      "bytes": 87420
+    },
+    {
+      "path": "test/bridge-status.test.js",
+      "mode": "100644",
+      "sha256": "937a6d3bfaadcc8c64388297f8b134c32619011920ee130fa6b6b445eb0f64ff",
+      "bytes": 1850
+    },
+    {
+      "path": "test/bridge.test.js",
+      "mode": "100644",
+      "sha256": "870f2e24642b3456b2c4090848ff72289148926cd3513df2f2d7ecdf368e6b6d",
+      "bytes": 128015
+    },
+    {
+      "path": "test/codex-cli-bootstrap.test.js",
+      "mode": "100644",
+      "sha256": "ea3feb73514ef000f2129786af6abbfec8ebe0432b91bae78b9eac91e8c79f98",
+      "bytes": 4088
+    },
+    {
+      "path": "test/codex-desktop-refresher.test.js",
+      "mode": "100644",
+      "sha256": "e22de5021890d680aac6fdf167de80a01ae7644c3f191ed6f0b8c1f431c82212",
+      "bytes": 26285
+    },
+    {
+      "path": "test/codex-runtime-settings.test.js",
+      "mode": "100644",
+      "sha256": "b34eecd135e55695976da0fc7a7c76ff7737ea1aa6533db52632aab5e4c24708",
+      "bytes": 6614
+    },
+    {
+      "path": "test/codex-tool-wrapper.test.js",
+      "mode": "100644",
+      "sha256": "aff9e6ba059e644c9433052537fc2c3b8e4975556e0b3bc581f8c24aaa5a94d9",
+      "bytes": 4335
+    },
+    {
+      "path": "test/codex-transport.test.js",
+      "mode": "100644",
+      "sha256": "e9f99ae31ad703ed394b7d0b25f440f87947567a921425f15167c8dcc67722b9",
+      "bytes": 8078
+    },
+    {
+      "path": "test/daemon-state.test.js",
+      "mode": "100644",
+      "sha256": "726a4b5749187598f2bfbb344300cba70e52a5dbedbb92bdaf17b5be3c3cd382",
+      "bytes": 3217
+    },
+    {
+      "path": "test/desktop-handler.test.js",
+      "mode": "100644",
+      "sha256": "f413a5ac5a9139527f63867b4710c2768cafe6dd4938a14ec3713d33bbc163b5",
+      "bytes": 18054
+    },
+    {
+      "path": "test/desktop-ipc-action-follower.test.js",
+      "mode": "100644",
+      "sha256": "166fa7b6d3509903fd84c45bb9eca98dddfa5737760ef6b24556b6120c5f1bdc",
+      "bytes": 291098
+    },
+    {
+      "path": "test/desktop-ipc-conversation-adapter.test.js",
+      "mode": "100644",
+      "sha256": "0942103c411bfda96797b97529c170bfdfd510b351e7603642c881904e8a828e",
+      "bytes": 36318
+    },
+    {
+      "path": "test/desktop-ipc-conversation-projector.test.js",
+      "mode": "100644",
+      "sha256": "626fb50ec52a763b4d999676d5b5c346c4bfa78d580b04577138a5996b57fd61",
+      "bytes": 29427
+    },
+    {
+      "path": "test/desktop-ipc-live-owner.test.js",
+      "mode": "100644",
+      "sha256": "599e377c6297aad5b85da5d4fd9aa284ed4f3e074634ca965086a64958e8d674",
+      "bytes": 166326
+    },
+    {
+      "path": "test/desktop-ipc-owner-transport.test.js",
+      "mode": "100644",
+      "sha256": "6f83056c8a16ec4742beb939d4dc6bf26dad117157b376cd9b95af82ca5257d0",
+      "bytes": 8995
+    },
+    {
+      "path": "test/desktop-ipc-shared.test.js",
+      "mode": "100644",
+      "sha256": "1b433ffb4cc23a66396412beaf0a80329685466a596ac02e01870cd94cb85533",
+      "bytes": 21521
+    },
+    {
+      "path": "test/fixtures/ai-change-set-persistence-harness.swift",
+      "mode": "100644",
+      "sha256": "9342de015d97339d2743fc0470e83c88bb9367da139873546d780f07e1abbe32",
+      "bytes": 15888
+    },
+    {
+      "path": "test/fixtures/async-user-input-harness.swift",
+      "mode": "100644",
+      "sha256": "c275e72118feb643650459812ccc06849c10d6726bf35c6642acc7862d8332a2",
+      "bytes": 12112
+    },
+    {
+      "path": "test/fixtures/codex-runtime-contract.json",
+      "mode": "100644",
+      "sha256": "bd4f2627e4385b1e1b7e1f4766489dfb8eae706ebd373814826d79846ddd1671",
+      "bytes": 9307
+    },
+    {
+      "path": "test/fixtures/desktop-steer-harness.swift",
+      "mode": "100644",
+      "sha256": "f935937b1958851526d563d85465b95a4d899b56348501c2b4bdab293e80c812",
+      "bytes": 6241
+    },
+    {
+      "path": "test/fixtures/runtime-settings-harness.swift",
+      "mode": "100644",
+      "sha256": "a8e617856a22a67c3d78e01999e066dd0bc996f88720db871699c8b9e9712dc8",
+      "bytes": 18629
+    },
+    {
+      "path": "test/fixtures/stream-recovery-harness.swift",
+      "mode": "100644",
+      "sha256": "4b9051ba7548c1d0a44df8f06093851d12403ff71d5aacb329833b89db2681b5",
+      "bytes": 15304
+    },
+    {
+      "path": "test/fixtures/thread-identity-harness.swift",
+      "mode": "100644",
+      "sha256": "291affbc0416bb2d986c5d9ad67c6ac2a4e8a127ff2f48cf7b042db6a72c6164",
+      "bytes": 7625
+    },
+    {
+      "path": "test/fixtures/timeline-images-harness.swift",
+      "mode": "100644",
+      "sha256": "3fa2b17742b35783032fce783a37cab7c628fdb300bf7b52e44709747209dc61",
+      "bytes": 2990
+    },
+    {
+      "path": "test/git-handler.test.js",
+      "mode": "100644",
+      "sha256": "39d29436cd87433ed74446f3d4fe10c82b9d0d6d391dc0f068cfe8525e6c3675",
+      "bytes": 79588
+    },
+    {
+      "path": "test/ios-ai-change-set-persistence.test.js",
+      "mode": "100644",
+      "sha256": "1f88df5e74f15fc0e35b7166df55f7c2f132da84aa52b5d6c50ef6db966529ff",
+      "bytes": 3348
+    },
+    {
+      "path": "test/ios-app-compatibility.test.js",
+      "mode": "100644",
+      "sha256": "3250c04b01a261f6bace95386d64d9ed11894b040debc3dc76a0ccb460ba5a16",
+      "bytes": 2793
+    },
+    {
+      "path": "test/ios-async-user-input.test.js",
+      "mode": "100644",
+      "sha256": "c77caacd7207f3a5de11f11fef3aab5210cc35ada4105702c4517820a38d9d24",
+      "bytes": 1430
+    },
+    {
+      "path": "test/ios-desktop-steer.test.js",
+      "mode": "100644",
+      "sha256": "14a1b554e75fb655e8deb112aaad8b7bfb5ef81bffd4a24e1e8ccd3220fed085",
+      "bytes": 1982
+    },
+    {
+      "path": "test/ios-runtime-settings.test.js",
+      "mode": "100644",
+      "sha256": "c41c8bcb733577ea496eaad345170a3c79950ed19f1e7b1b41ffa3a504633960",
+      "bytes": 2425
+    },
+    {
+      "path": "test/ios-stream-recovery.test.js",
+      "mode": "100644",
+      "sha256": "9424429f5a0dbb5db7832d0521d4255ad366e3659c1745b977655c907fd347be",
+      "bytes": 2354
+    },
+    {
+      "path": "test/ios-thread-identity.test.js",
+      "mode": "100644",
+      "sha256": "825d987a1db7a11d8820e2159eafcf136fc036ad982c439211764225967dc39c",
+      "bytes": 1822
+    },
+    {
+      "path": "test/ios-timeline-images.test.js",
+      "mode": "100644",
+      "sha256": "3b22d194b0fb2f839c6b7d20bdada7a8433a95bcbea2f7daabf85ad468e55612",
+      "bytes": 1935
+    },
+    {
+      "path": "test/macos-launch-agent.test.js",
+      "mode": "100644",
+      "sha256": "a5f9f3bfd93277f2cab37ad397b465f48b2e436ab5a3f3be8f5c7ebe79eb966a",
+      "bytes": 21918
+    },
+    {
+      "path": "test/opencode-runtime.test.js",
+      "mode": "100644",
+      "sha256": "8ed2ce755bb5f008388da6ddd11ae98292f6cbd74114fda638f76e22ccbe8fc9",
+      "bytes": 67949
+    },
+    {
+      "path": "test/package-version-status.test.js",
+      "mode": "100644",
+      "sha256": "cd9fe9df13cf72632b0c89b993d020cf66837675def4a3f19f92879af9853fea",
+      "bytes": 3386
+    },
+    {
+      "path": "test/pet-handler.test.js",
+      "mode": "100644",
+      "sha256": "c04f0676d8e7640e7a02718903f78facaa900b0331a62afb13bdcc1169817e05",
+      "bytes": 6304
+    },
+    {
+      "path": "test/project-handler.test.js",
+      "mode": "100644",
+      "sha256": "c027778d7d4cfc685145890749388428e34a5dc3db911afa30bd328700245a9f",
+      "bytes": 8910
+    },
+    {
+      "path": "test/push-notification-completion-dedupe.test.js",
+      "mode": "100644",
+      "sha256": "d5450630612b19fd31d3734fe70777d589395cb28577f4a656b774a11dbb68e6",
+      "bytes": 1417
+    },
+    {
+      "path": "test/push-notification-service-client.test.js",
+      "mode": "100644",
+      "sha256": "b060db74a5df59e29e6b4a1786b991f64879d2f3eb22e0ef44bb0becf77265f4",
+      "bytes": 2615
+    },
+    {
+      "path": "test/push-notification-tracker.test.js",
+      "mode": "100644",
+      "sha256": "3f0bb89355e61b4f20466bbb3484a67bdd3af3d1939e51f72fe9b58108c7f4c7",
+      "bytes": 28819
+    },
+    {
+      "path": "test/qr.test.js",
+      "mode": "100644",
+      "sha256": "6b8a2e8183a0c167d437d7682445909dbdfb61a44995355f34e5ae6b16f57f84",
+      "bytes": 2912
+    },
+    {
+      "path": "test/relay-watchdog.test.js",
+      "mode": "100644",
+      "sha256": "c2bc5ccadefd739a78f57660fbe4d1a3c4d2b78f76b3b7fafb041d15c64867d9",
+      "bytes": 4242
+    },
+    {
+      "path": "test/remodex-cli.test.js",
+      "mode": "100644",
+      "sha256": "2bb50a440d8515ed954e844ba0d56e215895b8067bb45c3daef468dc1cf81815",
+      "bytes": 13401
+    },
+    {
+      "path": "test/rollout-live-mirror.test.js",
+      "mode": "100644",
+      "sha256": "d77a4f075cce13307cc913cac42078e88608395337853e5018c2dde490d4b2cd",
+      "bytes": 96403
+    },
+    {
+      "path": "test/rollout-watch.test.js",
+      "mode": "100644",
+      "sha256": "0572f80aec5baf9b7b2f68211b17fee46a84ba66f04300b4a794bec41c5fd061",
+      "bytes": 11895
+    },
+    {
+      "path": "test/secure-device-state.test.js",
+      "mode": "100644",
+      "sha256": "fe5dfca420d5634d2cfb0bd5242dd9ef88f6bed1ac582dc5c05256f0d2e1de9f",
+      "bytes": 11061
+    },
+    {
+      "path": "test/secure-transport.test.js",
+      "mode": "100644",
+      "sha256": "a8b4088e4ad18d1b3677d01cf32764aae0ec9e6be50ae465329c40a8a3044e6b",
+      "bytes": 37645
+    },
+    {
+      "path": "test/session-jsonl-history.test.js",
+      "mode": "100644",
+      "sha256": "0a38afb73a6b23df8f2067f57d47c85dee261094fd8902047de50ba6efaaf6bf",
+      "bytes": 52273
+    },
+    {
+      "path": "test/thread-activity-projector.test.js",
+      "mode": "100644",
+      "sha256": "b825001b24bea2bb24efa662dd0e76d1917f276f36513e1dece87f9f55c8397a",
+      "bytes": 12861
+    },
+    {
+      "path": "test/thread-activity-store.test.js",
+      "mode": "100644",
+      "sha256": "bfa162855c673f53aef4c7b4558d7256ea9595746be1f02d608a953da265457a",
+      "bytes": 7799
+    },
+    {
+      "path": "test/thread-list-provenance.test.js",
+      "mode": "100644",
+      "sha256": "606d69c101a63b6f89a2518c0185c16607f03b81f78cb2c529e1156d31a23b7d",
+      "bytes": 5388
+    },
+    {
+      "path": "test/thread-row-enrichment.test.js",
+      "mode": "100644",
+      "sha256": "1576c3d41623ddaa74cf519a951fc41e41f977a2e962ce54fc22aea1217d38b0",
+      "bytes": 1549
+    },
+    {
+      "path": "test/thread-runtime-settings-store.test.js",
+      "mode": "100644",
+      "sha256": "dce2431dbe4891046cb96ded0965a7a0380ed86494fbf608cc5ea654cca7af96",
+      "bytes": 7201
+    },
+    {
+      "path": "test/voice-handler.test.js",
+      "mode": "100644",
+      "sha256": "9b0b1c967936fcecb9b3acff250c4a8023464d8cd9e19d59461b0e7085263c05",
+      "bytes": 37441
+    },
+    {
+      "path": "test/workspace-file.test.js",
+      "mode": "100644",
+      "sha256": "646e0ba3ec51f9d30da02e8b918f5e6d8cc38b940783b09e2db6b996fd8f0ae9",
+      "bytes": 4743
+    },
+    {
+      "path": "test/workspace-image.test.js",
+      "mode": "100644",
+      "sha256": "0f18aa58bf485f4fe834c5a07cafe13ff78fe1a9c365cd08d9145a97060c8877",
+      "bytes": 19605
+    },
+    {
+      "path": "test/worktree-origin.test.js",
+      "mode": "100644",
+      "sha256": "23f783919664556cdb096e80c4f55c929e61db6bada1131c19b068f8653a9135",
+      "bytes": 6241
+    }
+  ]
+}

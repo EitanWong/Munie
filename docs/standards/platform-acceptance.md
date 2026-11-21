@@ -1,0 +1,50 @@
+# 平台验收矩阵 / Platform acceptance
+
+这是开发与验收要求，不是通过记录。实际结果、运行时、提交与剩余工作统一维护在[项目状态](../project-status.md)。最低系统版本以根 `project.yml` 与 `packages/MunieCore/Package.swift` 为准。
+
+| 平台 | 工程边界 | 至少执行的交互检查 | 官方 HIG |
+|---|---|---|---|
+| iOS / iPhone | 主产品 `MunieRemodex`；`Munie` 保留为早期原生检查点 | 配对与授权项目、文字/主动短语音、真实进度/审批/取消/续聊、断线恢复；系统返回、键盘遮挡、旋转、冷启动与后台恢复；保留检查点另验记录/找回/删除 | [iOS](https://developer.apple.com/design/human-interface-guidelines/designing-for-ios) |
+| iPadOS | 同一 iOS target，iPad 设备族 | 窄/宽窗口及多任务尺寸、列表/详情切换、触控与键盘/指针、大字及输入法 | [iPadOS](https://developer.apple.com/design/human-interface-guidelines/designing-for-ipados) |
+| macOS | 主产品伴侣 `MunieDesktop`；`Munie` / `MunieHost` 为保留检查点 | 应用内登录、文件夹授权、附近设备双端核对、菜单栏状态、停止/异常退出恢复；窗口调整、菜单与快捷键、键盘遍历、指针选择；真实打包运行时与通知/权限分开验收 | [macOS](https://developer.apple.com/design/human-interface-guidelines/designing-for-macos) |
+| watchOS | 独立 `MunieWatch` target | 单次短任务、浅层导航、Digital Crown 滚动、系统文本输入、锁屏与中断、独立启动 | [watchOS](https://developer.apple.com/design/human-interface-guidelines/designing-for-watchos) |
+| tvOS | `Munie` 的原生 tvOS destination；当前数据位于可清除缓存 | Siri Remote 焦点可达性、返回、文本输入、跨房间可读性、共享屏幕隐私、清除缓存后的空状态与提示 | [tvOS](https://developer.apple.com/design/human-interface-guidelines/designing-for-tvos) |
+| visionOS | `Munie` 的原生 visionOS destination | 标准窗口大小、眼手间接输入、可访问输入、控件选择、视觉舒适度与展示/共享时的内容隐私 | [visionOS](https://developer.apple.com/design/human-interface-guidelines/designing-for-visionos) |
+
+watchOS 优先短而明确的操作，不复制桌面分栏；tvOS 使用系统焦点而非依赖触控手势；visionOS 的文本与列表工作优先标准窗口，新增沉浸体验需有具体场景及舒适性验证。各平台只复用适合的 UI 与领域逻辑；“通用”不意味着每个平台提供完全相同的交互。
+
+每个平台按[最小入口目标](entry-points.md#一次明确的任务)记录实际动作数：已配对后的新任务、继续和查询分别测量；计入系统解锁、权限与审批，不把“打开同名 app”算作已抵达正确任务。tvOS 默认隐藏私密正文；TV/Vision 展示、共享与退出展示分别检查披露范围和返回路径，完整审批无法私密、完整呈现时转到个人设备，不能通过截断后果来保留原地批准。
+
+Watch 网络至少分开验收 iPhone 在场可用、iPhone 不可达而 Watch 使用 Wi-Fi、iPhone 不可达而 Watch 使用蜂窝（仅支持机型/套餐）。按 [TN3135](https://developer.apple.com/documentation/technotes/tn3135-low-level-networking-on-watchos)，使手机不可达需在 iPhone「设置」中关闭 Wi-Fi 与蓝牙，不能用控制中心切换替代。每条路径分别验证 HTTPS 提交、权威状态恢复及设备撤销；注明实际传输路径，不能用缓存结果、模拟器或手机 VPN/蜂窝成功推断 Watch 独立成功。无对应硬件/网络的分支记为未执行。
+
+## 配件与硬件入口
+
+这些是 R18/R19 的条件验收要求，均待实现与设备验证；机制与系统限制唯一维护在[入口规范](entry-points.md)，不代表已经支持。AirPods、Pencil 是配件，HomePod 不作为独立 app target。
+
+| 入口 | 必须记录的条件 | 可观察验收 |
+|---|---|---|
+| iPhone Action button / Watch Shortcut | 具体机型、系统、用户配置的快捷指令、锁屏与前后台 | 一次触发抵达正确任务输入；按[硬件规范](entry-points.md#硬件触发与掌控感)验证接受与反馈 |
+| AirPods / 耳机 | 型号/固件、连接设备、Siri/通知播报设置、音频路由 | 任务输入及简短反馈；戴摘/通话/路由切换不把私密内容意外外放 |
+| iPad / Pencil | 窗口尺寸、Pencil 型号、前台状态、用户首选动作 | 原生输入及素材/结果审阅可达；不支持的硬件动作有同目标替代入口 |
+| HomePod | Personal Requests、用户身份、配对设备和可执行 Shortcut 条件 | 受支持条件下抵达同一任务；不可用时明确原因与手机继续路径 |
+| CarPlay | 类别资格/entitlement、系统与连接条件 | 仅在资格与实现通过后验收短语音/听觉反馈；复杂审批转到安全设备场景，无资格不声明支持 |
+
+## 跨设备任务接续
+
+这是受认证状态同步实现后的准入检查，当前尚未实现。以同一真实任务运行“设备 A 发起 → 设备 B 找回/继续 → A 重连”：两端指向相同主机、项目和任务，显示权威状态与相同权限范围；接续本身不重新提交或重复执行。覆盖源设备离线、目标设备未配对/被撤销、入口不可用与状态过期，明确失败和可用替代路径，不自动扩大权限。复杂审批必须在目标设备完整展示对象与后果；无法展示时保留待审批并提供明确转交路径。以真实 request/thread/turn、状态事件与副作用次数核对，不能用同名界面或共享代码作为接续证据。
+
+首轮具体运行“手机提交 → Mac 前台打开原任务 → 手机重连”，Mac 打开动作不得另建任务。再运行同一待审批动作的双端展示：一端回答后另一端失效，过期、撤销与重连不能复活旧批准；以原生审批 ID、动作与可选决定核对，而非仅比较文案。多端收到同一完成事件只按用户选择的反馈路由提醒，不因接续再次执行、重复弹出审批或同时多处朗读。
+
+## 分开记录三层证据
+
+1. **构建**：Xcode 版本、scheme、destination、配置、签名设置、命令及退出状态。iPhone 与 iPad 共享 SDK；一次 iOS 编译不能证明两种布局已验收。
+2. **执行**：相关 package/app/UI 测试及实际 simulator/device 运行。缺少运行时、硬件或权限时，写出具体缺项与下一条执行动作。
+3. **体验与分发**：English/简体中文、可用性、VoiceOver、文本放大、外观/运动偏好、平台输入、数据生命周期、真实签名与分发。构建成功不等于这些检查通过。
+
+每个实际发布的 destination 分别在该平台的最低支持 OS 与当前稳定 OS 执行关键用户链路，记录设备/运行时、OS 版本、提交和结果；iPhone 与 iPad 分别验收。覆盖新 API 或硬件能力不可用时抵达同一任务的替代入口，不能用当前 SDK 编译成功推断最低系统可用。缺少对应运行时或硬件时记为未执行并列明下一步，不以最新 iPhone 模拟器测试代替其他系统或设备分支；这不要求为尚未发布的平台预建完整 CI 矩阵。
+
+在具备持久存储的平台运行当前能力的关键链路：创建 → 保存 → 重启 → 找回/详情 → 确认删除 → 再次重启，并检查错误保留输入与实际数据位置。tvOS 另测正常缓存尚存的重启链路与缓存丢失后的行为，不能据此保证数据持久保存。尚未实现跨设备同步时，必须明确数据仅在本设备；不要把同名 app 或共享 package 当成同步机制。
+
+当前工程的 tvOS、visionOS 分发图标仍需补齐；所有平台的硬件 UX、输入与无障碍验收均需独立证据。独立 watch target 不代表已经实现 WatchConnectivity 或与 iPhone 同步。最终可发布范围以状态记录与发布验收为准。
+
+检查命令与自动化入口见[测试](../testing.md)和[开发](../development.md)。新增 entitlement、录音、远程执行或设备互联时，按实际能力追加权限拒绝、离线、重试、取消和凭据撤销等场景，不预先声称这些能力存在。

@@ -1,0 +1,104 @@
+// Munie modification: localize the first-run feature descriptions and clarify the Mac execution boundary.
+// FILE: OnboardingFeaturesPage.swift
+// Purpose: Compact feature highlights page shown after the welcome splash.
+// Layer: View
+// Exports: OnboardingFeaturesPage
+// Depends on: SwiftUI, AppFont
+
+import SwiftUI
+
+struct OnboardingFeaturesPage: View {
+    var body: some View {
+        VStack(spacing: 0) {
+            Spacer()
+
+            VStack(spacing: 40) {
+                VStack(spacing: 10) {
+                    Text(String(localized: "What you get"))
+                        .accessibilityIdentifier("munie.onboarding.features.title")
+                        .font(AppFont.system(size: 28, weight: .bold))
+                        .foregroundStyle(.white)
+
+                    Text(String(localized: "Codex runs on your Mac.\nYour iPhone is the remote."))
+                        .font(AppFont.subheadline())
+                        .foregroundStyle(.white.opacity(0.45))
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(3)
+                }
+
+                VStack(spacing: 16) {
+                    featureRow(
+                        icon: "hare.fill",
+                        color: .yellow,
+                        title: String(localized: "Fast mode"),
+                        subtitle: String(localized: "Lower-latency turns for quick interactions")
+                    )
+                    featureRow(
+                        icon: "arrow.triangle.branch",
+                        color: .green,
+                        title: String(localized: "Git from your phone"),
+                        subtitle: String(localized: "Commit, push, pull, and switch branches")
+                    )
+                    featureRow(
+                        icon: "lock.shield.fill",
+                        color: .cyan,
+                        title: String(localized: "End-to-end encrypted"),
+                        subtitle: String(localized: "The relay never sees your prompts or code")
+                    )
+                    featureRow(
+                        icon: "waveform",
+                        color: .purple,
+                        title: String(localized: "Voice mode"),
+                        subtitle: String(localized: "Talk to Codex with speech-to-text")
+                    )
+                    featureRow(
+                        icon: "point.3.connected.trianglepath.dotted",
+                        color: .orange,
+                        title: String(localized: "Subagents, skills and /commands"),
+                        subtitle: String(localized: "Spawn and monitor parallel agents from your phone")
+                    )
+                }
+                .padding(.horizontal, 4)
+            }
+            .padding(.horizontal, 28)
+
+            Spacer()
+        }
+    }
+
+    @ViewBuilder
+    private func featureRow(icon: String, color: Color, title: String, subtitle: String) -> some View {
+        HStack(spacing: 16) {
+            RemodexIcon.image(systemName: icon)
+                .font(.system(size: 14, weight: .semibold))
+                .accessibilityHidden(true)
+                .foregroundStyle(color)
+                .frame(width: 40, height: 40)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(color.opacity(0.12))
+                )
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(AppFont.subheadline(weight: .semibold))
+                    .foregroundStyle(.white)
+
+                Text(subtitle)
+                    .font(AppFont.caption())
+                    .foregroundStyle(.white.opacity(0.4))
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 0)
+        }
+    }
+}
+
+#Preview {
+    ZStack {
+        Color.black.ignoresSafeArea()
+        OnboardingFeaturesPage()
+    }
+    .preferredColorScheme(.dark)
+}

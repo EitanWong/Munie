@@ -1,0 +1,203 @@
+{
+  "schemaVersion": 1,
+  "codexCLI": "0.162.1",
+  "munieProtocolVersion": 1,
+  "scope": "Retained native checkpoint capability records plus the explicitly separate primary Remodex adoption below; no full-method/variant completeness claim.",
+  "inventory": "codex-capabilities.json",
+  "implementation": "../apps/MunieHost/Execution/CodexAppServer.swift",
+  "capabilities": [
+    {
+      "id": "initialize",
+      "methods": [
+        "initialize",
+        "initialized"
+      ],
+      "state": "implemented_tested",
+      "evidence": [
+        "../apps/MunieHostTests/CodexAppServerTests.swift"
+      ],
+      "limit": "Pinned CLI only; sanitized startup notifications, fixed read-only/on-request policy. No account/config management."
+    },
+    {
+      "id": "text-and-continuation",
+      "methods": [
+        "thread/start",
+        "thread/resume",
+        "turn/start"
+      ],
+      "state": "implemented_tested",
+      "evidence": [
+        "../apps/MunieProductHostTests/ProductHostTests.swift",
+        "../scripts/accept-remote-product.py"
+      ],
+      "limit": "Text only, explicit project, same origin device, one active native task. Arbitrary Desktop session takeover is deferred."
+    },
+    {
+      "id": "progress-and-result",
+      "methods": [
+        "thread/started",
+        "thread/status/changed",
+        "turn/started",
+        "turn/completed",
+        "item/started",
+        "item/completed",
+        "item/agentMessage/delta",
+        "item/commandExecution/outputDelta",
+        "thread/read",
+        "thread/turns/list"
+      ],
+      "state": "implemented_tested",
+      "evidence": [
+        "../apps/MunieProductHostTests/CodexHistoryProjectionTests.swift",
+        "../apps/MunieHostTests/CodexAppServerTests.swift",
+        "../scripts/accept-remote-product.py"
+      ],
+      "limit": "Bounded sanitized phases and assistant text. Raw commands, paths, usage and native payloads are not forwarded. Unknown interactions fail closed."
+    },
+    {
+      "id": "informed-command-approval",
+      "methods": [
+        "item/commandExecution/requestApproval",
+        "serverRequest/resolved"
+      ],
+      "state": "implemented_tested",
+      "evidence": [
+        "../apps/MunieProductHostTests/ProductHostTests.swift",
+        "../scripts/accept-remote-product.py"
+      ],
+      "limit": "Exact command/cwd/reason and offered one-time accept/cancel only; 60s expiry. No persistent allow, file-change/permission/MCP/user-input approvals."
+    },
+    {
+      "id": "cancel-and-recovery",
+      "methods": [
+        "turn/interrupt",
+        "thread/read",
+        "thread/turns/list"
+      ],
+      "state": "implemented_tested",
+      "evidence": [
+        "../apps/MunieProductHostTests/ProductHostTests.swift",
+        "../scripts/accept-remote-product.py"
+      ],
+      "limit": "ACK is distinct from native terminal. Known IDs reconcile; missing mapping is never replayed. Specific observed windows only, not arbitrary power-loss guarantee."
+    },
+    {
+      "id": "account-gated-features",
+      "methods": [],
+      "state": "unavailable_unverified",
+      "evidence": [],
+      "limit": "Model/provider and account features depend on the local login; no claims for configurations not exercised."
+    },
+    {
+      "id": "remaining-native-surface",
+      "methods": [],
+      "state": "deferred",
+      "evidence": [],
+      "limit": "All inventory methods/fields outside the subset, including media, realtime, plugins/config administration, PTY, steer, fork/review and other harnesses. No arbitrary RPC route."
+    }
+  ],
+  "acceptance": {
+    "synthetic": "Default Swift/runner tests use synthetic peers; tests do not imply actual Codex work.",
+    "realModel": "Explicitly opt-in disposable-project runner; exact executed reports and limitations are recorded in docs/project-status.md.",
+    "device": "Compilation, physical unit/native HTTP, UI gestures, cellular, microphone and notification delivery are separate evidence levels."
+  },
+  "primaryImplementation": {
+    "name": "Munie Remodex source fork",
+    "upstreamRevision": "c06dcb16a7059603a41e26a2cb4a81b6d4b5514d",
+    "implementation": [
+      "../apps/MunieRemodex/App/Services/CodexService.swift",
+      "../apps/MunieRemodexBridge/src/bridge.js"
+    ],
+    "nativePolicy": "../apps/MunieRemodexBridge/src/munie-project-policy.js",
+    "capabilities": [
+      {
+        "id": "text-continuation-and-recovery",
+        "state": "implemented_tested",
+        "methods": [
+          "initialize",
+          "thread/start",
+          "thread/resume",
+          "thread/read",
+          "thread/turns/list",
+          "turn/start"
+        ],
+        "evidence": [
+          "../apps/MunieRemodex/Tests/MunieRemodexDeviceAcceptanceTests.swift",
+          "../scripts/accept-remodex-device.py"
+        ],
+        "limit": "Signed iPhone E2EE exact-text task and separate-process same-thread recovery executed. Real results and radio limits in docs/project-status.md."
+      },
+      {
+        "id": "main-client-progress-and-approval",
+        "state": "implemented_tested",
+        "methods": [
+          "turn/started",
+          "turn/completed",
+          "item/agentMessage/delta",
+          "item/commandExecution/requestApproval"
+        ],
+        "evidence": [
+          "../apps/MunieRemodex/Tests/CodexServiceIncomingRunIndicatorTests.swift",
+          "../apps/MunieRemodex/Tests/CodexApprovalResponsePayloadTests.swift",
+          "../apps/MunieRemodex/Tests/MunieRemodexDeviceAcceptanceTests.swift"
+        ],
+        "limit": "Synthetic lifecycle/approval mappings and two actual one-time command approvals. Other retained native variants have only their specific regression evidence, not blanket account/device acceptance."
+      },
+      {
+        "id": "cancel-yielded-terminal",
+        "state": "implemented_tested",
+        "methods": [
+          "turn/interrupt",
+          "item/started",
+          "item/completed",
+          "turn/completed",
+          "thread/backgroundTerminals/list",
+          "thread/backgroundTerminals/terminate"
+        ],
+        "evidence": [
+          "../apps/MunieRemodexBridge/src/munie-turn-cancellation.js",
+          "../scripts/accept-remodex-device.py",
+          "../apps/MunieRemodexBridge/test/munie-turn-cancellation.test.js"
+        ],
+        "limit": "Signed iPhone exact-turn cancel, same-thread continuation and separate-process recovery passed; independent 31-second no-late-marker check and native terminal evidence passed. Ownership comes from a bounded native event index because item-history RPCs are unsupported by this binary; unknown/conflicting or lost new-process ownership remains pending. Exact reports/earlier failures in docs/project-status.md."
+      },
+      {
+        "id": "short-voice-and-system-entry",
+        "state": "implemented_tested",
+        "methods": [],
+        "evidence": [
+          "../apps/MunieRemodex/Tests/MunieVoiceInputTests.swift",
+          "../apps/MunieRemodex/Tests/MunieTaskShortcutTests.swift"
+        ],
+        "limit": "30-second explicit recording, correction/text fallback and new-task intent have injected tests. Physical microphone, audio interruptions and Siri/Action button execution remain unverified."
+      },
+      {
+        "id": "system-notification-routing",
+        "state": "implemented_tested",
+        "methods": [],
+        "evidence": [
+          "../apps/MunieRemodex/Tests/MunieApprovalNotificationTests.swift",
+          "../apps/MunieRemodex/Tests/CodexPushNotificationRegistrationTests.swift"
+        ],
+        "limit": "Completion/failure/approval local scheduling, dedupe and routing use fake centers in tests. Actual system delivery is unverified; suspended-app push needs separately configured APNs signing/service."
+      },
+      {
+        "id": "other-retained-upstream-surface",
+        "state": "unavailable_unverified",
+        "methods": [],
+        "evidence": [
+          "remodex-adoption.md"
+        ],
+        "limit": "Git/diff/fork/review/media and other retained source have upstream regression tests where present; no blanket physical or account acceptance. Ghostty binary and Mermaid runtime excluded. OpenCode and other harnesses are not approved product backends."
+      },
+      {
+        "id": "later-apple-devices-and-distribution",
+        "state": "deferred",
+        "methods": [],
+        "evidence": [],
+        "limit": "Watch remote workflow, iPad adaptation, cross-device task ownership, full UI localization, minimum OS/accessibility and distribution gates remain separately scoped."
+      }
+    ],
+    "acceptanceLedger": "../docs/project-status.md"
+  }
+}

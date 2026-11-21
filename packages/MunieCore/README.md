@@ -1,7 +1,8 @@
 # MunieCore
 
 Foundation-only domain and local capture persistence for Munie. Swift 6, iOS 18+,
-macOS 15+. No third-party runtime dependencies.
+macOS 15+, watchOS 11+, tvOS 18+, visionOS 2+. No third-party runtime dependencies.
+The caller must respect platform storage limits; tvOS local files are purgeable.
 
 ```swift
 let store = FileCaptureStore(fileURL: applicationSupportURL.appendingPathComponent("captures.json"))

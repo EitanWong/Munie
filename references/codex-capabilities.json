@@ -1,0 +1,1642 @@
+{
+  "catalogVersion": 1,
+  "harness": "codex",
+  "cliVersion": "codex-cli 0.162.1",
+  "source": {
+    "documentation": "https://learn.chatgpt.com/docs/app-server",
+    "schemaHashRecipe": "SHA-256 of sorted relative path + NUL + canonical sorted-key JSON + NUL",
+    "fullExportCommand": "codex app-server generate-json-schema --experimental --out SCHEMA_DIR",
+    "defaultExportCommand": "codex app-server generate-json-schema --out DEFAULT_SCHEMA_DIR"
+  },
+  "schemaBundles": {
+    "experimental": {
+      "sha256": "4d5099d0df86db3f9e7a4dec3c65a0fc46661c8ac09d5bd7a397175dd0510db1",
+      "jsonFiles": 447
+    },
+    "default": {
+      "sha256": "6456de18a499bb4c7471518cf58758b4213184180f03f0f9549276278d5988c3",
+      "jsonFiles": 317
+    }
+  },
+  "counts": {
+    "ClientRequest": 170,
+    "ServerRequest": 11,
+    "ServerNotification": 84,
+    "ClientNotification": 1
+  },
+  "totalMethods": 266,
+  "implementedMethods": 0,
+  "notes": [
+    "Full-method scope inventory only; bounded product subsets and evidence are recorded separately.",
+    "Default-export presence is not a stability, feature-flag, account or platform availability claim.",
+    "Experimental methods and fields need explicit runtime negotiation and upstream eligibility.",
+    "Method coverage alone does not prove field, response, event variant or Codex Desktop UI parity.",
+    "Categories are Munie review groups; all original method names and protocol directions are retained."
+  ],
+  "methods": {
+    "ClientRequest": [
+      {
+        "method": "account/bedrock/checkGovCloudRequirements",
+        "category": "accounts_and_auth",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "account/bedrock/discover",
+        "category": "accounts_and_auth",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "account/bedrock/setup",
+        "category": "accounts_and_auth",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "account/gatewayOAuth/cancel",
+        "category": "accounts_and_auth",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "account/gatewayOAuth/login",
+        "category": "accounts_and_auth",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "account/gatewayOAuth/read",
+        "category": "accounts_and_auth",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "account/login/cancel",
+        "category": "accounts_and_auth",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "account/login/start",
+        "category": "accounts_and_auth",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "account/logout",
+        "category": "accounts_and_auth",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "account/rateLimitResetCredit/consume",
+        "category": "accounts_and_auth",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "account/rateLimits/read",
+        "category": "accounts_and_auth",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "account/read",
+        "category": "accounts_and_auth",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "account/sendAddCreditsNudgeEmail",
+        "category": "accounts_and_auth",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "account/usage/read",
+        "category": "accounts_and_auth",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "account/workspaceMessages/read",
+        "category": "accounts_and_auth",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "app/installed",
+        "category": "plugins_and_apps",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "app/list",
+        "category": "plugins_and_apps",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "app/read",
+        "category": "plugins_and_apps",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "collaborationMode/list",
+        "category": "models_and_features",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "command/exec",
+        "category": "process_and_commands",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "command/exec/resize",
+        "category": "process_and_commands",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "command/exec/terminate",
+        "category": "process_and_commands",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "command/exec/write",
+        "category": "process_and_commands",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "config/batchWrite",
+        "category": "configuration",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "config/mcpServer/reload",
+        "category": "configuration",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "config/read",
+        "category": "configuration",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "config/value/write",
+        "category": "configuration",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "configRequirements/read",
+        "category": "configuration",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "environment/add",
+        "category": "environment",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "environment/info",
+        "category": "environment",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "environment/status",
+        "category": "environment",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "experimentalFeature/enablement/set",
+        "category": "models_and_features",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "experimentalFeature/list",
+        "category": "models_and_features",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "externalAgentConfig/detect",
+        "category": "configuration",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "externalAgentConfig/import",
+        "category": "configuration",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "externalAgentConfig/import/readHistories",
+        "category": "configuration",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "externalAgentConfig/import/recordHistory",
+        "category": "configuration",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "feedback/upload",
+        "category": "diagnostics",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "fs/copy",
+        "category": "filesystem",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "fs/createDirectory",
+        "category": "filesystem",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "fs/getMetadata",
+        "category": "filesystem",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "fs/readDirectory",
+        "category": "filesystem",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "fs/readFile",
+        "category": "filesystem",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "fs/remove",
+        "category": "filesystem",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "fs/unwatch",
+        "category": "filesystem",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "fs/watch",
+        "category": "filesystem",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "fs/writeFile",
+        "category": "filesystem",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "fuzzyFileSearch",
+        "category": "search",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "fuzzyFileSearch/sessionStart",
+        "category": "search",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "fuzzyFileSearch/sessionStop",
+        "category": "search",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "fuzzyFileSearch/sessionUpdate",
+        "category": "search",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "hooks/list",
+        "category": "skills_and_hooks",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "initialize",
+        "category": "protocol",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "marketplace/add",
+        "category": "plugins_and_apps",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "marketplace/remove",
+        "category": "plugins_and_apps",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "marketplace/upgrade",
+        "category": "plugins_and_apps",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "mcpServer/event/stream/start",
+        "category": "mcp",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "mcpServer/event/stream/stop",
+        "category": "mcp",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "mcpServer/oauth/login",
+        "category": "mcp",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "mcpServer/resource/read",
+        "category": "mcp",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "mcpServer/tool/call",
+        "category": "mcp",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "mcpServerStatus/list",
+        "category": "mcp",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "memory/reset",
+        "category": "memory",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "memory/status",
+        "category": "memory",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "mock/experimentalMethod",
+        "category": "test_surface",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "model/list",
+        "category": "models_and_features",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "modelProvider/capabilities/read",
+        "category": "models_and_features",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "permissionProfile/list",
+        "category": "permissions",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "plugin/install",
+        "category": "plugins_and_apps",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "plugin/installed",
+        "category": "plugins_and_apps",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "plugin/list",
+        "category": "plugins_and_apps",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "plugin/read",
+        "category": "plugins_and_apps",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "plugin/reconcile",
+        "category": "plugins_and_apps",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "plugin/search",
+        "category": "plugins_and_apps",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "plugin/share/checkout",
+        "category": "plugins_and_apps",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "plugin/share/delete",
+        "category": "plugins_and_apps",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "plugin/share/list",
+        "category": "plugins_and_apps",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "plugin/share/save",
+        "category": "plugins_and_apps",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "plugin/share/updateTargets",
+        "category": "plugins_and_apps",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "plugin/skill/read",
+        "category": "plugins_and_apps",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "plugin/uninstall",
+        "category": "plugins_and_apps",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "process/kill",
+        "category": "process_and_commands",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "process/resizePty",
+        "category": "process_and_commands",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "process/spawn",
+        "category": "process_and_commands",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "process/writeStdin",
+        "category": "process_and_commands",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "project/create",
+        "category": "projects_and_navigation",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "project/delete",
+        "category": "projects_and_navigation",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "project/import",
+        "category": "projects_and_navigation",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "project/list",
+        "category": "projects_and_navigation",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "project/move",
+        "category": "projects_and_navigation",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "project/read",
+        "category": "projects_and_navigation",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "project/update",
+        "category": "projects_and_navigation",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "remoteControl/client/list",
+        "category": "remote_control",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "remoteControl/client/revoke",
+        "category": "remote_control",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "remoteControl/disable",
+        "category": "remote_control",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "remoteControl/enable",
+        "category": "remote_control",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "remoteControl/pairing/start",
+        "category": "remote_control",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "remoteControl/pairing/status",
+        "category": "remote_control",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "remoteControl/status/read",
+        "category": "remote_control",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "review/start",
+        "category": "review",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "rollout/compress",
+        "category": "memory",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "server/diagnostics",
+        "category": "diagnostics",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "skills/config/write",
+        "category": "skills_and_hooks",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "skills/extraRoots/set",
+        "category": "skills_and_hooks",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "skills/list",
+        "category": "skills_and_hooks",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/approveGuardianDeniedAction",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/archive",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/attachment/add",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/attachment/list",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/attachment/remove",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/attachmentOwner/list",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/backgroundTerminals/clean",
+        "category": "process_and_commands",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/backgroundTerminals/list",
+        "category": "process_and_commands",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/backgroundTerminals/terminate",
+        "category": "process_and_commands",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/compact/start",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/decrement_elicitation",
+        "category": "threads",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/delete",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/fork",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/goal/clear",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/goal/get",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/goal/set",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/increment_elicitation",
+        "category": "threads",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/inject_items",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/items/list",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/list",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/loaded/list",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/memoryMode/set",
+        "category": "threads",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/metadata/update",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/name/set",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/prediction/request",
+        "category": "threads",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/queue/add",
+        "category": "threads",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/queue/delete",
+        "category": "threads",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/queue/list",
+        "category": "threads",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/queue/reorder",
+        "category": "threads",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/queue/start",
+        "category": "threads",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/queue/update",
+        "category": "threads",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/read",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/realtime/appendAudio",
+        "category": "voice_realtime",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/realtime/appendSpeech",
+        "category": "voice_realtime",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/realtime/appendText",
+        "category": "voice_realtime",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/realtime/listVoices",
+        "category": "voice_realtime",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/realtime/start",
+        "category": "voice_realtime",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/realtime/stop",
+        "category": "voice_realtime",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/resume",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/revert",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/search",
+        "category": "threads",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/searchOccurrences",
+        "category": "threads",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/section/move",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/settings/update",
+        "category": "threads",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/shellCommand",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/start",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/timeline/list",
+        "category": "threads",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/turns/list",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/unarchive",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/unsubscribe",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "threadSection/create",
+        "category": "projects_and_navigation",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "threadSection/delete",
+        "category": "projects_and_navigation",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "threadSection/list",
+        "category": "projects_and_navigation",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "threadSection/update",
+        "category": "projects_and_navigation",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "turn/interrupt",
+        "category": "turns",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "turn/settings/update",
+        "category": "turns",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "turn/start",
+        "category": "turns",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "turn/steer",
+        "category": "turns",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "userVerification/cancel",
+        "category": "accounts_and_auth",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "userVerification/delete",
+        "category": "accounts_and_auth",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "userVerification/enroll",
+        "category": "accounts_and_auth",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "userVerification/status",
+        "category": "accounts_and_auth",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "userVerification/verify",
+        "category": "accounts_and_auth",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "windowsSandbox/readiness",
+        "category": "platform_setup",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "windowsSandbox/setupStart",
+        "category": "platform_setup",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      }
+    ],
+    "ServerRequest": [
+      {
+        "method": "account/chatgptAuthTokens/refresh",
+        "category": "accounts_and_auth",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "applyPatchApproval",
+        "category": "approvals",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "attestation/generate",
+        "category": "attestation",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "currentTime/read",
+        "category": "host_services",
+        "presentInDefaultExport": false,
+        "status": "unimplemented"
+      },
+      {
+        "method": "execCommandApproval",
+        "category": "approvals",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "item/commandExecution/requestApproval",
+        "category": "approvals",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "item/fileChange/requestApproval",
+        "category": "approvals",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "item/permissions/requestApproval",
+        "category": "approvals",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "item/tool/call",
+        "category": "dynamic_tools",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "item/tool/requestUserInput",
+        "category": "user_input",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "mcpServer/elicitation/request",
+        "category": "mcp",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      }
+    ],
+    "ServerNotification": [
+      {
+        "method": "account/gatewayOAuth/changed",
+        "category": "accounts_and_auth",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "account/login/completed",
+        "category": "accounts_and_auth",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "account/rateLimits/updated",
+        "category": "accounts_and_auth",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "account/updated",
+        "category": "accounts_and_auth",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "app/list/updated",
+        "category": "plugins_and_apps",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "autoApprovalReview/strictReviewRequired",
+        "category": "approvals",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "command/exec/outputDelta",
+        "category": "process_and_commands",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "configWarning",
+        "category": "warnings",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "deprecationNotice",
+        "category": "warnings",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "error",
+        "category": "errors",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "externalAgentConfig/import/completed",
+        "category": "configuration",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "externalAgentConfig/import/progress",
+        "category": "configuration",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "fs/changed",
+        "category": "filesystem",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "fuzzyFileSearch/sessionCompleted",
+        "category": "search",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "fuzzyFileSearch/sessionUpdated",
+        "category": "search",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "guardianWarning",
+        "category": "warnings",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "hook/completed",
+        "category": "skills_and_hooks",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "hook/started",
+        "category": "skills_and_hooks",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "item/agentMessage/delta",
+        "category": "items_and_streaming",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "item/autoApprovalReview/completed",
+        "category": "items_and_streaming",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "item/autoApprovalReview/started",
+        "category": "items_and_streaming",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "item/commandExecution/outputDelta",
+        "category": "items_and_streaming",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "item/commandExecution/terminalInteraction",
+        "category": "items_and_streaming",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "item/completed",
+        "category": "items_and_streaming",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "item/fileChange/outputDelta",
+        "category": "items_and_streaming",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "item/fileChange/patchUpdated",
+        "category": "items_and_streaming",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "item/mcpToolCall/progress",
+        "category": "items_and_streaming",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "item/plan/delta",
+        "category": "items_and_streaming",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "item/reasoning/summaryPartAdded",
+        "category": "items_and_streaming",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "item/reasoning/summaryTextDelta",
+        "category": "items_and_streaming",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "item/reasoning/textDelta",
+        "category": "items_and_streaming",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "item/started",
+        "category": "items_and_streaming",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "mcpServer/event/stream/notification",
+        "category": "mcp",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "mcpServer/oauthLogin/completed",
+        "category": "mcp",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "mcpServer/startupStatus/updated",
+        "category": "mcp",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "model/rerouted",
+        "category": "models_and_features",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "model/safetyBuffering/updated",
+        "category": "models_and_features",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "model/verification",
+        "category": "models_and_features",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "modelProvider/authRecoveryCompleted",
+        "category": "models_and_features",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "modelProvider/authRecoveryStarted",
+        "category": "models_and_features",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "process/exited",
+        "category": "process_and_commands",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "process/outputDelta",
+        "category": "process_and_commands",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "project/changed",
+        "category": "projects_and_navigation",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "remoteControl/status/changed",
+        "category": "remote_control",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "serverRequest/resolved",
+        "category": "server_request_lifecycle",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "skills/changed",
+        "category": "skills_and_hooks",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/archived",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/attachment/updated",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/closed",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/compacted",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/deleted",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/environment/connected",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/environment/disconnected",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/goal/cleared",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/goal/updated",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/name/updated",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/prediction/updated",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/project/updated",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/queue/changed",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/realtime/closed",
+        "category": "voice_realtime",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/realtime/error",
+        "category": "voice_realtime",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/realtime/item/completed",
+        "category": "voice_realtime",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/realtime/item/started",
+        "category": "voice_realtime",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/realtime/item/transcript/delta",
+        "category": "voice_realtime",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/realtime/itemAdded",
+        "category": "voice_realtime",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/realtime/outputAudio/delta",
+        "category": "voice_realtime",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/realtime/sdp",
+        "category": "voice_realtime",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/realtime/started",
+        "category": "voice_realtime",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/realtime/transcript/delta",
+        "category": "voice_realtime",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/realtime/transcript/done",
+        "category": "voice_realtime",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/reverted",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/settings/updated",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/started",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/status/changed",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/tokenUsage/updated",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "thread/unarchived",
+        "category": "threads",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "turn/completed",
+        "category": "turns",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "turn/diff/updated",
+        "category": "turns",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "turn/moderationMetadata",
+        "category": "turns",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "turn/plan/updated",
+        "category": "turns",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "turn/started",
+        "category": "turns",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "warning",
+        "category": "warnings",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "windows/worldWritableWarning",
+        "category": "platform_setup",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      },
+      {
+        "method": "windowsSandbox/setupCompleted",
+        "category": "platform_setup",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      }
+    ],
+    "ClientNotification": [
+      {
+        "method": "initialized",
+        "category": "protocol",
+        "presentInDefaultExport": true,
+        "status": "unimplemented"
+      }
+    ]
+  }
+}

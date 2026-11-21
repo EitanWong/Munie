@@ -3,11 +3,35 @@ options:
   minimumXcodeGenVersion: 2.46.0
   deploymentTarget:
     iOS: '18.0'
+    macOS: '15.0'
+    watchOS: '11.0'
+    tvOS: '18.0'
+    visionOS: '2.0'
+  createIntermediateGroups: true
   developmentLanguage: en
   knownRegions: [en, zh-Hans, Base]
+fileGroups: [config, docs, README.md, AGENTS.md]
 packages:
   MunieCore:
     path: packages/MunieCore
+  MunieRemote:
+    path: packages/MunieRemote
+  MunieNearby:
+    path: packages/MunieNearby
+  MunieHostRuntime:
+    path: .
+  RemodexTextKit:
+    url: https://github.com/Emanuele-web04/RemodexTextKit.git
+    exactVersion: 0.4.2
+  Runestone:
+    url: https://github.com/simonbs/Runestone.git
+    exactVersion: 0.5.2
+  TreeSitterLanguages:
+    url: https://github.com/simonbs/TreeSitterLanguages.git
+    exactVersion: 0.1.10
+  Citadel:
+    url: https://github.com/orlandos-nl/Citadel.git
+    revision: ae8562f895de06ccb86fdb1cbb65fd99c8976e12
 settings:
   base:
     SWIFT_VERSION: '6.0'
@@ -16,16 +40,119 @@ settings:
     CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED: YES
     MARKETING_VERSION: 0.1.0
     CURRENT_PROJECT_VERSION: 1
+    MUNIE_WATCH_BUNDLE_IDENTIFIER: app.munie.ios.watchkitapp
     CODE_SIGN_STYLE: Automatic
     ENABLE_USER_SCRIPT_SANDBOXING: YES
 targets:
-  Munie:
+  MunieRemodex:
     type: application
     platform: iOS
+    deploymentTarget: '18.6'
     sources:
-      - path: apps/ios/Munie
+      - path: apps/MunieRemodex/App
+      - path: apps/MunieRemodex/Resources
+        excludes: [Info.plist]
+    dependencies:
+      - package: MunieNearby
+      - package: RemodexTextKit
+      - package: Runestone
+      - package: Citadel
+      - package: TreeSitterLanguages
+        product: TreeSitterBashRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterCRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterCPPRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterCSSRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterCSharpRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterGoRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterHTMLRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterJavaRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterJavaScriptRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterJSONRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterMarkdownRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterPythonRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterRubyRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterRustRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterSQLRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterSwiftRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterTOMLRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterTSXRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterTypeScriptRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterYAMLRunestone
+    configFiles:
+      Debug: config/Remodex.xcconfig
+      Release: config/Remodex.xcconfig
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.munie.ios
+        SWIFT_VERSION: '5.0'
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        SWIFT_APPROACHABLE_CONCURRENCY: YES
+        SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY: YES
+        SWIFT_TREAT_WARNINGS_AS_ERRORS: NO
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: apps/MunieRemodex/Resources/Info.plist
+        TARGETED_DEVICE_FAMILY: '1'
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        STRING_CATALOG_GENERATE_SYMBOLS: YES
+        SWIFT_EMIT_LOC_STRINGS: YES
+        SUPPORTS_MACCATALYST: NO
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+  MunieRemodexTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: '18.6'
+    sources: [apps/MunieRemodex/Tests]
+    dependencies:
+      - target: MunieRemodex
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.munie.tests
+        SWIFT_VERSION: '5.0'
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        SWIFT_APPROACHABLE_CONCURRENCY: YES
+        SWIFT_TREAT_WARNINGS_AS_ERRORS: NO
+        GENERATE_INFOPLIST_FILE: YES
+  MunieRemodexUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: '18.6'
+    sources: [apps/MunieRemodex/UITests]
+    dependencies:
+      - target: MunieRemodex
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.munie.uitests
+        SWIFT_VERSION: '5.0'
+        SWIFT_TREAT_WARNINGS_AS_ERRORS: NO
+        GENERATE_INFOPLIST_FILE: YES
+  Munie:
+    type: application
+    supportedDestinations: [iOS, macOS, tvOS, visionOS]
+    sources:
+      - path: apps/Munie
     dependencies:
       - package: MunieCore
+      - package: MunieRemote
     configFiles:
       Debug: config/Signing.xcconfig
       Release: config/Signing.xcconfig
@@ -34,17 +161,133 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: Munie
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: Record a short request only when you tap the microphone.
+        INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: Transcribe your short request so you can review and send it.
+        INFOPLIST_KEY_NSCameraUsageDescription: Scan the pairing invitation displayed on your Mac. Camera use is optional.
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
-        TARGETED_DEVICE_FAMILY: '1,2'
+        TARGETED_DEVICE_FAMILY[sdk=iphone*]: '1,2'
+        TARGETED_DEVICE_FAMILY[sdk=appletv*]: '3'
+        TARGETED_DEVICE_FAMILY[sdk=xr*]: '7'
+        ENABLE_APP_SANDBOX[sdk=macosx*]: YES
+        ENABLE_HARDENED_RUNTIME[sdk=macosx*]: YES
+        SUPPORTED_PLATFORMS: iphoneos iphonesimulator macosx appletvos appletvsimulator xros xrsimulator
+        ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphone*]: AppIcon
+        ASSETCATALOG_COMPILER_APPICON_NAME[sdk=macosx*]: AppIcon
+        # Layered tvOS/visionOS distribution artwork is a separate release gate.
+        ASSETCATALOG_COMPILER_APPICON_NAME[sdk=appletv*]: ''
+        ASSETCATALOG_COMPILER_APPICON_NAME[sdk=xr*]: ''
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+  MunieDesktop:
+    type: application
+    platform: macOS
+    sources:
+      - path: apps/MunieDesktop
+      - path: apps/Munie/Resources/Assets.xcassets
+    dependencies:
+      - package: MunieNearby
+    configFiles:
+      Debug: config/Signing.xcconfig
+      Release: config/Signing.xcconfig
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.munie.desktop
+        PRODUCT_NAME: Munie
+        PRODUCT_MODULE_NAME: MunieDesktop
+        ARCHS: arm64
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Munie
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: Find your iPhone and securely pair with it when you choose to connect.
+        INFOPLIST_FILE: config/Desktop-Info.plist
+        ENABLE_APP_SANDBOX: NO
+        ENABLE_HARDENED_RUNTIME: YES
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+    postBuildScripts:
+      - name: Embed verified Munie execution resources
+        script: python3 "$SRCROOT/scripts/embed-desktop-runtime.py"
+        basedOnDependencyAnalysis: false
+  MunieDesktopTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources: [apps/MunieDesktopTests]
+    dependencies:
+      - target: MunieDesktop
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.munie.desktop.tests
+        ARCHS: arm64
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/Munie.app/Contents/MacOS/Munie
+  MunieHost:
+    type: application
+    platform: macOS
+    sources:
+      - path: apps/MunieMacHost
+      - path: apps/Munie/Resources/Remote.xcstrings
+    dependencies:
+      - package: MunieHostRuntime
+        product: MunieProductHost
+      - package: MunieHostRuntime
+        product: MunieHostTransport
+      - package: MunieRemote
+      - target: MunieCodexGuardian
+        embed: true
+        link: false
+        codeSign: true
+        copy:
+          destination: executables
+    configFiles:
+      Debug: config/Signing.xcconfig
+      Release: config/Signing.xcconfig
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.munie.host
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Munie Host
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
+        ENABLE_APP_SANDBOX: NO
+        ENABLE_HARDENED_RUNTIME: YES
+  MunieCodexGuardian:
+    type: tool
+    platform: macOS
+    sources: [apps/MunieHost/Guardian]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.munie.host.guardian
+        SKIP_INSTALL: YES
+        ENABLE_HARDENED_RUNTIME: YES
+  MunieWatch:
+    type: application
+    platform: watchOS
+    sources:
+      - path: apps/MunieWatch
+      - path: apps/Munie/App
+      - path: apps/Munie/Features/Capture/CaptureModel.swift
+      - path: apps/Munie/Resources
+    dependencies:
+      - package: MunieCore
+    configFiles:
+      Debug: config/Signing.xcconfig
+      Release: config/Signing.xcconfig
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(MUNIE_WATCH_BUNDLE_IDENTIFIER)
+        SKIP_INSTALL: NO
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Munie
+        INFOPLIST_KEY_WKApplication: YES
+        INFOPLIST_KEY_WKWatchOnly: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
   MunieTests:
     type: bundle.unit-test
     platform: iOS
-    sources: [apps/ios/MunieTests]
+    sources: [apps/MunieTests]
     dependencies:
       - target: Munie
     settings:
@@ -54,7 +297,7 @@ targets:
   MunieUITests:
     type: bundle.ui-testing
     platform: iOS
-    sources: [apps/ios/MunieUITests]
+    sources: [apps/MunieUITests]
     dependencies:
       - target: Munie
     settings:
@@ -62,6 +305,36 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: app.munie.uitests
         GENERATE_INFOPLIST_FILE: YES
 schemes:
+  MunieDesktop:
+    build:
+      targets:
+        MunieDesktop: all
+    test:
+      gatherCoverageData: true
+      targets:
+        - name: MunieDesktopTests
+          parallelizable: false
+    archive:
+      config: Release
+  MunieRemodex:
+    build:
+      targets:
+        MunieRemodex: all
+    test:
+      gatherCoverageData: true
+      targets:
+        - name: MunieRemodexTests
+          parallelizable: false
+        - name: MunieRemodexUITests
+          parallelizable: false
+    archive:
+      config: Release
+  MunieHost:
+    build:
+      targets:
+        MunieHost: all
+    archive:
+      config: Release
   Munie:
     build:
       targets:
@@ -73,5 +346,11 @@ schemes:
           parallelizable: false
         - name: MunieUITests
           parallelizable: false
+    archive:
+      config: Release
+  MunieWatch:
+    build:
+      targets:
+        MunieWatch: all
     archive:
       config: Release

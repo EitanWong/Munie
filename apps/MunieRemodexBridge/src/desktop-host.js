@@ -280,13 +280,15 @@ function prepareSimulatorApprovalFixture(fixture, env, { verify = false } = {}) 
 
 function createDesktopHost({
   env = process.env, emit = () => {}, spawnImpl = spawn, simulatorApprovalFixture = null, lanTaskPreviewProject = null,
-  hostedRelayOrigin = null,
+  hostedRelayOrigin = null, scopedHostedTaskPreview = false,
 } = {}) {
   // Only the local signed test driver constructs this option; no env or protocol method enables it.
   const fixture = simulatorApprovalFixture ? prepareSimulatorApprovalFixture(simulatorApprovalFixture, env) : null;
   const { hostedManagedRelayOrigin } = require("./managed-relay-client");
-  const hostedOrigin = !fixture && !lanTaskPreviewProject && hostedRelayOrigin
+  const hostedOrigin = !fixture && (!lanTaskPreviewProject || scopedHostedTaskPreview) && hostedRelayOrigin
     ? hostedManagedRelayOrigin(hostedRelayOrigin) : null;
+  if (scopedHostedTaskPreview && (!hostedOrigin || typeof lanTaskPreviewProject !== "string"
+      || !path.isAbsolute(lanTaskPreviewProject))) throw hostError("invalid_request");
   let root;
   try {
     if (!env.MUNIE_HOST_STATE_DIR || !path.isAbsolute(env.MUNIE_HOST_STATE_DIR)) throw new Error();
@@ -467,7 +469,9 @@ function createDesktopHost({
     if (pilotOrigin) childEnv.MUNIE_DEVELOPER_MANAGED_RELAY = pilotOrigin;
     const workerArgs = [String(process.pid), process.execPath, __filename, "--worker"];
     if (enableLanTaskExecution) workerArgs.push("--lan-task-execution");
-    if (hostedOrigin && !pilotOrigin) workerArgs.push("--managed-relay-origin", hostedOrigin);
+    if (hostedOrigin && !pilotOrigin && (!scopedHostedTaskPreview || enableLanTaskExecution)) {
+      workerArgs.push("--managed-relay-origin", hostedOrigin);
+    }
     if (fixture) {
       childEnv.HOME = fixture.directory;
       childEnv.TMPDIR = fixture.directory;
@@ -517,7 +521,8 @@ function createDesktopHost({
       case "stop": return stop();
       case "retry": await stop(); return start();
       case "away/set": {
-        if (!hostedOrigin || typeof params.enabled !== "boolean" || state !== "running") {
+        if (!hostedOrigin || (scopedHostedTaskPreview && project?.path !== lanTaskPreviewProject)
+            || typeof params.enabled !== "boolean" || state !== "running") {
           throw hostError("invalid_request");
         }
         await request(method, { enabled: params.enabled });
@@ -634,7 +639,7 @@ async function runWorker({
   const { loopbackManagedRelayOrigin, hostedManagedRelayOrigin } = require("./managed-relay-client");
   const { startBridge, readBridgeConfig } = require("./index");
   const pilotOrigin = loopbackManagedRelayOrigin(process.env.MUNIE_DEVELOPER_MANAGED_RELAY);
-  const hostedOrigin = !pilotOrigin && !lanTaskExecution && !simulatorApprovalFixture && hostedRelayOrigin
+  const hostedOrigin = !pilotOrigin && !simulatorApprovalFixture && hostedRelayOrigin
     ? hostedManagedRelayOrigin(hostedRelayOrigin) : null;
   if (simulatorApprovalFixture) {
     if (!pilotOrigin || process.env.MUNIE_REQUIRE_CODEX_STDIO_POLICY !== "1") throw hostError("runtime_unavailable");
@@ -723,11 +728,13 @@ async function runWorker({
 }
 
 function runProtocol({
-  input = process.stdin, output = process.stdout, env = process.env, lanTaskPreviewProject = null, hostedRelayOrigin = null,
+  input = process.stdin, output = process.stdout, env = process.env, lanTaskPreviewProject = null,
+  hostedRelayOrigin = null, scopedHostedTaskPreview = false,
 } = {}) {
   const send = (value) => writeFrame(output, { v: 1, ...value });
   let host;
-  try { host = createDesktopHost({ env, lanTaskPreviewProject, hostedRelayOrigin, emit: (event, data) => send({ event, data }) }); }
+  try { host = createDesktopHost({ env, lanTaskPreviewProject, hostedRelayOrigin, scopedHostedTaskPreview,
+    emit: (event, data) => send({ event, data }) }); }
   catch (error) {
     const failure = publicError(error);
     const failedStatus = { state: "error", project: null, bridge: null, account: null, devices: [], lanAvailable: false, lanRevision: 0,
@@ -789,10 +796,15 @@ if (require.main === module) {
     lanTaskExecution: process.argv[3] === "--lan-task-execution",
     fixtureProviderPort: Number(process.argv[4]),
     fixtureCertificateHash: process.argv[5],
-    hostedRelayOrigin: process.argv[3] === "--managed-relay-origin" && process.argv.length === 5 ? process.argv[4] : null,
+    hostedRelayOrigin: process.argv[3] === "--managed-relay-origin" && process.argv.length === 5 ? process.argv[4]
+      : process.argv[3] === "--lan-task-execution" && process.argv[4] === "--managed-relay-origin"
+        && process.argv.length === 6 ? process.argv[5] : null,
   }).catch((error) => {
     writeFrame(process.stdout, { event: "fatal", data: publicError(hostError(error?.code === "EADDRINUSE" ? "relay_port_unavailable" : "runtime_failed")) });
     process.exit(1);
+  });
+  else if (process.argv[2] === "--scoped-task-preview-and-managed-relay" && process.argv.length === 5) runProtocol({
+    lanTaskPreviewProject: process.argv[3], hostedRelayOrigin: process.argv[4], scopedHostedTaskPreview: true,
   });
   else runProtocol({
     lanTaskPreviewProject: process.argv[2] === "--lan-task-preview-project" && process.argv.length === 4

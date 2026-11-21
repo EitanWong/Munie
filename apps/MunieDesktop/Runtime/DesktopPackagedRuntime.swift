@@ -12,7 +12,8 @@ struct DesktopRuntimeConfiguration: Sendable {
 
   static func bundledHostedRelayOrigin(in bundle: Bundle = .main) -> String? {
     if let preview = bundle.object(forInfoDictionaryKey: "MunieLANTaskPreviewProject") as? String,
-      preview.hasPrefix("/")
+      preview.hasPrefix("/"),
+      bundle.object(forInfoDictionaryKey: "MunieScopedHostedTaskPreview") as? String != "YES"
     {
       return nil
     }
@@ -114,7 +115,11 @@ actor DesktopPackagedRuntime: DesktopHostRuntime {
     let stderr = Pipe()
     child.executableURL = configuration.node
     var arguments = [configuration.entryPoint.path]
-    if let project = configuration.lanTaskPreviewProject {
+    if let project = configuration.lanTaskPreviewProject,
+      let origin = configuration.hostedRelayOrigin
+    {
+      arguments += ["--scoped-task-preview-and-managed-relay", project, origin]
+    } else if let project = configuration.lanTaskPreviewProject {
       arguments += ["--lan-task-preview-project", project]
     } else if let origin = configuration.hostedRelayOrigin {
       arguments += ["--managed-relay-origin", origin]

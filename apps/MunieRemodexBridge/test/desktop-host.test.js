@@ -5,13 +5,18 @@ const os = require("node:os");
 const path = require("node:path");
 const { PassThrough } = require("node:stream");
 const http = require("node:http");
+const https = require("node:https");
 const net = require("node:net");
+const tls = require("node:tls");
+const { once } = require("node:events");
 const { createCipheriv, createDecipheriv, createHash, createPublicKey, diffieHellman,
   generateKeyPairSync, hkdfSync, randomUUID, sign, verify } = require("node:crypto");
 const { spawn, spawnSync } = require("node:child_process");
 const { setTimeout: delay } = require("node:timers/promises");
 const WebSocket = require("ws");
 const { nonceForDirection } = require("../src/secure-transport");
+const { startHostedManagedRelay } = require("../../MunieRemodexRelay/managed-relay-pilot");
+const { managedAdmissionTranscript } = require("../../MunieRemodexRelay/managed-admission");
 const { createDesktopHost, readFrames, selectLanAddress, advertisedHost, resolveCodexHome, publicError, groupExists, verifyCleanup, MAX_REQUEST_BYTES } = require("../src/desktop-host");
 const entry = path.resolve(__dirname, "../src/desktop-host.js");
 const repository = path.resolve(__dirname, "../../..");
@@ -816,15 +821,23 @@ test("packaged LAN pairing preserves existing trust until the Mac explicitly rem
   assert.equal(host.status().devices[0]?.id, replacementId);
 });
 
-test("scoped LAN tasks bind writes and approval to the exact authorized route", {
-  timeout: 30000, skip: process.platform !== "darwin",
-}, async (t) => {
+for (const [name, hosted] of [
+  ["scoped LAN tasks bind writes and approval to the exact authorized route", false],
+  ["scoped tasks reuse one native boundary across LAN and hosted TLS", true],
+]) {
+  test(name, { timeout: 30000, skip: process.platform !== "darwin" }, (t) => scopedTaskLifecycle(t, hosted));
+}
+
+async function scopedTaskLifecycle(t, hosted) {
   const fixture = setupRuntime(t, {
     policyAck: 1, packagedPolicy: true, recordNativeFrames: true, lanTaskLifecycle: true,
   });
-  const host = createDesktopHost({ env: fixture.env, lanTaskPreviewProject: fixture.project });
-  t.after(() => host.stop());
   const mac = generateKeyPairSync("ed25519"), phone = generateKeyPairSync("ed25519");
+  const edge = hosted ? await localHostedEdge(t, mac, phone) : null;
+  const host = createDesktopHost({ env: fixture.env, lanTaskPreviewProject: fixture.project,
+    ...(edge && { hostedRelayOrigin: edge.origin, scopedHostedTaskPreview: true, spawnImpl: edge.spawnWorker }),
+  });
+  t.after(() => host.stop());
   const macDeviceId = randomUUID(), phoneDeviceId = randomUUID();
   const publicKey = (key) => Buffer.from(key.export({ format: "jwk" }).x, "base64url").toString("base64");
   const state = fixture.env.MUNIE_HOST_STATE_DIR;
@@ -838,10 +851,11 @@ test("scoped LAN tasks bind writes and approval to the exact authorized route", 
   const initial = await host.run("start");
   const { payload: { sessionId } } = await host.run("pairing/get");
   const { relayPort } = JSON.parse(fs.readFileSync(path.join(state, "host.json")));
-  async function connect() {
-    const socket = new WebSocket(`ws://127.0.0.1:${relayPort}/relay/${sessionId}`, {
-      headers: { "x-role": "iphone" }, handshakeTimeout: 3000,
-    });
+  async function connect(via = null) {
+    const socket = via ? await via.phoneSocket() : new WebSocket(
+      `ws://127.0.0.1:${relayPort}/relay/${sessionId}`,
+      { headers: { "x-role": "iphone" }, handshakeTimeout: 3000 },
+    );
     t.after(() => socket.terminate());
     const messages = [], closed = new Promise((resolve) => socket.once("close", resolve));
     socket.on("message", (data) => messages.push(JSON.parse(data.toString())));
@@ -885,7 +899,11 @@ test("scoped LAN tasks bind writes and approval to the exact authorized route", 
   await until(() => pending = first.channel.read().find((message) => message.method === callback && message.params.turnId === "turn-2"));
   first.socket.close();
   await first.closed;
-  const second = await connect();
+  if (edge) {
+    await host.run("away/set", { enabled: true });
+    await until(() => edge.snapshot().activeMacRoutes === 1);
+  }
+  const second = await connect(edge);
   second.channel.send({ id: pending.id, result: { decision: "accept" } });
   const read = await rpc(second.channel, "read", "thread/read", { threadId, includeTurns: true });
   assert.equal(read.result?.thread?.id, threadId);
@@ -897,13 +915,107 @@ test("scoped LAN tasks bind writes and approval to the exact authorized route", 
   assert.deepEqual(resumedStop.result, {});
   const resumed = await rpc(second.channel, "resume", "thread/resume", { threadId });
   assert.equal(resumed.result?.thread?.id, threadId);
+  if (edge) {
+    const hostedInput = [{ type: "text", text: "Distinct scoped hosted task." }];
+    const next = await rpc(second.channel, "submit-hosted", "turn/start", { threadId, input: hostedInput });
+    assert.equal(next.result?.turn?.id, "turn-3");
+    let hostedApproval;
+    await until(() => hostedApproval = second.channel.read().find((message) => message.method === callback
+      && message.params.turnId === "turn-3"));
+    assert.deepEqual(hostedApproval.params.availableDecisions.sort(), ["accept", "cancel"]);
+    second.channel.send({ id: hostedApproval.id, result: { decision: "accept" } });
+    await until(() => fixture.nativeFrames().some((message) => message.id === "native-approval-3"
+      && message.decision === "accept"));
+    const stopHosted = await rpc(second.channel, "stop-hosted", "turn/interrupt", { threadId, turnId: "turn-3" });
+    assert.deepEqual(stopHosted.result, {});
+    await until(() => second.channel.read().some((message) => message.method === "turn/completed"
+      && message.params.turn.id === "turn-3" && message.params.turn.status === "interrupted"));
+    await host.run("away/set", { enabled: false });
+    await second.closed;
+    await until(() => edge.snapshot().activeMacRoutes === 0 && edge.snapshot().activePhoneRoutes === 0);
+    const returned = await connect();
+    assert.equal((await rpc(returned.channel, "read-lan", "thread/read", { threadId, includeTurns: true }))
+      .result?.thread?.id, threadId);
+  }
   const submissions = fixture.nativeFrames().filter((message) => message.method === "turn/start");
-  assert.equal(submissions.length, 2);
+  assert.equal(submissions.length, edge ? 3 : 2);
+  assert.equal(submissions.filter(({ text }) => text === "Distinct scoped hosted task.").length, edge ? 1 : 0);
   assert.deepEqual(fixture.nativeFrames().filter((message) => message.method === "turn/interrupt")
-    .map((message) => message.turnId), ["turn-1", "turn-2"]);
+    .map((message) => message.turnId), edge ? ["turn-1", "turn-2", "turn-3"] : ["turn-1", "turn-2"]);
   assert.deepEqual(host.status().ownership, initial.ownership);
   assert.deepEqual(host.status().devices.map((device) => device.id), [phoneDeviceId]);
-});
+}
+
+async function localHostedEdge(t, mac, phone) {
+  const hostname = "relay.fixture.invalid";
+  const publicKey = (identity) => identity.publicKey.export({ format: "jwk" }).x;
+  const relay = await startHostedManagedRelay({ hostname, port: 0, allowedMacKeys: [publicKey(mac)] });
+  const dir = temporary(t);
+  const key = path.join(dir, "key.pem"), ca = path.join(dir, "cert.pem");
+  const openssl = spawnSync("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
+    "-subj", `/CN=${hostname}`, "-keyout", key, "-out", ca], { encoding: "utf8" });
+  assert.equal(openssl.status, 0, openssl.stderr);
+  const cert = fs.readFileSync(ca), sockets = new Set();
+  const edge = tls.createServer({ key: fs.readFileSync(key), cert }, (client) => {
+    const relayPort = Number(new URL(relay.origin).port);
+    const upstream = net.connect(relayPort, "127.0.0.1");
+    client.on("error", () => upstream.destroy());
+    upstream.on("error", () => client.destroy());
+    client.on("close", () => upstream.destroy());
+    upstream.on("close", () => client.destroy());
+    client.pipe(upstream).pipe(client);
+  });
+  edge.on("connection", (socket) => {
+    sockets.add(socket);
+    socket.once("close", () => sockets.delete(socket));
+  });
+  edge.listen(0, "127.0.0.1");
+  t.after(async () => {
+    for (const socket of sockets) socket.destroy();
+    await Promise.all([new Promise((resolve) => edge.close(resolve)), relay.close()]);
+  });
+  await once(edge, "listening");
+  const port = edge.address().port;
+  const preload = path.join(dir, "local-edge.cjs");
+  // Only the injected test worker maps the reserved DNS origin to this local TLS edge.
+  fs.writeFileSync(preload, `const { Agent } = require("node:https");
+const connect = Agent.prototype.createConnection;
+Agent.prototype.createConnection = function(options, callback) {
+  if (options.servername !== ${JSON.stringify(hostname)}) return connect.call(this, options, callback);
+  if (options.rejectUnauthorized !== true) throw Error("TLS validation was disabled");
+  return connect.call(this, { ...options, host: "127.0.0.1", port: ${port},
+    ca: require("node:fs").readFileSync(${JSON.stringify(ca)}) }, callback);
+};`);
+  return {
+    origin: `https://${hostname}`,
+    snapshot: relay.snapshot,
+    spawnWorker: (file, args, options) => spawn(file, args, {
+      ...options, env: { ...options.env, NODE_OPTIONS: `--require=${preload}` },
+    }),
+    async phoneSocket() {
+      const address = `127.0.0.1:${port}`;
+      const challenge = await new Promise((resolve, reject) => {
+        const req = https.request(`https://${address}/v1/managed/challenge`, {
+          ca: cert, servername: hostname, method: "POST", headers: { Host: hostname },
+        }, (res) => {
+          let data = "";
+          res.on("data", (chunk) => data += chunk);
+          res.on("end", () => {
+            try { assert.equal(res.statusCode, 200); resolve(JSON.parse(data)); }
+            catch (error) { reject(error); }
+          });
+        });
+        req.on("error", reject);
+        req.end(JSON.stringify({ role: "phone", macKey: publicKey(mac), phoneKey: publicKey(phone) }));
+      });
+      return new WebSocket(`wss://${address}/v1/managed/connect`, {
+        ca: cert, servername: hostname, handshakeTimeout: 3000,
+        headers: { Host: hostname, "x-munie-role": "phone", "x-munie-challenge": challenge.id,
+          "x-munie-proof": sign(null, managedAdmissionTranscript(challenge), phone.privateKey).toString("base64url") },
+      });
+    },
+  };
+}
 
 async function openFixtureSecureChannel(peer, {
   sessionId, mac, phone, macDeviceId, phoneDeviceId, handshakeMode = "trusted_reconnect",
@@ -1027,7 +1139,7 @@ let buffer='',pendingModelList=null;
 const pendingProjectLookups=[];
 let turnNumber=0,nextCallback;
 process.stdin.on('data',chunk=>{buffer+=chunk;let end;while((end=buffer.indexOf('\\n'))>=0){const line=buffer.slice(0,end);buffer=buffer.slice(end+1);if(!line)continue;const r=JSON.parse(line);let result={};
-if (${recordNativeFrames}) fs.appendFileSync(${JSON.stringify(nativeRecord)},JSON.stringify({id:r.id,method:r.method,errorCode:r.error?.code,errorTag:r.error?.data?.errorCode,decision:r.result?.decision,turnId:r.params?.turnId})+'\\n');
+if (${recordNativeFrames}) fs.appendFileSync(${JSON.stringify(nativeRecord)},JSON.stringify({id:r.id,method:r.method,errorCode:r.error?.code,errorTag:r.error?.data?.errorCode,decision:r.result?.decision,turnId:r.params?.turnId,text:r.params?.input?.[0]?.text})+'\\n');
 if(r.method===undefined && r.error)continue;
 switch(r.method){
 case 'initialize':result={munieStdioPolicyVersion:${JSON.stringify(policyAck)}};break;
@@ -1107,8 +1219,8 @@ async function until(predicate, timeout = 5000) {
   while (!predicate()) { if (Date.now() - start > timeout) throw new Error("Condition timed out"); await delay(20); }
 }
 
-function launchProtocol(t, env) {
-  const child = spawn(process.execPath, [entry], { env: { ...process.env, ...env }, stdio: ["pipe", "pipe", "pipe"] });
+function launchProtocol(t, env, args = []) {
+  const child = spawn(process.execPath, [entry, ...args], { env: { ...process.env, ...env }, stdio: ["pipe", "pipe", "pipe"] });
   t.after(() => { if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL"); });
   const frames = [], consumed = new Set(); let raw = "", stderr = "", next = 0;
   child.stdout.on("data", (chunk) => { raw += chunk; });
@@ -1123,3 +1235,35 @@ function launchProtocol(t, env) {
   return { child, closed, wait, raw: () => raw, stderr: () => stderr,
     async call(method, params = {}) { const id = String(++next); child.stdin.write(JSON.stringify({ v: 1, id, method, params }) + "\n"); return wait((frame) => frame.id === id); } };
 }
+
+test("only an explicit signed scope stages exact-project tasks with the managed origin", {
+  timeout: 30000, skip: process.platform !== "darwin",
+}, async (t) => {
+  const fixture = setupRuntime(t, { policyAck: 1, packagedPolicy: true });
+  const origin = "https://relay.example.invalid";
+  const regular = createDesktopHost({ env: fixture.env, lanTaskPreviewProject: fixture.project, hostedRelayOrigin: origin });
+  await regular.run("project/set", { path: fixture.project });
+  await regular.run("start");
+  try {
+    await assert.rejects(regular.run("away/set", { enabled: false }), { code: "invalid_request" });
+  } finally {
+    await regular.stop();
+  }
+
+  const protocol = launchProtocol(t, fixture.env, ["--scoped-task-preview-and-managed-relay", fixture.project, origin]);
+  const set = await protocol.call("project/set", { path: fixture.project });
+  assert.equal(set.result?.project?.path, fixture.project);
+  const running = await protocol.call("start");
+  assert.equal(running.result?.state, "running");
+  try {
+    // Exercise both helper and worker gates without dialing any hosted endpoint.
+    assert.equal((await protocol.call("away/set", { enabled: false })).result?.state, "running");
+    const other = path.join(path.dirname(fixture.project), "other-project");
+    fs.mkdirSync(other);
+    assert.equal((await protocol.call("project/set", { path: other })).result?.project?.path, other);
+    assert.equal((await protocol.call("away/set", { enabled: false })).error?.code, "invalid_request");
+  } finally {
+    protocol.child.stdin.end();
+    assert.deepEqual(await protocol.closed, { code: 0, signal: null });
+  }
+});

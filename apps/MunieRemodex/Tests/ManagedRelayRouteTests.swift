@@ -194,6 +194,68 @@
         CodexService.isLANTransportUnreachable(
           CodexSecureTransportError.invalidHandshake("identity")))
     }
+
+    func testHostedFallbackRequiresTheSelectedMacSavedLANSnapshot() {
+      let service = CodexService()
+      let mac = CodexTrustedMacRecord(
+        macDeviceId: "paired-mac", macIdentityPublicKey: "paired-key", lastPairedAt: .now)
+      service.relayUrl = "ws://paired-mac.local:3200/relay"
+      service.relaySessionId = "session"
+      service.relayMacDeviceId = mac.macDeviceId
+      service.relayMacIdentityPublicKey = mac.macIdentityPublicKey
+      service.currentTrustedMacDeviceId = mac.macDeviceId
+      service.trustedMacRegistry = CodexTrustedMacRegistry(records: [mac.macDeviceId: mac])
+
+      let endpoint = "ws://paired-mac.local:3200/relay/session"
+      XCTAssertTrue(ContentViewModel.isCurrentPairedLANEndpoint(endpoint, codex: service, pinnedMac: mac))
+      XCTAssertFalse(
+        ContentViewModel.isCurrentPairedLANEndpoint(
+          "ws://other-mac.local:3200/relay/session", codex: service, pinnedMac: mac))
+      XCTAssertFalse(
+        ContentViewModel.isCurrentPairedLANEndpoint(
+          "ws://paired-mac.local:3200/relay/old-session", codex: service, pinnedMac: mac))
+      service.relayMacIdentityPublicKey = "old-key"
+      XCTAssertFalse(
+        ContentViewModel.isCurrentPairedLANEndpoint(endpoint, codex: service, pinnedMac: mac))
+    }
+
+    func testRotatingThePairDuringAnUnreachableLANDialDoesNotDialHosted() async {
+      let service = CodexService()
+      let mac = CodexTrustedMacRecord(
+        macDeviceId: "paired-mac", macIdentityPublicKey: "paired-key", lastPairedAt: .now)
+      service.relayUrl = "ws://paired-mac.local:3200/relay"
+      service.relaySessionId = "session"
+      service.relayMacDeviceId = mac.macDeviceId
+      service.relayMacIdentityPublicKey = mac.macIdentityPublicKey
+      service.currentTrustedMacDeviceId = mac.macDeviceId
+      service.trustedMacRegistry = CodexTrustedMacRegistry(records: [mac.macDeviceId: mac])
+
+      let endpoint = "ws://paired-mac.local:3200/relay/session"
+      var lanAttempts = 0
+      var hostedAttempts = 0
+      do {
+        try await ContentViewModel.connectWithManagedFallback(
+          shouldContinue: {
+            ContentViewModel.isCurrentPairedLANEndpoint(endpoint, codex: service, pinnedMac: mac)
+          },
+          lan: { unreachable in
+            lanAttempts += 1
+            service.trustedMacRegistry.records[mac.macDeviceId] = CodexTrustedMacRecord(
+              macDeviceId: mac.macDeviceId, macIdentityPublicKey: "replacement", lastPairedAt: .now)
+            unreachable()
+            throw NWError.posix(.ECONNREFUSED)
+          },
+          managed: { hostedAttempts += 1 }
+        )
+        XCTFail("A stale LAN dial cannot authorize fallback.")
+      } catch is CancellationError {
+        XCTAssertEqual(lanAttempts, 1)
+        XCTAssertEqual(hostedAttempts, 0)
+      } catch {
+        XCTFail("Unexpected error: \(error)")
+      }
+    }
+
     func testLANDeadlineKeepsTypedWaitingCauseForFailover() {
       let unreachable = CodexConnectionWaitDeadline(
         message: "timed out", waitingError: .posix(.EHOSTUNREACH))

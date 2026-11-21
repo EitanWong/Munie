@@ -397,7 +397,10 @@ extension ContentViewModel {
         if let shouldAttemptManagedFallback, let origin = codex.enabledHostedRelayOrigin,
            let pinnedMac = codex.currentTrustedMacRecord, Self.isNearbyRelayURL(serverURL) {
             try await Self.connectWithManagedFallback(
-                shouldContinue: { shouldAttemptManagedFallback() && codex.enabledHostedRelayOrigin == origin },
+                shouldContinue: {
+                    shouldAttemptManagedFallback() && codex.enabledHostedRelayOrigin == origin
+                        && Self.isCurrentPairedLANEndpoint(serverURL, codex: codex, pinnedMac: pinnedMac)
+                },
                 preserveLANError: false
             ) { unreachable in
                 try await codex.connect(serverURL: serverURL, token: "", role: "iphone", onLANUnavailable: unreachable)
@@ -419,6 +422,19 @@ extension ContentViewModel {
         }
         #endif
         try await codex.connect(serverURL: serverURL, token: "", role: "iphone")
+    }
+
+    static func isCurrentPairedLANEndpoint(
+        _ endpoint: String, codex: CodexService, pinnedMac: CodexTrustedMacRecord
+    ) -> Bool {
+        guard codex.currentTrustedMacRecord?.macDeviceId == pinnedMac.macDeviceId,
+              codex.currentTrustedMacRecord?.macIdentityPublicKey == pinnedMac.macIdentityPublicKey,
+              codex.normalizedRelayMacDeviceId == pinnedMac.macDeviceId,
+              codex.normalizedRelayMacIdentityPublicKey == pinnedMac.macIdentityPublicKey,
+              let relay = codex.normalizedRelayURL, let session = codex.normalizedRelaySessionId else {
+            return false
+        }
+        return endpoint == "\(relay)/\(session)"
     }
 
     static func isNearbyRelayURL(_ value: String) -> Bool {

@@ -804,7 +804,7 @@ function startBridge({
     if (!configuredRoot() || managedClient || !mobileRouteFrame || config.followCodexAccount !== true
         || !initializeForLocalAccount || config.codexEndpoint || config.requireCodexStdioPolicy !== true
         || simulatorApproval || config.desktopIpcLiveSyncEnabled !== false) {
-      throw new Error("LAN tasks require a scoped local desktop host and pinned native transport.");
+      throw new Error("Preview tasks require a scoped local desktop host and pinned native transport.");
     }
     const { createSharedCodexTaskBoundary } = require("./munie-shared-task-boundary");
     return createSharedCodexTaskBoundary(taskBoundaryOptions());
@@ -2902,8 +2902,8 @@ function startBridge({
 
   return {
     stop: stopBridge,
-    localAway: initializeForLocalAccount && desktopHostedRelay && !desktopManagedRelay
-      && !desktopLanTaskExecution && !simulatorApproval ? {
+    // The scoped task boundary is worker-owned, not tied to a particular transport.
+    localAway: initializeForLocalAccount && desktopHostedRelay && !desktopManagedRelay && !simulatorApproval ? {
         setEnabled(enabled) {
           if (isShuttingDown) throw new Error("The bridge is stopping.");
           if (enabled && !managedClient) {

@@ -59,7 +59,7 @@ Documentation uses topic names and indexes, with one authoritative source per to
 
 `packages/` is a repository grouping convention, not an Apple-mandated name. Each package follows the standard `Package.swift`, `Sources/<Target>/` and `Tests/<Target>Tests/` layout. One generated `.xcodeproj` is sufficient; a separate `.xcworkspace` is unnecessary for these local Swift packages.
 
-`main` is the release branch. Work integrates through `dev`; features use `feat_<module>_<purpose>` branches in sibling worktrees. See [CONTRIBUTING](CONTRIBUTING.md).
+`main` is the release branch. Work integrates through `dev`; features use `feat_<module>_<purpose>` branches. See the [worktree workflow](docs/development.md#daily-workflow) and [contribution guidelines](CONTRIBUTING.md).
 
 Prefer native capabilities and mature, license-reviewed components. Extract reusable packages from demonstrated shared behavior, not speculative device integrations. Current runtime dependencies and source references are documented in [architecture](docs/architecture.md) and [the reference registry](references/README.md).
 

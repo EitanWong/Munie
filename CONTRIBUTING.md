@@ -6,13 +6,10 @@ Read [AGENTS.md](AGENTS.md) and [project status](docs/project-status.md) before 
 
 - `main`: reviewed release history; no routine direct development.
 - `dev`: integration branch for day-to-day work.
-- `feat_<module>_<purpose>`: one focused behavior in a sibling worktree, PR targeting `dev`.
+- `feat_<module>_<purpose>`: one focused change per feature branch, with a PR targeting `dev`.
 - Release PR: `dev` → `main` after validation and release review.
 
-```sh
-git switch dev
-git worktree add ../.munie-worktrees/feat_capture_search -b feat_capture_search dev
-```
+Reuse a suitable worktree or follow the [daily development workflow](docs/development.md#daily-workflow) to create one.
 
 Use one owner per module/worktree. Subagents can research or implement disjoint paths; the integrator reviews their diff, resolves ownership conflicts, and reruns affected checks. Do not commit generated projects, build products, reference checkouts, secrets, or private user data. Remove a feature worktree only after its work is integrated and preserved.
 

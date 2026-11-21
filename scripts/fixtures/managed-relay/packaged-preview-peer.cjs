@@ -50,7 +50,7 @@ async function main() {
     fs.mkdirSync(home, { mode: 0o700 });
     fs.mkdirSync(project, { mode: 0o700 });
     if (mode === '--approval') {
-      provider = await startApprovalProvider(project);
+      provider = await startApprovalProvider(temp, project);
     } else {
       fs.writeFileSync(path.join(home, 'config.toml'),
         'cli_auth_credentials_store="file"\nanalytics.enabled=false\nfeedback.enabled=false\n'

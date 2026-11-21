@@ -270,3 +270,3621 @@ index 39dc2cd..89610d9 100644
          match transport_recipe {
              TransportRecipe::InProcess { factory } => {
                  let transport = factory.open().await?;
+--- a/codex-rs/Cargo.lock
++++ b/codex-rs/Cargo.lock
+@@ -3020,6 +3020,7 @@
+  "dunce",
+  "eventsource-stream",
+  "futures",
++ "hmac 0.12.1",
+  "http 1.4.0",
+  "iana-time-zone",
+  "image",
+@@ -3040,6 +3041,7 @@
+  "serde_json",
+  "serial_test",
+  "sha1 0.10.6",
++ "sha2 0.10.9",
+  "shlex",
+  "similar",
+  "tempfile",
+@@ -4479,11 +4481,14 @@
+  "codex-utils-path",
+  "codex-utils-process",
+  "codex-utils-string",
++ "hmac 0.12.1",
++ "libc",
+  "memchr",
+  "pretty_assertions",
+  "regex",
+  "serde",
+  "serde_json",
++ "sha2 0.10.9",
+  "tempfile",
+  "time",
+  "tokio",
+--- a/codex-rs/codex-client/src/provider.rs
++++ b/codex-rs/codex-client/src/provider.rs
+@@ -64,8 +64,10 @@
+         if let Some(params) = &self.query_params
+             && !params.is_empty()
+         {
+-            let qs = params
+-                .iter()
++            let mut ordered = params.iter().collect::<Vec<_>>();
++            ordered.sort_unstable_by(|(left, _), (right, _)| left.cmp(right));
++            let qs = ordered
++                .into_iter()
+                 .map(|(k, v)| format!("{k}={v}"))
+                 .collect::<Vec<_>>()
+                 .join("&");
+--- a/codex-rs/config/src/guardian.rs
++++ b/codex-rs/config/src/guardian.rs
+@@ -10,6 +10,7 @@
+ use codex_protocol::openai_models::ModelInfo;
+ 
+ use crate::ConfigRequirements;
++use crate::TomlValue;
+ 
+ /// Load-boundary adapter for configuration that predates model-owned policies.
+ #[derive(Clone, Debug, PartialEq, Eq)]
+@@ -20,6 +21,27 @@
+ }
+ 
+ impl GuardianPolicyLoader {
++    /// Reads the configured legacy scope from the merged runtime configuration.
++    /// The caller applies its resolved feature state separately.
++    pub fn legacy_config(effective_config: &TomlValue) -> Result<GuardianV2ConfigToml, String> {
++        let feature = effective_config
++            .get("features")
++            .and_then(|features| features.get("guardianv2"));
++        match feature {
++            Some(value) => {
++                let feature: FeatureToml<GuardianV2ConfigToml> = value
++                    .clone()
++                    .try_into()
++                    .map_err(|error| format!("invalid Guardian v2 configuration: {error}"))?;
++                match feature {
++                    FeatureToml::Enabled(_) => Ok(GuardianV2ConfigToml::default()),
++                    FeatureToml::Config(configured) => Ok(configured),
++                }
++            }
++            None => Ok(GuardianV2ConfigToml::default()),
++        }
++    }
++
+     pub fn new(
+         legacy: Option<&FeatureToml<GuardianV2ConfigToml>>,
+         requirements: &ConfigRequirements,
+@@ -85,6 +107,18 @@
+         }
+         policy
+     }
++
++    pub fn resolve_effective(
++        &self,
++        model: Option<&ModelInfo>,
++        requirements: &ConfigRequirements,
++    ) -> GuardianModelPolicy {
++        let mut policy = self.resolve(model);
++        if let Some(model) = model {
++            requirements.constrain_guardian_policy(&mut policy, &model.slug);
++        }
++        policy
++    }
+ }
+ 
+ impl ConfigRequirements {
+--- a/codex-rs/core/Cargo.toml
++++ b/codex-rs/core/Cargo.toml
+@@ -91,6 +91,7 @@
+ dunce = { workspace = true }
+ eventsource-stream = { workspace = true }
+ futures = { workspace = true }
++hmac = { workspace = true }
+ http = { workspace = true }
+ iana-time-zone = { workspace = true }
+ image = { workspace = true, features = ["jpeg", "png", "webp"] }
+@@ -108,6 +109,7 @@
+ serde = { workspace = true, features = ["derive"] }
+ serde_json = { workspace = true }
+ sha1 = { workspace = true }
++sha2 = { workspace = true }
+ shlex = { workspace = true }
+ similar = { workspace = true }
+ tempfile = { workspace = true }
+--- a/codex-rs/core/src/client.rs
++++ b/codex-rs/core/src/client.rs
+@@ -32,10 +32,16 @@
+ use std::sync::atomic::AtomicBool;
+ use std::sync::atomic::Ordering;
+ 
++#[path = "munie_responses_destination.rs"]
++mod munie_responses_destination;
+ #[path = "client_tool_metadata.rs"]
+ mod tool_metadata;
+ 
++use self::munie_responses_destination::DurableReplay;
++use self::munie_responses_destination::ResponsesDestination;
++use self::munie_responses_destination::ResponsesTransport;
+ use crate::CodexResponsesHeaders;
++use crate::munie_replay_state::ReplayState;
+ use crate::tools::ExecutedToolCalls;
+ use async_channel::Sender;
+ use codex_api::AgentIdentityTelemetry;
+@@ -216,6 +222,7 @@
+     include_attestation: bool,
+     attestation_provider: Option<Arc<dyn AttestationProvider>>,
+     disable_websockets: AtomicBool,
++    munie_responses_destination: Arc<OnceLock<ResponsesDestination>>,
+     agent_identity_session_fallback: AgentIdentitySessionFallback,
+     cached_websocket_session: StdMutex<WebsocketSession>,
+     /// Last full tool list used for sampling, retained across turns and connection resets.
+@@ -272,6 +279,7 @@
+     event_sender: Option<Sender<ProtocolEvent>>,
+     http_client_factory: HttpClientFactory,
+     restored_history: bool,
++    munie_replay: Option<Arc<DurableReplay>>,
+     request_contributors: Vec<Arc<dyn codex_extension_api::ModelRequestContributor>>,
+     executed_tool_calls: Option<ExecutedToolCalls>,
+     // Resolved once when the session is created, like other session feature flags.
+@@ -531,6 +539,7 @@
+                 include_attestation,
+                 attestation_provider,
+                 disable_websockets: AtomicBool::new(false),
++                munie_responses_destination: Arc::default(),
+                 agent_identity_session_fallback: AgentIdentitySessionFallback::default(),
+                 cached_websocket_session: StdMutex::new(WebsocketSession::default()),
+                 last_inference_tools: StdMutex::new(None),
+@@ -541,6 +550,7 @@
+             event_sender: None,
+             http_client_factory,
+             restored_history: false,
++            munie_replay: None,
+             request_contributors,
+             executed_tool_calls: None,
+             api_key_cyber_access_programs:
+@@ -561,9 +571,38 @@
+ 
+     pub(crate) fn with_restored_history(mut self, restored_history: bool) -> Self {
+         self.restored_history = restored_history;
++        self
++    }
++
++    pub(crate) fn with_munie_replay(
++        mut self,
++        state: ReplayState,
++        thread: codex_thread_store::LiveThread,
++        expected: Option<[u8; 32]>,
++    ) -> Self {
++        self.munie_replay = Some(Arc::new(DurableReplay::new(state, thread, expected)));
+         self
+     }
+ 
++    pub(crate) async fn checkpoint_munie_replay(&self) -> std::io::Result<()> {
++        if let Some(replay) = &self.munie_replay {
++            replay.checkpoint_after_flush().await?;
++        }
++        Ok(())
++    }
++
++    #[cfg(test)]
++    pub(crate) async fn prepare_munie_replay_for_test(
++        &self,
++        destination: [u8; 32],
++    ) -> std::result::Result<(), TransportError> {
++        self.munie_replay
++            .as_ref()
++            .expect("test replay state")
++            .prepare(destination)
++            .await
++    }
++
+     pub(crate) fn with_session_context(
+         mut self,
+         prompt_cache_key_override: Option<String>,
+@@ -1028,7 +1067,9 @@
+     ///
+     /// WebSocket use is controlled by provider capability and session-scoped fallback state.
+     pub fn responses_websocket_enabled(&self) -> bool {
+-        if !self.state.provider.info().supports_websockets
++        // Munie's initial destination check applies to the HTTP request path only.
++        if codex_protocol::shell_environment::external_extensions_disabled_for_process()
++            || !self.state.provider.info().supports_websockets
+             || self.state.disable_websockets.load(Ordering::Relaxed)
+         {
+             return false;
+@@ -1042,6 +1083,25 @@
+     /// This centralizes setup used by both prewarm and normal request paths so they stay in
+     /// lockstep when auth/provider resolution changes.
+     async fn current_client_setup(&self, routing: ClientRouting) -> Result<CurrentClientSetup> {
++        if codex_protocol::shell_environment::external_extensions_disabled_for_process() {
++            let info = self.state.provider.info();
++            if self.munie_replay.is_none() {
++                return Err(CodexErr::Fatal(
++                    "Munie has no verified replay state for this conversation".to_string(),
++                ));
++            }
++            if !matches!(routing, ClientRouting::Workspace)
++                || crate::guardian::is_basic_session_source(&self.state.session_source)
++                || info.has_command_auth()
++                || info.gateway_oauth.is_some()
++                || info.aws.is_some()
++                || info.is_amazon_bedrock()
++            {
++                return Err(CodexErr::Fatal(
++                    "Munie has not verified this provider authentication or transport".to_string(),
++                ));
++            }
++        }
+         // Capture before resolving credentials so an account switch during setup cannot label
+         // an old connection with the new owner's revision.
+         let auth_owner_generation = self.auth_owner_generation();
+@@ -1185,9 +1245,13 @@
+         endpoint: &str,
+         redirect_policy: ClientRedirectPolicy,
+     ) -> Result<ReqwestTransport> {
+-        let redirect_policy = if api_provider
+-            .headers
+-            .contains_key(codex_model_provider::ACCOUNT_ROUTING_HEADER)
++        let restricted =
++            codex_protocol::shell_environment::external_extensions_disabled_for_process();
++        // Restricted stdio must never replay a model request at a redirected destination.
++        let redirect_policy = if restricted
++            || api_provider
++                .headers
++                .contains_key(codex_model_provider::ACCOUNT_ROUTING_HEADER)
+         {
+             ClientRedirectPolicy::Reject
+         } else {
+@@ -1695,6 +1759,25 @@
+                 "/responses",
+                 client_setup.redirect_policy,
+             )?;
++            let transport = ResponsesTransport::new(
++                transport,
++                codex_protocol::shell_environment::external_extensions_disabled_for_process()
++                    .then(|| Arc::clone(&self.client.state.munie_responses_destination)),
++                client_setup.auth_owner_generation,
++            )
++            .with_durable_replay(self.client.munie_replay.clone())
++            .with_routing_identity(
++                client_setup.api_provider.headers.keys().cloned().collect(),
++                self.client
++                    .uses_codex_backend(client_setup.auth.as_ref())
++                    .then(|| {
++                        client_setup
++                            .auth
++                            .as_ref()
++                            .and_then(CodexAuth::get_account_id)
++                    })
++                    .flatten(),
++            );
+             let request_auth_context = AuthRequestTelemetryContext::new(
+                 client_setup.auth.as_ref().map(CodexAuth::auth_mode),
+                 client_setup.api_auth.as_ref(),
+--- a/codex-rs/core/src/guardian/decision.rs
++++ b/codex-rs/core/src/guardian/decision.rs
+@@ -2,6 +2,8 @@
+ //! The synchronous service captures one action; no outcome is stored by tool-call ID.
+ 
+ use codex_async_utils::THREAD_STACK_SIZE_BYTES;
++use codex_protocol::config_types::ApprovalsReviewer;
++use codex_protocol::protocol::AskForApproval;
+ use codex_protocol::protocol::ReviewDecision;
+ use std::sync::Arc;
+ use tokio::sync::oneshot;
+@@ -14,6 +16,20 @@
+ use super::runtime::ReviewRuntime;
+ use crate::session::session::Session;
+ 
++fn restricted_review_required(
++    restricted: bool,
++    require_guardian: bool,
++    approval_policy: AskForApproval,
++    reviewer: ApprovalsReviewer,
++) -> bool {
++    restricted
++        && (require_guardian
++            || codex_guardian_reviewer::routes_approval_policy_to_guardian(
++                approval_policy,
++                reviewer,
++            ))
++}
++
+ pub(crate) fn spawn_approval_decision(
+     session: Arc<Session>,
+     context: impl Into<GuardianReviewContext>,
+@@ -67,8 +83,22 @@
+         || model_requires_review
+         || requirements
+             .approvals_reviewer
+-            .can_set(&codex_protocol::config_types::ApprovalsReviewer::User)
++            .can_set(&ApprovalsReviewer::User)
+             .is_err();
++    if restricted_review_required(
++        codex_protocol::shell_environment::external_extensions_disabled_for_process(),
++        require_guardian,
++        context.approval_policy,
++        context.approvals_reviewer,
++    ) {
++        if cancellation.is_cancelled() {
++            return Some(ReviewDecision::Abort);
++        }
++        // Returning None here would allow the user flow to bypass required review.
++        return Some(ReviewDecision::denied(
++            "Munie's restricted host cannot complete required Guardian review",
++        ));
++    }
+     let full_access = context.environments().has_full_access(
+         context.approval_policy,
+         &turn.config.permissions.effective_permission_profile(),
+@@ -131,3 +161,54 @@
+         decision
+     }
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn restricted_guardian_denial_respects_effective_approval_routing() {
++        for (restricted, required, policy, reviewer, denied) in [
++            (
++                false,
++                true,
++                AskForApproval::OnRequest,
++                ApprovalsReviewer::AutoReview,
++                false,
++            ),
++            (
++                true,
++                true,
++                AskForApproval::Never,
++                ApprovalsReviewer::User,
++                true,
++            ),
++            (
++                true,
++                false,
++                AskForApproval::OnRequest,
++                ApprovalsReviewer::AutoReview,
++                true,
++            ),
++            (
++                true,
++                false,
++                AskForApproval::OnRequest,
++                ApprovalsReviewer::User,
++                false,
++            ),
++            (
++                true,
++                false,
++                AskForApproval::Never,
++                ApprovalsReviewer::AutoReview,
++                false,
++            ),
++        ] {
++            assert_eq!(
++                restricted_review_required(restricted, required, policy, reviewer),
++                denied
++            );
++        }
++    }
++}
+--- a/codex-rs/core/src/lib.rs
++++ b/codex-rs/core/src/lib.rs
+@@ -112,6 +112,7 @@
+ mod mcp_openai_file;
+ mod mcp_tool_call;
+ pub(crate) mod mention_syntax;
++mod munie_replay_state;
+ pub(crate) mod utils;
+ pub use mention_syntax::PLUGIN_TEXT_MENTION_SIGIL;
+ pub use mention_syntax::TOOL_MENTION_SIGIL;
+--- /dev/null
++++ b/codex-rs/core/src/munie_replay_state.rs
+@@ -0,0 +1,187 @@
++//! Thread-scoped access to Munie's private replay state. Never store provider credentials here.
++
++use std::fmt;
++use std::io;
++use std::path::PathBuf;
++use std::sync::Arc;
++
++use codex_protocol::ThreadId;
++use hmac::Hmac;
++use hmac::Mac;
++use sha2::Sha256;
++
++#[derive(Clone)]
++pub(crate) struct ReplayState {
++    path: PathBuf,
++    key: Arc<[u8; 32]>,
++}
++
++impl fmt::Debug for ReplayState {
++    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
++        f.write_str("ReplayState(<private>)")
++    }
++}
++
++impl ReplayState {
++    pub(crate) async fn from_host(thread_id: ThreadId) -> Option<Self> {
++        if !codex_protocol::shell_environment::external_extensions_disabled_for_process() {
++            return None;
++        }
++        let root = PathBuf::from(std::env::var_os("MUNIE_HOST_STATE_DIR")?);
++        tokio::task::spawn_blocking(move || Self::open(root, thread_id))
++            .await
++            .ok()?
++            .ok()
++    }
++
++    pub(crate) fn location(&self) -> (&std::path::Path, &[u8; 32]) {
++        (&self.path, &self.key)
++    }
++
++    pub(crate) fn destination_tag(&self, fields: &[Option<&[u8]>]) -> [u8; 32] {
++        let mut hmac = Hmac::<Sha256>::new_from_slice(self.key.as_ref()).expect("fixed-size key");
++        hmac.update(b"munie/responses-destination/v1\0");
++        for field in fields {
++            if let Some(value) = field {
++                hmac.update(&[1]);
++                hmac.update(&(value.len() as u64).to_be_bytes());
++                hmac.update(value);
++            } else {
++                hmac.update(&[0]);
++            }
++        }
++        hmac.finalize().into_bytes().into()
++    }
++
++    #[cfg(unix)]
++    pub(crate) fn open(root: PathBuf, thread_id: ThreadId) -> io::Result<Self> {
++        use std::fs;
++        use std::io::Read;
++        use std::io::Write;
++        use std::os::unix::fs::DirBuilderExt;
++        use std::os::unix::fs::MetadataExt;
++        use std::os::unix::fs::OpenOptionsExt;
++
++        // The bridge supplies its canonical, already sandbox-denied private state directory.
++        let denied = || io::Error::new(io::ErrorKind::PermissionDenied, "invalid Munie state");
++        // SAFETY: geteuid takes no arguments and has no memory effects.
++        let uid = unsafe { libc::geteuid() };
++        let private = |name: &std::path::Path| -> io::Result<()> {
++            let meta = fs::symlink_metadata(name)?;
++            if !meta.is_dir() || meta.uid() != uid || meta.mode() & 0o077 != 0 {
++                return Err(denied());
++            }
++            Ok(())
++        };
++        if !root.is_absolute() || root.canonicalize()? != root {
++            return Err(denied());
++        }
++        private(&root)?;
++        let state = root.join("provider-replay-v1");
++        match fs::DirBuilder::new().mode(0o700).create(&state) {
++            Ok(()) => fs::File::open(&root)?.sync_all()?,
++            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
++            Err(error) => return Err(error),
++        }
++        private(&state)?;
++
++        let key_path = state.join("key");
++        let read_key = || {
++            let mut file = fs::OpenOptions::new()
++                .read(true)
++                .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
++                .open(&key_path)?;
++            let meta = file.metadata()?;
++            if !meta.is_file() || meta.uid() != uid || meta.mode() & 0o077 != 0 || meta.len() != 32
++            {
++                return Err(denied());
++            }
++            let mut key = [0; 32];
++            file.read_exact(&mut key)?;
++            if file.read(&mut [0])? != 0 {
++                return Err(denied());
++            }
++            Ok(key)
++        };
++        let key = match read_key() {
++            Ok(key) => key,
++            Err(error) if error.kind() == io::ErrorKind::NotFound => {
++                let key = rand::random::<[u8; 32]>();
++                let mut staged = tempfile::NamedTempFile::new_in(&state)?;
++                staged.write_all(&key)?;
++                staged.as_file().sync_all()?;
++                match staged.persist_noclobber(&key_path) {
++                    Ok(_) => fs::File::open(&state)?.sync_all()?,
++                    Err(error) if error.error.kind() == io::ErrorKind::AlreadyExists => {}
++                    Err(error) => return Err(error.error),
++                }
++                read_key()?
++            }
++            Err(error) => return Err(error),
++        };
++        Ok(Self {
++            path: state.join(format!("{thread_id}.json")),
++            key: Arc::new(key),
++        })
++    }
++
++    #[cfg(not(unix))]
++    pub(crate) fn open(_root: PathBuf, _thread_id: ThreadId) -> io::Result<Self> {
++        Err(io::Error::new(
++            io::ErrorKind::Unsupported,
++            "Munie replay state needs private Unix storage",
++        ))
++    }
++}
++
++#[cfg(all(test, unix))]
++mod tests {
++    use super::*;
++    use std::os::unix::fs::PermissionsExt;
++
++    fn private_root() -> io::Result<tempfile::TempDir> {
++        tempfile::Builder::new()
++            .permissions(std::fs::Permissions::from_mode(0o700))
++            .tempdir()
++    }
++
++    #[test]
++    fn private_state_reopens_with_stable_and_domain_separated_destination_tags() -> io::Result<()> {
++        let root = private_root()?;
++        let root = root.path().canonicalize()?;
++        let id = ThreadId::new();
++        let authority = ReplayState::open(root.clone(), id)?;
++        let reopened = ReplayState::open(root.clone(), id)?;
++        let hashes =
++            |state: &ReplayState| state.destination_tag(&[Some(b"endpoint"), Some(b"account")]);
++        assert_eq!(hashes(&authority), hashes(&reopened));
++        assert_ne!(
++            hashes(&authority),
++            reopened.destination_tag(&[Some(b"endpoint"), None])
++        );
++        assert_ne!(
++            hashes(&authority),
++            reopened.destination_tag(&[Some(b"endpointaccount"), Some(b"")])
++        );
++        assert_ne!(
++            authority.location().0,
++            ReplayState::open(root, ThreadId::new())?.location().0
++        );
++        Ok(())
++    }
++
++    #[test]
++    fn private_state_never_follows_or_replaces_a_key_link() -> io::Result<()> {
++        let root = private_root()?;
++        let root = root.path().canonicalize()?;
++        let id = ThreadId::new();
++        let state = ReplayState::open(root.clone(), id)?;
++        let key = state.path.with_file_name("key");
++        let other = key.with_file_name("other");
++        std::fs::rename(&key, &other)?;
++        std::os::unix::fs::symlink(&other, &key)?;
++        assert!(ReplayState::open(root, id).is_err());
++        assert!(key.symlink_metadata()?.file_type().is_symlink());
++        Ok(())
++    }
++}
+--- /dev/null
++++ b/codex-rs/core/src/munie_responses_destination.rs
+@@ -0,0 +1,557 @@
++use std::fmt;
++use std::sync::Arc;
++use std::sync::OnceLock;
++
++use codex_http_client::HttpTransport;
++use codex_http_client::Request;
++use codex_http_client::Response;
++use codex_http_client::StreamResponse;
++use codex_http_client::TransportError;
++use http::HeaderMap;
++use http::HeaderName;
++use http::HeaderValue;
++use url::Url;
++
++use crate::munie_replay_state::ReplayState;
++use codex_thread_store::LiveThread;
++
++// Do not print provider URLs (query fields can contain credentials) or routing metadata.
++#[derive(PartialEq, Eq)]
++pub(super) struct ResponsesDestination {
++    url: Url,
++    account_route: Option<HeaderValue>,
++    account_id: Option<HeaderValue>,
++    auth_owner_generation: Option<u64>,
++}
++
++impl fmt::Debug for ResponsesDestination {
++    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
++        f.write_str("ResponsesDestination(<redacted>)")
++    }
++}
++
++impl ResponsesDestination {
++    pub(super) fn new(
++        request_url: &str,
++        headers: &HeaderMap,
++        auth_owner_generation: Option<u64>,
++    ) -> Option<Self> {
++        let url = Url::parse(request_url).ok()?;
++        if url.scheme() != "https"
++            || url.host().is_none()
++            || !url.username().is_empty()
++            || url.password().is_some()
++            || url.fragment().is_some()
++            || headers.contains_key(http::header::HOST)
++        {
++            return None;
++        }
++        let routing_header = |name: &str| {
++            let values = headers.get_all(name);
++            let mut values = values.iter();
++            let value = values.next().cloned();
++            values.next().is_none().then_some(value)
++        };
++        Some(Self {
++            url,
++            account_route: routing_header(codex_model_provider::ACCOUNT_ROUTING_HEADER)?,
++            account_id: routing_header("chatgpt-account-id")?,
++            auth_owner_generation,
++        })
++    }
++
++    pub(super) fn bind_or_match(self, binding: &OnceLock<Self>) -> bool {
++        if let Some(existing) = binding.get() {
++            return existing == &self;
++        }
++        // set may race with another attempt. Compare the winner instead of rebinding.
++        match binding.set(self) {
++            Ok(()) => true,
++            Err(candidate) => binding.get() == Some(&candidate),
++        }
++    }
++
++    fn durable_tag(
++        &self,
++        state: &ReplayState,
++        headers: &HeaderMap,
++        configured_headers: &[HeaderName],
++        official_account: Option<&str>,
++    ) -> [u8; 32] {
++        let mut fields = vec![
++            Some(self.url.as_str().as_bytes()),
++            self.account_route.as_ref().map(HeaderValue::as_bytes),
++            self.account_id.as_ref().map(HeaderValue::as_bytes),
++        ];
++        let stable_official_owner = official_account.is_some_and(|account| {
++            self.url
++                .host_str()
++                .is_some_and(codex_http_client::is_allowed_chatgpt_host)
++                && self.account_id.as_ref().map(HeaderValue::as_bytes) == Some(account.as_bytes())
++        });
++        let mut names = configured_headers.to_vec();
++        names.extend([
++            HeaderName::from_static("openai-organization"),
++            HeaderName::from_static("openai-project"),
++            HeaderName::from_static("x-api-key"),
++            HeaderName::from_static("api-key"),
++        ]);
++        if !stable_official_owner {
++            names.push(http::header::AUTHORIZATION);
++        }
++        names.sort_unstable_by(|a, b| a.as_str().cmp(b.as_str()));
++        names.dedup();
++        for name in &names {
++            fields.push(None);
++            fields.push(Some(name.as_str().as_bytes()));
++            fields.extend(
++                headers
++                    .get_all(name)
++                    .iter()
++                    .map(|value| Some(value.as_bytes())),
++            );
++        }
++        state.destination_tag(&fields)
++    }
++}
++
++pub(super) struct DurableReplay {
++    state: ReplayState,
++    thread: LiveThread,
++    expected: Option<[u8; 32]>,
++    prepared: tokio::sync::OnceCell<[u8; 32]>,
++}
++
++impl fmt::Debug for DurableReplay {
++    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
++        f.write_str("DurableReplay(<private>)")
++    }
++}
++
++impl DurableReplay {
++    pub(super) fn new(state: ReplayState, thread: LiveThread, expected: Option<[u8; 32]>) -> Self {
++        Self {
++            state,
++            thread,
++            expected,
++            prepared: tokio::sync::OnceCell::new(),
++        }
++    }
++
++    pub(super) async fn prepare(&self, destination: [u8; 32]) -> Result<(), TransportError> {
++        if self
++            .expected
++            .is_some_and(|expected| expected != destination)
++        {
++            return Err(TransportError::Build(
++                "Munie's Responses destination changed".into(),
++            ));
++        }
++        let bound = self
++            .prepared
++            .get_or_try_init(|| async {
++                self.checkpoint(destination).await?;
++                Ok::<_, std::io::Error>(destination)
++            })
++            .await
++            .map_err(|_| {
++                TransportError::Build("Munie could not persist the Responses destination".into())
++            })?;
++        if *bound != destination {
++            return Err(TransportError::Build(
++                "Munie's Responses destination changed".into(),
++            ));
++        }
++        Ok(())
++    }
++
++    async fn checkpoint(&self, destination: [u8; 32]) -> std::io::Result<()> {
++        let (path, key) = self.state.location();
++        if !self
++            .thread
++            .checkpoint_binding(path.to_path_buf(), *key, destination)
++            .await
++            .map_err(std::io::Error::other)?
++        {
++            return Err(std::io::Error::other("Munie rollout cannot be bound"));
++        }
++        Ok(())
++    }
++
++    pub(super) async fn checkpoint_after_flush(&self) -> std::io::Result<()> {
++        if let Some(destination) = self.prepared.get().copied() {
++            self.checkpoint(destination).await?;
++        }
++        Ok(())
++    }
++}
++
++pub(super) struct ResponsesTransport<T> {
++    inner: T,
++    binding: Option<Arc<OnceLock<ResponsesDestination>>>,
++    auth_owner_generation: Option<u64>,
++    durable: Option<Arc<DurableReplay>>,
++    configured_headers: Vec<HeaderName>,
++    official_account: Option<String>,
++}
++
++impl<T: HttpTransport> ResponsesTransport<T> {
++    pub(super) fn new(
++        inner: T,
++        binding: Option<Arc<OnceLock<ResponsesDestination>>>,
++        auth_owner_generation: Option<u64>,
++    ) -> Self {
++        Self {
++            inner,
++            binding,
++            auth_owner_generation,
++            durable: None,
++            configured_headers: Vec::new(),
++            official_account: None,
++        }
++    }
++
++    pub(super) fn with_durable_replay(mut self, replay: Option<Arc<DurableReplay>>) -> Self {
++        self.durable = replay;
++        self
++    }
++
++    pub(super) fn with_routing_identity(
++        mut self,
++        configured_headers: Vec<HeaderName>,
++        official_account: Option<String>,
++    ) -> Self {
++        self.configured_headers = configured_headers;
++        self.official_account = official_account;
++        self
++    }
++
++    async fn verify(&self, request: &Request) -> Result<(), TransportError> {
++        let Some(binding) = &self.binding else {
++            return Ok(());
++        };
++        let Some(destination) =
++            ResponsesDestination::new(&request.url, &request.headers, self.auth_owner_generation)
++        else {
++            return Err(TransportError::Build(
++                "Munie cannot verify the Responses destination".into(),
++            ));
++        };
++        let tag = self.durable.as_ref().map(|replay| {
++            destination.durable_tag(
++                &replay.state,
++                &request.headers,
++                &self.configured_headers,
++                self.official_account.as_deref(),
++            )
++        });
++        if let (Some(replay), Some(tag)) = (&self.durable, tag)
++            && replay.expected.is_some_and(|expected| expected != tag)
++        {
++            return Err(TransportError::Build(
++                "Munie's Responses destination changed".into(),
++            ));
++        }
++        if !destination.bind_or_match(binding) {
++            return Err(TransportError::Build(
++                "Munie's Responses destination changed".into(),
++            ));
++        }
++        if let (Some(replay), Some(tag)) = (&self.durable, tag) {
++            replay.prepare(tag).await?;
++        }
++        Ok(())
++    }
++}
++
++impl<T: HttpTransport> HttpTransport for ResponsesTransport<T> {
++    async fn execute(&self, request: Request) -> Result<Response, TransportError> {
++        self.verify(&request).await?;
++        self.inner.execute(request).await
++    }
++
++    async fn stream(&self, request: Request) -> Result<StreamResponse, TransportError> {
++        self.verify(&request).await?;
++        self.inner.stream(request).await
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use futures::FutureExt;
++    use std::sync::atomic::AtomicUsize;
++    use std::sync::atomic::Ordering;
++
++    #[test]
++    fn preserves_the_first_route_and_auth_owner() {
++        let headers = HeaderMap::new();
++        let bound = OnceLock::new();
++        let url = "https://provider.invalid/v1/responses?deployment=one";
++        let check = |url, owner| {
++            ResponsesDestination::new(url, &headers, owner)
++                .expect("valid destination")
++                .bind_or_match(&bound)
++        };
++
++        assert!(check(url, Some(1)));
++        assert!(check(url, Some(1)));
++        assert!(!check(url, Some(2)));
++        assert!(!check(
++            "https://other.invalid/v1/responses?deployment=one",
++            Some(1)
++        ));
++        assert!(!check(
++            "https://provider.invalid/v1/responses?deployment=two",
++            Some(1)
++        ));
++        assert!(check(url, Some(1)));
++    }
++
++    #[test]
++    fn requires_tls_and_an_unambiguous_authority() {
++        let mut headers = HeaderMap::new();
++        let url = "https://provider.invalid/v1/responses";
++        assert!(ResponsesDestination::new(url, &headers, None).is_some());
++        for url in [
++            "http://provider.invalid/v1/responses",
++            "http://localhost/v1/responses",
++            "http://127.0.0.1:8080/v1/responses",
++            "https://user@provider.invalid/v1/responses",
++            "https://provider.invalid/v1/responses#fragment",
++        ] {
++            assert!(ResponsesDestination::new(url, &headers, None).is_none());
++        }
++        headers.append("chatgpt-account-id", HeaderValue::from_static("first"));
++        assert!(ResponsesDestination::new(url, &headers, None).is_some());
++        headers.append("chatgpt-account-id", HeaderValue::from_static("second"));
++        assert!(ResponsesDestination::new(url, &headers, None).is_none());
++        headers.remove("chatgpt-account-id");
++        headers.insert(
++            http::header::HOST,
++            HeaderValue::from_static("other.invalid"),
++        );
++        assert!(
++            ResponsesDestination::new("https://provider.invalid/v1/responses", &headers, None)
++                .is_none()
++        );
++    }
++
++    #[derive(Default)]
++    struct CountingTransport(AtomicUsize);
++
++    impl HttpTransport for CountingTransport {
++        async fn execute(&self, _request: Request) -> Result<Response, TransportError> {
++            self.0.fetch_add(1, Ordering::Relaxed);
++            Err(TransportError::Build("inner test transport".into()))
++        }
++
++        async fn stream(&self, _request: Request) -> Result<StreamResponse, TransportError> {
++            self.0.fetch_add(1, Ordering::Relaxed);
++            Err(TransportError::Build("inner test transport".into()))
++        }
++    }
++
++    #[test]
++    fn refuses_to_delegate_later_attempts_for_a_different_destination() {
++        let binding = Arc::new(OnceLock::new());
++        let transport =
++            ResponsesTransport::new(CountingTransport::default(), Some(binding), Some(1));
++        let request = |url: &str, account: &'static str| {
++            let mut request = Request {
++                method: http::Method::POST,
++                url: url.into(),
++                headers: HeaderMap::new(),
++                body: None,
++                compression: codex_http_client::RequestCompression::None,
++                timeout: None,
++                response_body_limit_bytes: None,
++            };
++            request
++                .headers
++                .insert("chatgpt-account-id", HeaderValue::from_static(account));
++            request
++        };
++        let same = "https://provider.invalid/v1/responses";
++        let other = "https://other.invalid/v1/responses";
++
++        for (url, account, expected) in [
++            (same, "account-one", "inner test transport"),
++            (
++                other,
++                "account-one",
++                "Munie's Responses destination changed",
++            ),
++            (same, "account-two", "Munie's Responses destination changed"),
++            (same, "account-one", "inner test transport"),
++        ] {
++            let result = transport.stream(request(url, account)).now_or_never();
++            assert!(
++                matches!(result, Some(Err(TransportError::Build(message))) if message == expected)
++            );
++        }
++        assert_eq!(transport.inner.0.load(Ordering::Relaxed), 2);
++    }
++
++    #[cfg(unix)]
++    #[tokio::test]
++    async fn restricted_cold_resume_checks_persisted_route_before_transport() -> anyhow::Result<()>
++    {
++        use codex_protocol::ThreadId;
++        use codex_protocol::protocol::SessionSource;
++        use codex_protocol::protocol::ThreadHistoryMode;
++        use codex_thread_store::CreateThreadParams;
++        use codex_thread_store::LocalThreadStore;
++        use codex_thread_store::LocalThreadStoreConfig;
++        use codex_thread_store::ResumeThreadParams;
++        use codex_thread_store::ThreadPersistenceMetadata;
++        use codex_utils_absolute_path::AbsolutePathBuf;
++        use std::os::unix::fs::PermissionsExt;
++
++        const CHILD: &str = "MUNIE_DURABLE_GATE_TEST_CHILD";
++        if std::env::var_os(CHILD).is_none() {
++            let outcome = std::process::Command::new(std::env::current_exe()?)
++                .env(CHILD, "1")
++                .args([
++                    "--exact",
++                    "client::munie_responses_destination::tests::restricted_cold_resume_checks_persisted_route_before_transport",
++                ])
++                .output()?;
++            assert!(
++                outcome.status.success(),
++                "{}",
++                String::from_utf8_lossy(&outcome.stdout)
++            );
++            assert!(String::from_utf8_lossy(&outcome.stdout).contains("1 passed"));
++            return Ok(());
++        }
++        codex_protocol::shell_environment::disable_external_extensions_for_process();
++        let home = tempfile::tempdir()?;
++        let state_dir = tempfile::Builder::new()
++            .permissions(std::fs::Permissions::from_mode(0o700))
++            .tempdir()?;
++        let home = home.path().canonicalize()?;
++        let state_dir = state_dir.path().canonicalize()?;
++        let create_store = || {
++            let path = AbsolutePathBuf::try_from(home.clone()).expect("absolute temp home");
++            Arc::new(LocalThreadStore::new(
++                LocalThreadStoreConfig {
++                    codex_home: home.clone(),
++                    sqlite: codex_state::SqliteConfig::new_for_testing(path),
++                    default_model_provider_id: "fixture".into(),
++                },
++                None,
++            ))
++        };
++        let id = ThreadId::new();
++        let history_mode = ThreadHistoryMode::Legacy;
++        let metadata = ThreadPersistenceMetadata {
++            cwd: Some(home.clone()),
++            model_provider: "fixture".into(),
++            memory_mode: codex_protocol::protocol::ThreadMemoryMode::Disabled,
++        };
++        let thread = LiveThread::create(
++            create_store(),
++            CreateThreadParams {
++                creator_user_id: None,
++                creator_account_id: None,
++                session_id: id.into(),
++                thread_id: id,
++                extra_config: None,
++                forked_from_id: None,
++                parent_thread_id: None,
++                source: SessionSource::Exec,
++                thread_source: None,
++                originator: "fixture".into(),
++                base_instructions: Default::default(),
++                dynamic_tools: Vec::new(),
++                selected_capability_roots: Vec::new(),
++                multi_agent_version: None,
++                history_mode,
++                history_base: None,
++                subagent_history_start_ordinal: None,
++                initial_window_id: uuid::Uuid::now_v7().to_string(),
++                runtime_workspace_roots: None,
++                metadata: metadata.clone(),
++            },
++        )
++        .await?;
++        let same = "https://provider.invalid/v1/responses";
++        let request = |url: &str, tenant: &'static str, key: &'static str| Request {
++            method: http::Method::POST,
++            url: url.into(),
++            headers: HeaderMap::from_iter([
++                (
++                    HeaderName::from_static("x-fixture-tenant"),
++                    HeaderValue::from_static(tenant),
++                ),
++                (http::header::AUTHORIZATION, HeaderValue::from_static(key)),
++            ]),
++            body: None,
++            compression: codex_http_client::RequestCompression::None,
++            timeout: None,
++            response_body_limit_bytes: None,
++        };
++        let wrap = |replay, generation| {
++            ResponsesTransport::new(
++                CountingTransport::default(),
++                Some(Arc::new(OnceLock::new())),
++                Some(generation),
++            )
++            .with_durable_replay(Some(Arc::new(replay)))
++            .with_routing_identity(vec![HeaderName::from_static("x-fixture-tenant")], None)
++        };
++        let enrolled = wrap(
++            DurableReplay::new(
++                ReplayState::open(state_dir.clone(), id)?,
++                thread.clone(),
++                None,
++            ),
++            1,
++        );
++        assert!(
++            matches!(enrolled.stream(request(same, "one", "key-one")).await, Err(TransportError::Build(message)) if message == "inner test transport")
++        );
++        assert_eq!(enrolled.inner.0.load(Ordering::Relaxed), 1);
++        thread.shutdown().await?;
++        drop(enrolled);
++        drop(thread);
++
++        let state = ReplayState::open(state_dir, id)?;
++        let (thread, history, expected) = LiveThread::resume_with_binding(
++            create_store(),
++            history_mode,
++            ResumeThreadParams {
++                thread_id: id,
++                history_revision: None,
++                rollout_path: None,
++                history: None,
++                include_archived: false,
++                metadata,
++            },
++            Some(state.location()),
++        )
++        .await?;
++        assert!(expected.is_some());
++        assert!(!history.is_empty());
++        // A new process has its own auth generation. The durable identity is unaffected.
++        let resumed = wrap(DurableReplay::new(state, thread.clone(), expected), 54);
++        for (url, tenant, key) in [
++            ("https://other.invalid/v1/responses", "one", "key-one"),
++            (same, "two", "key-one"),
++            (same, "one", "key-two"),
++        ] {
++            assert!(matches!(
++                resumed.stream(request(url, tenant, key)).await,
++                Err(TransportError::Build(message)) if message == "Munie's Responses destination changed"
++            ));
++        }
++        assert_eq!(resumed.inner.0.load(Ordering::Relaxed), 0);
++        assert!(
++            matches!(resumed.stream(request(same, "one", "key-one")).await, Err(TransportError::Build(message)) if message == "inner test transport")
++        );
++        assert_eq!(resumed.inner.0.load(Ordering::Relaxed), 1);
++        thread.shutdown().await?;
++        Ok(())
++    }
++}
+--- a/codex-rs/core/src/session/handlers.rs
++++ b/codex-rs/core/src/session/handlers.rs
+@@ -333,6 +333,19 @@
+ 
+     crate::hook_runtime::run_session_end_hooks(sess).await;
+     emit_thread_stop_lifecycle(sess).await;
++    if Session::uses_munie_terminal_barrier()
++        && let Err(err) = sess.flush_rollout().await
++    {
++        sess.services.local_agent_runtime.record_shutdown_failure(
++            AgentTreeShutdownFailure::operation_failed(
++                "session_shutdown",
++                "checkpoint_replay",
++                Some(sess.thread_id),
++                "replay_checkpoint_error",
++            ),
++        );
++        warn!("failed to checkpoint Munie history at shutdown: {err}");
++    }
+ }
+ 
+ async fn emit_thread_stop_lifecycle(sess: &Session) {
+--- a/codex-rs/core/src/session/mod.rs
++++ b/codex-rs/core/src/session/mod.rs
+@@ -1461,7 +1461,8 @@
+     #[instrument(name = "session.flush_rollout", level = "trace", skip_all)]
+     pub(crate) async fn flush_rollout(&self) -> std::io::Result<()> {
+         if let Some(live_thread) = self.live_thread() {
+-            live_thread.flush().await.map_err(std::io::Error::other)
++            live_thread.flush().await.map_err(std::io::Error::other)?;
++            self.services.model_client.checkpoint_munie_replay().await
+         } else {
+             Ok(())
+         }
+@@ -2503,7 +2504,14 @@
+     }
+ 
+     async fn send_event_raw_with_persistence(&self, event: Event, persist: bool) {
++        let flush_munie_terminal = persist
++            && Self::uses_munie_terminal_barrier()
++            && matches!(
++                event.msg,
++                EventMsg::TurnComplete(_) | EventMsg::TurnAborted(_)
++            );
+         let flush_guardian_completion = persist
++            && !flush_munie_terminal
+             && matches!(event.msg, EventMsg::TurnComplete(_))
+             && self.is_private_guardian_reviewer().await;
+         // Keep realtime reduction, canonical append, and delivery in the same order.
+@@ -2533,10 +2541,12 @@
+             warn!("failed to persist realtime history: {error}");
+         }
+         // Persist the event into rollout storage; the store applies its persistence policy.
+-        if persist {
++        let persisted = if persist {
+             let rollout_items = vec![RolloutItem::EventMsg(event.msg.clone())];
+-            self.persist_rollout_items(&rollout_items).await;
+-        }
++            self.persist_rollout_items(&rollout_items).await
++        } else {
++            true
++        };
+         self.services
+             .rollout_thread_trace
+             .record_protocol_event(&event.msg);
+@@ -2550,9 +2560,30 @@
+         if flush_guardian_completion && let Err(err) = self.flush_rollout().await {
+             warn!("failed to flush completed Guardian review: {err}");
+         }
++        if flush_munie_terminal {
++            let result = if persisted {
++                self.flush_rollout().await
++            } else {
++                Err(std::io::Error::other("terminal event append failed"))
++            };
++            if let Err(err) = result {
++                warn!("failed to checkpoint terminal turn: {err}");
++                // Keep the actual execution outcome visible without implying verified recovery.
++                self.deliver_event_raw(Event {
++                    id: event.id.clone(),
++                    msg: EventMsg::Warning(codex_protocol::protocol::WarningEvent {
++                        message: "Munie could not verify recovery for this turn. Check the saved history before retrying.".into(),
++                    }),
++                }).await;
++            }
++        }
+         self.deliver_event_raw(event).await;
+     }
+ 
++    pub(crate) fn uses_munie_terminal_barrier() -> bool {
++        codex_protocol::shell_environment::external_extensions_disabled_for_process()
++    }
++
+     async fn deliver_event_raw(&self, event: Event) {
+         // Record the last known agent status.
+         if let Some(status) = agent_status_from_event(&event.msg) {
+--- a/codex-rs/core/src/session/session.rs
++++ b/codex-rs/core/src/session/session.rs
+@@ -1012,6 +1012,14 @@
+             thread_extension_init,
+         );
+         thread_extension_data.insert(crate::context::GuardianReviewEvidence::default());
++        let munie_replay_state = if config.ephemeral
++            || session_configuration.parent_thread_id.is_some()
++            || session_configuration.session_source.is_non_root_agent()
++        {
++            None
++        } else {
++            crate::munie_replay_state::ReplayState::from_host(thread_id).await
++        };
+         // Kick off independent async setup tasks in parallel to reduce startup latency.
+         //
+         // - initialize thread persistence with new or resumed session info
+@@ -1111,12 +1119,19 @@
+                         let store = Arc::clone(&thread_store);
+                         let history_mode = session_configuration.history_mode;
+                         let (context_tx, context_rx) = tokio::sync::oneshot::channel();
++                        let replay_state = munie_replay_state.clone();
+                         let live_thread = guard
+                             .acquire(async move {
+-                                let (live_thread, history) =
+-                                    LiveThread::resume(store, history_mode, params).await?;
++                                let (live_thread, history, destination) =
++                                    LiveThread::resume_with_binding(
++                                        store,
++                                        history_mode,
++                                        params,
++                                        replay_state.as_ref().map(|state| state.location()),
++                                    )
++                                    .await?;
+                                 // Cancellation still leaves the writer with the acquisition guard.
+-                                let _ = context_tx.send(history);
++                                let _ = context_tx.send((history, destination));
+                                 Ok(live_thread)
+                             })
+                             .await?;
+@@ -1212,11 +1227,13 @@
+                 e
+             })?;
+         let session_result: anyhow::Result<Arc<Self>> = async {
++            let mut munie_expected_destination = None;
+             if let InitialHistory::Resumed(resumed) = &mut initial_history
+-                && let Some(history) = resume_context
++                && let Some((history, destination)) = resume_context
+             {
+                 resumed.history = history;
+                 resumed.history_revision = None;
++                munie_expected_destination = destination;
+             }
+             let rollout_path = if let Some(live_thread) = live_thread.as_ref() {
+                 live_thread.local_rollout_path().await?
+@@ -1760,7 +1777,8 @@
+                 thread_store: Arc::clone(&thread_store),
+                 attestation_provider: attestation_provider.clone(),
+                 time_provider,
+-                model_client: ModelClient::new(
++                model_client: {
++                    let client = ModelClient::new(
+                     Some(Arc::clone(&auth_manager)),
+                     if config.features.enabled(Feature::UseAgentIdentity) {
+                         AgentIdentityAuthPolicy::ChatGptAuth
+@@ -1799,7 +1817,16 @@
+                     tx_event.clone(),
+                     codex_responses_headers,
+                     crate::cyber_access_program::ApiKeyCyberAccessPrograms::from_config(&config),
+-                ),
++                );
++                    if let (Some(replay), Some(thread)) =
++                        (munie_replay_state, live_thread.clone())
++                        && (matches!(&initial_history, InitialHistory::New) || munie_expected_destination.is_some())
++                    {
++                        client.with_munie_replay(replay, thread, munie_expected_destination)
++                    } else {
++                        client
++                    }
++                },
+                 executed_tool_calls: executed_tool_calls.clone(),
+                 code_mode_service: crate::tools::code_mode::CodeModeService::new(
+                     thread_id,
+--- a/codex-rs/core/src/session/tests.rs
++++ b/codex-rs/core/src/session/tests.rs
+@@ -12301,6 +12301,116 @@
+         panic!("extension should interrupt the turn; observed events: {observed:?}")
+     });
+     assert_eq!(aborted.reason, TurnAbortReason::Interrupted);
++}
++
++#[tokio::test]
++async fn restricted_terminal_notification_crosses_the_writer_barrier() {
++    const CHILD: &str = "MUNIE_TERMINAL_BARRIER_TEST_CHILD";
++    if std::env::var_os(CHILD).is_none() {
++        let outcome = std::process::Command::new(std::env::current_exe().expect("test binary"))
++            .env(CHILD, "1")
++            .args([
++                "--exact",
++                "session::tests::restricted_terminal_notification_crosses_the_writer_barrier",
++            ])
++            .output()
++            .expect("run isolated policy test");
++        assert!(
++            outcome.status.success()
++                && String::from_utf8_lossy(&outcome.stdout).contains("1 passed"),
++            "{}",
++            String::from_utf8_lossy(&outcome.stdout)
++        );
++        return;
++    }
++    codex_protocol::shell_environment::disable_external_extensions_for_process();
++    let (mut sess, tc, rx) = make_session_and_context_with_rx().await;
++    let store = attach_in_memory_thread_store(
++        Arc::get_mut(&mut sess).expect("session should be uniquely owned"),
++    )
++    .await;
++    sess.send_event_raw(Event {
++        id: tc.sub_id.clone(),
++        msg: EventMsg::TurnAborted(TurnAbortedEvent {
++            root_turn_id: Some(tc.root_turn_id()),
++            turn_id: Some(tc.sub_id.clone()),
++            reason: TurnAbortReason::Interrupted,
++            error: None,
++            started_at: None,
++            completed_at: None,
++            duration_ms: None,
++        }),
++    })
++    .await;
++    recv_terminal_event(&rx, TerminalEventKind::TurnAborted).await;
++    assert_eq!(
++        store.calls().await.flush_thread,
++        1,
++        "Stop was visible without the writer barrier"
++    );
++
++    #[cfg(unix)]
++    {
++        use std::os::unix::fs::PermissionsExt;
++
++        let (mut sess, tc, rx) = make_session_and_context_with_rx().await;
++        let session = Arc::get_mut(&mut sess).expect("unique session");
++        let rollout = open_thread_persistence(session).await;
++        let root = tempfile::Builder::new()
++            .permissions(std::fs::Permissions::from_mode(0o700))
++            .tempdir()
++            .expect("private replay directory");
++        let state = crate::munie_replay_state::ReplayState::open(
++            root.path().canonicalize().expect("canonical root"),
++            session.thread_id,
++        )
++        .expect("replay state");
++        let (path, key) = state.location();
++        let (path, key) = (path.to_path_buf(), *key);
++        let destination = [41; 32];
++        session.services.model_client = session.services.model_client.clone().with_munie_replay(
++            state,
++            session.live_thread().expect("local writer").clone(),
++            None,
++        );
++        session
++            .services
++            .model_client
++            .prepare_munie_replay_for_test(destination)
++            .await
++            .expect("initialize fixture binding before simulated turn");
++
++        sess.send_event_raw(Event {
++            id: tc.sub_id.clone(),
++            msg: EventMsg::TurnAborted(TurnAbortedEvent {
++                root_turn_id: Some(tc.root_turn_id()),
++                turn_id: Some(tc.sub_id.clone()),
++                reason: TurnAbortReason::Interrupted,
++                error: None,
++                started_at: None,
++                completed_at: None,
++                duration_ms: None,
++            }),
++        })
++        .await;
++        recv_terminal_event(&rx, TerminalEventKind::TurnAborted).await;
++        let replay = codex_rollout::read_bound_replay(rollout, path, sess.thread_id, key)
++            .await
++            .expect("read replay")
++            .expect("Stop notification requires a matching on-disk checkpoint");
++        assert_eq!(replay.destination, destination);
++        assert_eq!(
++            replay
++                .items
++                .iter()
++                .filter(|item| {
++                    matches!(item, RolloutItem::EventMsg(EventMsg::TurnAborted(aborted))
++                if aborted.turn_id.as_deref() == Some(tc.sub_id.as_str()))
++                })
++                .count(),
++            1
++        );
++    }
+ }
+ 
+ #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+--- a/codex-rs/core/src/session/turn.rs
++++ b/codex-rs/core/src/session/turn.rs
+@@ -68,12 +68,14 @@
+ use codex_analytics::TurnResolvedConfigFact;
+ use codex_analytics::build_track_events_context;
+ use codex_async_utils::OrCancelExt;
++use codex_config::GuardianPolicyLoader;
+ use codex_connectors::AppToolPolicyEvaluator;
+ use codex_core_plugins::RecommendedPluginCandidatesInput;
+ use codex_extension_api::ExtensionData;
+ use codex_extension_api::TurnInputContext;
+ use codex_extension_api::TurnInputEnvironment;
+ use codex_features::Feature;
++use codex_features::FeatureToml;
+ use codex_file_system::FindUpErrorPolicy;
+ use codex_file_system::find_nearest_ancestor_with_markers;
+ use codex_login::CodexAuth;
+@@ -835,6 +837,56 @@
+     }
+ 
+     Ok(last_agent_message)
++}
++
++/// Restricted Munie cannot run the independent Guardian scoring transports. The
++/// admitted plan and live administrator constraints must both permit proceeding.
++pub(crate) async fn enforce_munie_guardian_scoring(
++    session: &Session,
++    turn: &TurnContext,
++    model: &ModelInfo,
++) -> CodexResult<()> {
++    if !codex_protocol::shell_environment::external_extensions_disabled_for_process() {
++        return Ok(());
++    }
++    check_guardian_scoring_available(&turn.config, model, /*restricted*/ true)?;
++    let live_config = session.get_config().await;
++    if !std::ptr::eq(turn.config.as_ref(), live_config.as_ref()) {
++        check_guardian_scoring_available(&live_config, model, /*restricted*/ true)?;
++    }
++    Ok(())
++}
++
++fn check_guardian_scoring_available(
++    config: &crate::config::Config,
++    model: &ModelInfo,
++    restricted: bool,
++) -> CodexResult<()> {
++    if !restricted || !config.features.enabled(Feature::GuardianApproval) {
++        return Ok(());
++    }
++    let layers = &config.config_layer_stack;
++    let mut legacy =
++        GuardianPolicyLoader::legacy_config(&layers.effective_config()).map_err(|_| {
++            CodexErr::Fatal(
++                "Munie cannot verify the Guardian scoring policy for this turn".to_string(),
++            )
++        })?;
++    legacy.enabled = Some(config.features.enabled(Feature::GuardianV2));
++    let requirements = layers.requirements();
++    let policy = GuardianPolicyLoader::new(Some(&FeatureToml::Config(legacy)), requirements)
++        .resolve_effective(Some(model), requirements);
++    // GuardianModelPolicy::scoring_enabled checks approval scopes, but tools
++    // without a scope can also be adaptive.
++    if policy.scoring_enabled()
++        || policy.other_tools == codex_protocol::openai_models::GuardianReviewMode::Adaptive
++    {
++        return Err(CodexErr::Fatal(
++            "Munie cannot run this turn because its Guardian scoring policy is unavailable"
++                .to_string(),
++        ));
++    }
++    Ok(())
+ }
+ 
+ #[instrument(level = "trace", skip_all)]
+@@ -1440,6 +1492,13 @@
+     phase: CompactionPhase,
+ ) -> CodexResult<()> {
+     let turn_context = &step_context.turn;
++    enforce_munie_guardian_scoring(sess, turn_context, &step_context.settings.model_info).await?;
++    enforce_munie_guardian_scoring(
++        sess,
++        &replacement_step_context.turn,
++        &replacement_step_context.settings.model_info,
++    )
++    .await?;
+     if matches!(phase, CompactionPhase::PreTurn)
+         && crate::guardian::is_basic_session_source(&turn_context.session_source)
+         && !crate::guardian::should_compact_guardian_input(sess)?
+@@ -1610,6 +1669,7 @@
+     cancellation_token: CancellationToken,
+ ) -> CodexResult<(SamplingRequestResult, Vec<ResponseItem>)> {
+     let turn_context = Arc::clone(&step_context.turn);
++    enforce_munie_guardian_scoring(&sess, &turn_context, &step_context.settings.model_info).await?;
+     let preempt = step_context.preempt.clone().unwrap_or_default();
+     let _input_watch = if let Some(preempt) = &step_context.preempt {
+         sess.input_queue
+--- a/codex-rs/core/src/session/turn_tests.rs
++++ b/codex-rs/core/src/session/turn_tests.rs
+@@ -39,6 +39,109 @@
+     }
+ }
+ 
++#[tokio::test]
++async fn restricted_guardian_scoring_refuses_effectively_adaptive_models() {
++    use codex_protocol::openai_models::GuardianModelPolicy;
++    use codex_protocol::openai_models::GuardianReviewMode;
++
++    let (_, turn) = crate::session::tests::make_session_and_context().await;
++    let mut config = turn.config.as_ref().clone();
++    config
++        .features
++        .set_enabled(Feature::GuardianApproval, true)
++        .expect("enable Guardian approval");
++    config
++        .features
++        .set_enabled(Feature::GuardianV2, false)
++        .expect("disable legacy Guardian scoring");
++    let mut model = turn.model_info().as_ref().clone();
++
++    // Catalog policy remains effective with the legacy switch off, including
++    // for tools without an approval scope.
++    for policy in [
++        GuardianModelPolicy {
++            shell: Some(GuardianReviewMode::Adaptive),
++            ..Default::default()
++        },
++        GuardianModelPolicy {
++            other_tools: GuardianReviewMode::Adaptive,
++            ..Default::default()
++        },
++    ] {
++        model.guardian = Some(policy);
++        assert!(matches!(
++            check_guardian_scoring_available(&config, &model, /*restricted*/ true)
++                .expect_err("adaptive scorer unavailable")
++                .details(),
++            CodexErrorDetails::Fatal(_)
++        ));
++        assert!(check_guardian_scoring_available(&config, &model, /*restricted*/ false).is_ok());
++    }
++
++    model.guardian = Some(GuardianModelPolicy {
++        shell: Some(GuardianReviewMode::Synchronous),
++        ..Default::default()
++    });
++    assert!(check_guardian_scoring_available(&config, &model, /*restricted*/ true).is_ok());
++
++    model.guardian = None;
++    model.node_repl_auto_review_required = true;
++    assert!(check_guardian_scoring_available(&config, &model, /*restricted*/ true).is_ok());
++    config
++        .features
++        .set_enabled(Feature::GuardianV2, true)
++        .expect("enable legacy Guardian scoring");
++    assert!(check_guardian_scoring_available(&config, &model, /*restricted*/ true).is_err());
++}
++
++#[tokio::test]
++async fn restricted_guardian_scoring_respects_the_managed_model_override() {
++    use std::collections::BTreeSet;
++
++    use codex_config::ConfigLayerStack;
++    use codex_config::ConfigRequirements;
++    use codex_config::ConfigRequirementsToml;
++    use codex_config::RequirementSource;
++    use codex_config::Sourced;
++    use codex_protocol::openai_models::GuardianModelPolicy;
++    use codex_protocol::openai_models::GuardianReviewMode;
++
++    let (_, turn) = crate::session::tests::make_session_and_context().await;
++    let mut config = turn.config.as_ref().clone();
++    config
++        .features
++        .set_enabled(Feature::GuardianApproval, true)
++        .expect("enable Guardian approval");
++    let requirements = ConfigRequirements {
++        auto_review_required_models: Some(Sourced::new(
++            BTreeSet::from(["protected-model".to_string()]),
++            RequirementSource::Unknown,
++        )),
++        ..Default::default()
++    };
++    config.config_layer_stack = ConfigLayerStack::new(
++        config
++            .config_layer_stack
++            .all_layers_low_to_high()
++            .cloned()
++            .collect(),
++        requirements,
++        ConfigRequirementsToml::default(),
++    )
++    .expect("build managed layers");
++    let mut model = turn.model_info().as_ref().clone();
++    model.slug = "protected-model".to_string();
++    model.guardian = Some(GuardianModelPolicy {
++        shell: Some(GuardianReviewMode::Adaptive),
++        ..Default::default()
++    });
++    // The managed constraint replaces this model's adaptive shell policy with
++    // synchronous review, whose authorizer remains fail-closed separately.
++    assert!(check_guardian_scoring_available(&config, &model, /*restricted*/ true).is_ok());
++    model.slug = "unmanaged-model".to_string();
++    assert!(check_guardian_scoring_available(&config, &model, /*restricted*/ true).is_err());
++}
++
+ #[test]
+ fn post_sampling_token_estimate_is_disabled_by_always_on_sinks() {
+     let feedback = codex_feedback::CodexFeedback::new();
+--- a/codex-rs/core/src/tasks/mod.rs
++++ b/codex-rs/core/src/tasks/mod.rs
+@@ -882,7 +882,10 @@
+         }
+         // Private reviewers already flushed the terminal event before delivering it.
+         // Other buffering writers still need a barrier for the terminal event.
+-        if !saved_guardian_completion && let Err(err) = self.flush_rollout().await {
++        if !saved_guardian_completion
++            && !Self::uses_munie_terminal_barrier()
++            && let Err(err) = self.flush_rollout().await
++        {
+             warn!("failed to flush rollout after emitting terminal turn event: {err}");
+         }
+         if cleared_active_turn {
+@@ -1024,7 +1027,9 @@
+         self.send_event(task.turn_context.as_ref(), event).await;
+         // Regular items were flushed before this terminal event was appended; buffering
+         // thread writers may not flush it without another explicit barrier.
+-        if let Err(err) = self.flush_rollout().await {
++        if !Self::uses_munie_terminal_barrier()
++            && let Err(err) = self.flush_rollout().await
++        {
+             warn!("failed to flush rollout after emitting terminal turn event: {err}");
+         }
+     }
+--- a/codex-rs/core/src/tasks/regular.rs
++++ b/codex-rs/core/src/tasks/regular.rs
+@@ -8,6 +8,7 @@
+ use crate::session::session::Session;
+ use crate::session::startup_prewarm::SessionStartupPrewarmResolution;
+ use crate::session::turn::McpStartupRequirements;
++use crate::session::turn::enforce_munie_guardian_scoring;
+ use crate::session::turn::run_hooks_and_record_inputs;
+ use crate::session::turn::run_turn;
+ use crate::session::turn_context::TurnContext;
+@@ -47,8 +48,9 @@
+         let run_turn_span = trace_span!("run_turn");
+         // Regular turns emit `TurnStarted` inline so first-turn lifecycle does
+         // not wait on startup prewarm resolution.
++        sess.emit_turn_started(&ctx, TaskKind::Regular).await;
++        enforce_munie_guardian_scoring(&sess, &ctx, &ctx.capture_current_model_info()).await?;
+         let prewarmed_client_session = async {
+-            sess.emit_turn_started(&ctx, TaskKind::Regular).await;
+             // Regular-start contributors run once, after the task is visible and interruptible.
+             let prepares_mcp = sess
+                 .services
+--- a/codex-rs/ext/guardian-v2/src/async_scorer/config.rs
++++ b/codex-rs/ext/guardian-v2/src/async_scorer/config.rs
+@@ -63,22 +63,7 @@
+ 
+     pub(crate) fn resolve(config: &Config) -> Result<Self, String> {
+         let effective_config = config.config_layer_stack.effective_config();
+-        let mut configured = match effective_config
+-            .get("features")
+-            .and_then(|features| features.get("guardianv2"))
+-            .cloned()
+-        {
+-            Some(value) => {
+-                let feature: FeatureToml<GuardianV2ConfigToml> = value
+-                    .try_into()
+-                    .map_err(|error| format!("invalid Guardian v2 configuration: {error}"))?;
+-                match feature {
+-                    FeatureToml::Enabled(_) => GuardianV2ConfigToml::default(),
+-                    FeatureToml::Config(configured) => configured,
+-                }
+-            }
+-            None => GuardianV2ConfigToml::default(),
+-        };
++        let mut configured = GuardianPolicyLoader::legacy_config(&effective_config)?;
+ 
+         configured.transcript_mode = Some(config.guardian_transcript_mode);
+         let mut resolved = Self::from_overrides(configured.clone())?;
+--- a/codex-rs/ext/guardian-v2/src/async_scorer/decisions.rs
++++ b/codex-rs/ext/guardian-v2/src/async_scorer/decisions.rs
+@@ -38,6 +38,8 @@
+ 
+ #[derive(Clone, Copy, Debug, Error, PartialEq)]
+ pub(super) enum DecisionsError {
++    #[error("Munie's restricted host cannot verify the Decisions destination")]
++    RestrictedDestination,
+     #[error("Decisions credentials are missing or empty")]
+     Credentials,
+     #[error("Decisions HTTP client setup failed")]
+@@ -181,6 +183,9 @@
+     }
+ 
+     async fn request(&self, body: Value) -> Result<&'static str, DecisionsError> {
++        if codex_protocol::shell_environment::external_extensions_disabled_for_process() {
++            return Err(DecisionsError::RestrictedDestination);
++        }
+         let request = self
+             .client
+             .post(&self.url)
+--- a/codex-rs/ext/guardian-v2/src/async_scorer/decisions_tests.rs
++++ b/codex-rs/ext/guardian-v2/src/async_scorer/decisions_tests.rs
+@@ -46,7 +46,43 @@
+     assert_eq!(
+         request_body(&rubric, &[image], /*parent_compaction*/ None),
+         Err(DecisionsError::UnsupportedEvidence)
++    );
++}
++
++#[tokio::test]
++async fn restricted_decisions_refuses_before_request_construction() -> anyhow::Result<()> {
++    const CHILD: &str = "MUNIE_TEST_RESTRICTED_GUARDIAN_DECISIONS";
++    let sampler = DecisionsSampler::new(
++        HttpClientBuilder::new().build_direct()?,
++        "synthetic-key".into(),
++        "not an absolute URL".into(),
++    )?;
++    if std::env::var_os(CHILD).is_none() {
++        // The invalid URL provides an offline control without reaching a network peer.
++        assert_eq!(
++            sampler.request(json!({})).await,
++            Err(DecisionsError::Transport)
++        );
++        let output = std::process::Command::new(std::env::current_exe()?)
++            .env(CHILD, "1")
++            .args([
++                "--exact",
++                "async_scorer::decisions::tests::restricted_decisions_refuses_before_request_construction",
++            ])
++            .output()?;
++        let stdout = String::from_utf8_lossy(&output.stdout);
++        let stderr = String::from_utf8_lossy(&output.stderr);
++        assert!(output.status.success(), "{stdout}{stderr}");
++        assert!(stdout.contains("1 passed"), "{stdout}{stderr}");
++        return Ok(());
++    }
++
++    codex_protocol::shell_environment::disable_external_extensions_for_process();
++    assert_eq!(
++        sampler.request(json!({})).await,
++        Err(DecisionsError::RestrictedDestination)
+     );
++    Ok(())
+ }
+ 
+ #[test]
+--- a/codex-rs/ext/guardian-v2/src/async_scorer/extension.rs
++++ b/codex-rs/ext/guardian-v2/src/async_scorer/extension.rs
+@@ -64,14 +64,10 @@
+                     return;
+                 }
+             };
+-            let mut policy = guardian_config.policy_for_model(model.as_deref());
+-            if let Some(model) = model.as_ref() {
+-                input
+-                    .config
+-                    .config_layer_stack
+-                    .requirements()
+-                    .constrain_guardian_policy(&mut policy, &model.slug);
+-            }
++            let policy = guardian_config.policy.resolve_effective(
++                model.as_deref(),
++                input.config.config_layer_stack.requirements(),
++            );
+             let scoring_enabled = policy.scoring_enabled();
+             let sampler_config = super::startup::sampler_config(
+                 &input,
+--- a/codex-rs/ext/guardian-v2/src/async_scorer/metrics.rs
++++ b/codex-rs/ext/guardian-v2/src/async_scorer/metrics.rs
+@@ -175,6 +175,7 @@
+ // Keep all backend diagnostics bounded and free of raw transport data.
+ pub(super) fn decisions_failure_reason(error: DecisionsError) -> &'static str {
+     match error {
++        DecisionsError::RestrictedDestination => "restricted_destination",
+         DecisionsError::Credentials => "provider_error",
+         DecisionsError::ClientSetup => "request_build_error",
+         DecisionsError::UnsupportedEvidence => "decisions_unsupported_evidence",
+--- a/codex-rs/ext/guardian-v2/src/async_scorer/sampler/connection_pool.rs
++++ b/codex-rs/ext/guardian-v2/src/async_scorer/sampler/connection_pool.rs
+@@ -353,6 +353,14 @@
+     }
+ 
+     async fn client_setup(&self) -> Result<ClientSetup, LunaSamplerError> {
++        // Guardian has its own provider resolution and cannot use Munie's thread binding.
++        if codex_protocol::shell_environment::external_extensions_disabled_for_process() {
++            return Err(LunaSamplerError::Api(ApiError::Transport(
++                TransportError::Build(
++                    "Munie's restricted host cannot verify the Guardian destination".into(),
++                ),
++            )));
++        }
+         let mut auth_changes = self
+             .config
+             .provider
+--- a/codex-rs/ext/guardian-v2/src/async_scorer/sampler/connection_pool_tests.rs
++++ b/codex-rs/ext/guardian-v2/src/async_scorer/sampler/connection_pool_tests.rs
+@@ -85,6 +85,51 @@
+ }
+ 
+ #[tokio::test]
++async fn restricted_guardian_refuses_http_and_websocket_setup_without_network() -> Result<()> {
++    const CHILD: &str = "MUNIE_TEST_RESTRICTED_GUARDIAN_POOL";
++    if std::env::var_os(CHILD).is_none() {
++        // Ordinary provider configuration uses a synthetic API key and resolves entirely in memory.
++        let pool = ConnectionPool::new(Arc::new(sampler_config(
++            "https://guardian.invalid/v1".into(),
++        )));
++        assert!(pool.client_setup().await.is_ok());
++        let output = std::process::Command::new(std::env::current_exe()?)
++            .env(CHILD, "1")
++            .args([
++                "--exact",
++                "async_scorer::sampler::connection_pool::tests::restricted_guardian_refuses_http_and_websocket_setup_without_network",
++            ])
++            .output()?;
++        let stdout = String::from_utf8_lossy(&output.stdout);
++        let stderr = String::from_utf8_lossy(&output.stderr);
++        assert!(output.status.success(), "{stdout}{stderr}");
++        assert!(stdout.contains("1 passed"), "{stdout}{stderr}");
++        return Ok(());
++    }
++
++    codex_protocol::shell_environment::disable_external_extensions_for_process();
++    // Keep regression failures offline too: the connector cannot use this URL.
++    let pool = ConnectionPool::new(Arc::new(sampler_config("not an absolute URL".into())));
++    let denied = |error: LunaSamplerError| {
++        assert!(matches!(
++            error,
++            LunaSamplerError::Api(ApiError::Transport(TransportError::Build(message)))
++                if message == "Munie's restricted host cannot verify the Guardian destination"
++        ));
++    };
++    match pool.lease().await {
++        Err(error) => denied(error),
++        Ok(_) => panic!("restricted Guardian obtained a request lease"),
++    }
++    let permit = Arc::clone(&pool.sockets).try_acquire_owned()?;
++    match pool.open_connection(permit).await {
++        Err(error) => denied(error),
++        Ok(_) => panic!("restricted Guardian opened a WebSocket"),
++    }
++    Ok(())
++}
++
++#[tokio::test]
+ async fn stalled_handshake_does_not_delay_other_warm_sockets() -> Result<()> {
+     skip_if_no_network!(Ok(()));
+     let stalled = responses::start_websocket_server_with_headers(vec![
+--- a/codex-rs/ext/guardian-v2/src/async_scorer/startup.rs
++++ b/codex-rs/ext/guardian-v2/src/async_scorer/startup.rs
+@@ -23,6 +23,9 @@
+     use super::decisions::DecisionsSampler;
+     use super::decisions::URL;
+     use codex_http_client::ClientRouteClass;
++    if codex_protocol::shell_environment::external_extensions_disabled_for_process() {
++        return None;
++    }
+     let result = decisions_api_key(
+         &input.config.model_provider_id,
+         input.config.model_provider.base_url.as_deref(),
+--- a/codex-rs/login/src/auth/external_bearer.rs
++++ b/codex-rs/login/src/auth/external_bearer.rs
+@@ -101,6 +101,13 @@
+ }
+ 
+ async fn run_provider_auth_command(config: &ModelProviderAuthInfo) -> io::Result<String> {
++    // Munie modification: this command runs outside the task sandbox.
++    if codex_protocol::shell_environment::external_extensions_disabled_for_process() {
++        return Err(io::Error::new(
++            io::ErrorKind::PermissionDenied,
++            "Provider authentication commands are disabled in Munie's restricted stdio mode",
++        ));
++    }
+     let program = resolve_provider_auth_program(&config.command, &config.cwd)?;
+     let mut command = Command::from(codex_utils_process::background_command(&program));
+     command
+--- a/codex-rs/rollout/Cargo.toml
++++ b/codex-rs/rollout/Cargo.toml
+@@ -27,10 +27,12 @@
+ codex-utils-output-truncation = { workspace = true }
+ codex-utils-path = { workspace = true }
+ codex-utils-string = { workspace = true }
++hmac = { workspace = true }
+ memchr = { workspace = true }
+ regex = { workspace = true }
+ serde = { workspace = true, features = ["derive"] }
+ serde_json = { workspace = true }
++sha2 = { workspace = true }
+ tempfile = { workspace = true }
+ time = { workspace = true, features = [
+     "formatting",
+@@ -51,6 +53,9 @@
+ uuid = { workspace = true }
+ zstd = { workspace = true }
+ 
++[target.'cfg(unix)'.dependencies]
++libc = { workspace = true }
++
+ [dev-dependencies]
+ codex-utils-absolute-path = { workspace = true }
+ pretty_assertions = { workspace = true }
+--- a/codex-rs/rollout/src/lib.rs
++++ b/codex-rs/rollout/src/lib.rs
+@@ -12,6 +12,7 @@
+ mod maintenance;
+ pub(crate) mod metadata;
+ mod model_context;
++mod munie_replay;
+ mod ordinal;
+ mod persistence_metrics;
+ pub(crate) mod policy;
+@@ -140,6 +141,11 @@
+ pub use metadata::rollout_id_from_path;
+ pub use model_context::ModelContextScan;
+ pub use model_context::ModelContextScanProgress;
++pub use munie_replay::BoundReplay;
++pub use munie_replay::ReplayFingerprint;
++pub use munie_replay::ReplaySeed;
++pub use munie_replay::read_bound_replay;
++pub use munie_replay::write_replay_binding;
+ pub use persistence_metrics::RolloutPersistenceBatchMeasurement;
+ pub use persistence_metrics::RolloutPersistenceTelemetry;
+ pub use persistence_metrics::measure_and_filter_rollout_items;
+--- /dev/null
++++ b/codex-rs/rollout/src/munie_replay.rs
+@@ -0,0 +1,514 @@
++//! Byte identity for a bounded, standalone rollout written under the native writer lock.
++
++use std::fs::File;
++use std::fs::OpenOptions;
++use std::io;
++use std::io::Read;
++use std::io::Write;
++use std::path::Path;
++use std::path::PathBuf;
++
++use codex_protocol::ThreadId;
++use hmac::Hmac;
++use hmac::Mac;
++use serde::Deserialize;
++use serde::Serialize;
++use sha2::Digest;
++use sha2::Sha256;
++
++use crate::RolloutItem;
++
++const MAX_REPLAY_BYTES: u64 = 32 * 1024 * 1024;
++const MAX_BINDING_BYTES: u64 = 1024;
++const BINDING_VERSION: u8 = 1;
++const BINDING_DOMAIN: &[u8] = b"munie/replay-binding/v1\0";
++
++#[derive(Deserialize, Serialize)]
++#[serde(deny_unknown_fields)]
++struct Binding {
++    version: u8,
++    thread_id: ThreadId,
++    destination: [u8; 32],
++    replay: ReplayFingerprint,
++    tag: [u8; 32],
++}
++
++impl Binding {
++    fn mac(&self, local_key: &[u8; 32]) -> Hmac<Sha256> {
++        let mut mac = Hmac::<Sha256>::new_from_slice(local_key).expect("fixed-size HMAC key");
++        mac.update(BINDING_DOMAIN);
++        mac.update(&[self.version]);
++        mac.update(self.thread_id.to_string().as_bytes());
++        mac.update(&self.destination);
++        mac.update(&self.replay.byte_count.to_be_bytes());
++        mac.update(&self.replay.sha256);
++        mac
++    }
++
++    fn authenticated(&self, thread_id: ThreadId, local_key: &[u8; 32]) -> bool {
++        self.version == BINDING_VERSION
++            && self.thread_id == thread_id
++            && self.mac(local_key).verify_slice(&self.tag).is_ok()
++    }
++}
++
++fn open_regular(path: &Path) -> io::Result<File> {
++    let mut options = OpenOptions::new();
++    options.read(true);
++    #[cfg(unix)]
++    {
++        use std::os::unix::fs::OpenOptionsExt;
++        options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
++    }
++    let file = options.open(path)?;
++    if !file.metadata()?.is_file() {
++        return Err(io::Error::new(
++            io::ErrorKind::InvalidData,
++            "not a regular file",
++        ));
++    }
++    Ok(file)
++}
++
++fn read_binding(path: &Path) -> io::Result<Binding> {
++    let mut bytes = Vec::new();
++    open_regular(path)?
++        .take(MAX_BINDING_BYTES + 1)
++        .read_to_end(&mut bytes)?;
++    if u64::try_from(bytes.len()).unwrap_or(u64::MAX) > MAX_BINDING_BYTES {
++        return Err(io::Error::new(
++            io::ErrorKind::InvalidData,
++            "oversized replay binding",
++        ));
++    }
++    serde_json::from_slice(&bytes)
++        .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "invalid replay binding"))
++}
++
++/// Persist a writer-owned fingerprint in a host-private directory under the thread writer lock.
++/// Callers must obtain the key from trusted host storage and must not supply raw provider values.
++/// An existing record cannot be replaced with a different destination or while unverified.
++pub async fn write_replay_binding(
++    path: PathBuf,
++    thread_id: ThreadId,
++    destination: [u8; 32],
++    fingerprint: ReplayFingerprint,
++    local_key: [u8; 32],
++    publication_guard: impl Send + 'static,
++) -> io::Result<()> {
++    tokio::task::spawn_blocking(move || {
++        // Cancellation of the async caller must not release writer ownership mid-publication.
++        let _publication_guard = publication_guard;
++        if fingerprint.byte_count == 0 || fingerprint.byte_count > MAX_REPLAY_BYTES {
++            return Err(io::Error::new(
++                io::ErrorKind::InvalidData,
++                "invalid replay length",
++            ));
++        }
++        let replace = match read_binding(&path) {
++            Ok(previous)
++                if previous.authenticated(thread_id, &local_key)
++                    && previous.destination == destination
++                    && (previous.replay == fingerprint
++                        || previous.replay.byte_count < fingerprint.byte_count) =>
++            {
++                true
++            }
++            Err(error) if error.kind() == io::ErrorKind::NotFound => false,
++            _ => {
++                return Err(io::Error::new(
++                    io::ErrorKind::PermissionDenied,
++                    "replay binding cannot be replaced",
++                ));
++            }
++        };
++        let mut binding = Binding {
++            version: BINDING_VERSION,
++            thread_id,
++            destination,
++            replay: fingerprint,
++            tag: [0; 32],
++        };
++        binding.tag = binding.mac(&local_key).finalize().into_bytes().into();
++        let parent = path
++            .parent()
++            .ok_or_else(|| io::Error::other("missing binding directory"))?;
++        let mut staged = tempfile::NamedTempFile::new_in(parent)?;
++        serde_json::to_writer(&mut staged, &binding)?;
++        staged.flush()?;
++        staged.as_file().sync_all()?;
++        if replace {
++            staged.persist(&path)?;
++        } else {
++            staged.persist_noclobber(&path)?;
++        }
++        #[cfg(unix)]
++        File::open(parent)?.sync_all()?;
++        Ok(())
++    })
++    .await
++    .map_err(io::Error::other)?
++}
++
++/// Returns authenticated replay bytes and their bound destination, or no authority to send.
++/// The caller must already own the writer lock and must use the returned items, not a cached read.
++pub async fn read_bound_replay(
++    path: PathBuf,
++    binding_path: PathBuf,
++    thread_id: ThreadId,
++    local_key: [u8; 32],
++) -> io::Result<Option<BoundReplay>> {
++    tokio::task::spawn_blocking(move || {
++        let binding = match read_binding(&binding_path) {
++            Ok(binding) if binding.authenticated(thread_id, &local_key) => binding,
++            Ok(_) => return Ok(None),
++            Err(error)
++                if matches!(
++                    error.kind(),
++                    io::ErrorKind::NotFound | io::ErrorKind::InvalidData
++                ) =>
++            {
++                return Ok(None);
++            }
++            Err(error) => return Err(error),
++        };
++        Ok(
++            read_replay(&path, thread_id, binding.replay)?.map(|(items, accumulator)| {
++                BoundReplay {
++                    destination: binding.destination,
++                    items,
++                    seed: ReplaySeed { path, accumulator },
++                }
++            }),
++        )
++    })
++    .await
++    .map_err(io::Error::other)?
++}
++
++pub struct BoundReplay {
++    pub destination: [u8; 32],
++    pub items: Vec<RolloutItem>,
++    pub seed: ReplaySeed,
++}
++
++/// Only a successful authenticated read can obtain a seed for appending trusted history.
++pub struct ReplaySeed {
++    pub(crate) path: PathBuf,
++    pub(crate) accumulator: ReplayAccumulator,
++}
++
++#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
++#[serde(deny_unknown_fields)]
++pub struct ReplayFingerprint {
++    byte_count: u64,
++    sha256: [u8; 32],
++}
++
++#[derive(Default)]
++pub(crate) struct ReplayAccumulator {
++    bytes: u64,
++    hash: Sha256,
++}
++
++impl ReplayAccumulator {
++    pub(crate) fn record(&mut self, written: &[u8]) -> Option<()> {
++        let size = self.bytes.checked_add(u64::try_from(written.len()).ok()?)?;
++        if size > MAX_REPLAY_BYTES {
++            return None;
++        }
++        self.bytes = size;
++        self.hash.update(written);
++        Some(())
++    }
++
++    pub(crate) fn fingerprint(&self) -> ReplayFingerprint {
++        ReplayFingerprint {
++            byte_count: self.bytes,
++            sha256: self.hash.clone().finalize().into(),
++        }
++    }
++}
++
++/// Verify and decode the same byte snapshot. The caller must already own the thread writer lock,
++/// and must obtain the expected fingerprint from a trusted checkpoint, never from this path.
++#[cfg(test)]
++pub(crate) async fn read_verified_replay(
++    path: PathBuf,
++    thread_id: ThreadId,
++    expected: ReplayFingerprint,
++) -> io::Result<Option<Vec<RolloutItem>>> {
++    tokio::task::spawn_blocking(move || {
++        Ok(read_replay(&path, thread_id, expected)?.map(|(items, _)| items))
++    })
++    .await
++    .map_err(io::Error::other)?
++}
++
++fn read_replay(
++    path: &Path,
++    thread_id: ThreadId,
++    expected: ReplayFingerprint,
++) -> io::Result<Option<(Vec<RolloutItem>, ReplayAccumulator)>> {
++    if expected.byte_count == 0
++        || expected.byte_count > MAX_REPLAY_BYTES
++        || path.extension().and_then(std::ffi::OsStr::to_str) != Some("jsonl")
++        || !path.symlink_metadata()?.file_type().is_file()
++    {
++        return Ok(None);
++    }
++    let file = open_regular(path)?;
++    if file.metadata()?.len() != expected.byte_count {
++        return Ok(None);
++    }
++    let mut bytes = Vec::new();
++    file.take(expected.byte_count + 1).read_to_end(&mut bytes)?;
++    let mut actual = ReplayAccumulator::default();
++    if actual.record(&bytes).is_none()
++        || actual.fingerprint() != expected
++        || !bytes.ends_with(b"\n")
++    {
++        return Ok(None);
++    }
++    let mut items = Vec::new();
++    for line in bytes[..bytes.len() - 1].split(|byte| *byte == b'\n') {
++        if items.len() >= 32_768 {
++            return Ok(None);
++        }
++        let Ok(item) = serde_json::from_slice(line).and_then(crate::decode_rollout_line) else {
++            return Ok(None);
++        };
++        items.push(item.item);
++    }
++    if !matches!(
++        items.first(),
++        Some(RolloutItem::SessionMeta(line))
++            if line.meta.id == thread_id
++                && line.meta.history_base.is_none()
++                && line.meta.forked_from_id.is_none()
++                && line.meta.parent_thread_id.is_none()
++    ) || items
++        .iter()
++        .skip(1)
++        .any(|item| matches!(item, RolloutItem::SessionMeta(_)))
++    {
++        return Ok(None);
++    }
++    Ok(Some((items, actual)))
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use crate::RolloutRecorder;
++    use codex_protocol::protocol::SessionMeta;
++    use serde_json::json;
++
++    #[test]
++    fn cancelled_checkpoint_holds_writer_guard_until_publication_finishes() -> anyhow::Result<()> {
++        use std::future::Future;
++        use std::sync::Arc;
++        use std::task::Poll;
++        use std::time::Duration;
++
++        let runtime = tokio::runtime::Builder::new_current_thread()
++            .enable_time()
++            .max_blocking_threads(1)
++            .build()?;
++        let dir = tempfile::tempdir()?;
++        let path = dir.path().join("binding.json");
++        let writer = Arc::new(tokio::sync::Mutex::new(()));
++        runtime.block_on(async {
++            let (release, queued) = std::sync::mpsc::channel();
++            let (started, ready) = tokio::sync::oneshot::channel();
++            let blocking = tokio::task::spawn_blocking(move || {
++                let _ = started.send(());
++                let _ = queued.recv_timeout(Duration::from_secs(5));
++            });
++            ready.await?;
++            let guard = Arc::clone(&writer).lock_owned().await;
++            let mut authored = ReplayAccumulator::default();
++            authored.record(b"fixture").expect("fixture below limit");
++            let mut checkpoint = Box::pin(write_replay_binding(
++                path.clone(),
++                ThreadId::new(),
++                [19; 32],
++                authored.fingerprint(),
++                [37; 32],
++                guard,
++            ));
++            std::future::poll_fn(|cx| {
++                assert!(checkpoint.as_mut().poll(cx).is_pending());
++                Poll::Ready(())
++            })
++            .await;
++            drop(checkpoint);
++            assert!(writer.try_lock().is_err());
++            assert!(!path.exists());
++            release.send(())?;
++            blocking.await?;
++            let _guard = tokio::time::timeout(Duration::from_secs(5), writer.lock()).await?;
++            assert!(path.is_file());
++            Ok(())
++        })
++    }
++
++    #[test]
++    fn fingerprint_rejects_bytes_beyond_the_replay_limit() {
++        let mut replay = ReplayAccumulator {
++            bytes: MAX_REPLAY_BYTES,
++            hash: Sha256::new(),
++        };
++        assert!(replay.record(b"x").is_none());
++    }
++
++    #[cfg(unix)]
++    #[test]
++    fn binding_reader_refuses_a_symlink_or_directory() -> anyhow::Result<()> {
++        let dir = tempfile::tempdir()?;
++        let file = dir.path().join("data");
++        let alias = dir.path().join("alias");
++        std::fs::write(&file, b"placeholder")?;
++        std::os::unix::fs::symlink(file, &alias)?;
++        assert!(open_regular(&alias).is_err());
++        assert!(open_regular(dir.path()).is_err());
++        Ok(())
++    }
++
++    #[tokio::test]
++    async fn verified_snapshot_matches_the_exact_expected_history() -> anyhow::Result<()> {
++        let dir = tempfile::tempdir()?;
++        let path = dir.path().join("rollout.jsonl");
++        let meta = SessionMeta::default();
++        let id = meta.id;
++        let mut bytes = serde_json::to_vec(&json!({
++            "timestamp": "2026-11-21T00:00:00Z",
++            "type": "session_meta",
++            "payload": meta,
++        }))?;
++        bytes.push(b'\n');
++        let mut authored = ReplayAccumulator::default();
++        authored.record(&bytes).expect("fixture below limit");
++        let fingerprint = authored.fingerprint();
++        std::fs::write(&path, &bytes)?;
++        assert_eq!(
++            read_verified_replay(path.clone(), id, fingerprint)
++                .await?
++                .unwrap()
++                .len(),
++            1
++        );
++        assert!(
++            read_verified_replay(path.clone(), ThreadId::new(), fingerprint)
++                .await?
++                .is_none()
++        );
++
++        let index = bytes
++            .iter()
++            .position(|byte| *byte == b'6')
++            .expect("timestamp");
++        bytes[index] = b'7';
++        std::fs::write(&path, &bytes)?;
++        assert!(
++            read_verified_replay(path.clone(), id, fingerprint)
++                .await?
++                .is_none()
++        );
++        bytes[index] = b'6';
++        bytes.push(b'\n');
++        std::fs::write(&path, &bytes)?;
++        assert!(
++            read_verified_replay(path.clone(), id, fingerprint)
++                .await?
++                .is_none()
++        );
++        assert_eq!(RolloutRecorder::load_rollout_items(&path).await?.0.len(), 1);
++        Ok(())
++    }
++
++    #[tokio::test]
++    async fn durable_binding_reopens_only_for_the_original_key_thread_and_history()
++    -> anyhow::Result<()> {
++        let dir = tempfile::tempdir()?;
++        let path = dir.path().join("rollout.jsonl");
++        let binding_path = dir.path().join("receipt.json");
++        let meta = SessionMeta::default();
++        let id = meta.id;
++        let key = [42; 32];
++        let destination = [3; 32];
++        let mut bytes = serde_json::to_vec(&json!({
++            "timestamp": "2026-11-21T00:00:00Z",
++            "type": "session_meta",
++            "payload": meta,
++        }))?;
++        bytes.push(b'\n');
++        std::fs::write(&path, &bytes)?;
++        let mut authored = ReplayAccumulator::default();
++        authored.record(&bytes).expect("fixture below limit");
++
++        assert!(
++            read_bound_replay(path.clone(), binding_path.clone(), id, key)
++                .await?
++                .is_none()
++        );
++        write_replay_binding(
++            binding_path.clone(),
++            id,
++            destination,
++            authored.fingerprint(),
++            key,
++            (),
++        )
++        .await?;
++        let bound = read_bound_replay(path.clone(), binding_path.clone(), id, key)
++            .await?
++            .expect("authenticated binding");
++        assert_eq!(bound.destination, destination);
++        assert_eq!(bound.items.len(), 1);
++        assert!(
++            read_bound_replay(path.clone(), binding_path.clone(), id, [9; 32])
++                .await?
++                .is_none()
++        );
++        assert!(
++            read_bound_replay(path.clone(), binding_path.clone(), ThreadId::new(), key)
++                .await?
++                .is_none()
++        );
++        assert_eq!(
++            write_replay_binding(
++                binding_path.clone(),
++                id,
++                [4; 32],
++                authored.fingerprint(),
++                key,
++                (),
++            )
++            .await
++            .unwrap_err()
++            .kind(),
++            io::ErrorKind::PermissionDenied
++        );
++
++        let pristine_binding = std::fs::read(&binding_path)?;
++        let mut changed: serde_json::Value = serde_json::from_slice(&pristine_binding)?;
++        changed["destination"][0] = json!(4);
++        std::fs::write(&binding_path, serde_json::to_vec(&changed)?)?;
++        assert!(
++            read_bound_replay(path.clone(), binding_path.clone(), id, key)
++                .await?
++                .is_none()
++        );
++        std::fs::write(&binding_path, pristine_binding)?;
++        bytes.push(b'\n');
++        std::fs::write(&path, &bytes)?;
++        assert!(
++            read_bound_replay(path.clone(), binding_path, id, key)
++                .await?
++                .is_none()
++        );
++        assert_eq!(RolloutRecorder::load_rollout_items(&path).await?.0.len(), 1);
++        Ok(())
++    }
++}
+--- a/codex-rs/rollout/src/recorder.rs
++++ b/codex-rs/rollout/src/recorder.rs
+@@ -13,6 +13,10 @@
+ use std::sync::Arc;
+ use std::sync::Mutex;
+ 
++use crate::munie_replay::ReplayAccumulator;
++use crate::munie_replay::ReplayFingerprint;
++use crate::munie_replay::ReplaySeed;
++
+ use chrono::SecondsFormat;
+ use codex_protocol::RolloutId;
+ use codex_protocol::SessionId;
+@@ -134,6 +138,9 @@
+     Flush {
+         ack: oneshot::Sender<std::io::Result<()>>,
+     },
++    MunieReplayFingerprint {
++        ack: oneshot::Sender<std::io::Result<Option<ReplayFingerprint>>>,
++    },
+     Shutdown {
+         ack: oneshot::Sender<std::io::Result<()>>,
+     },
+@@ -890,7 +897,10 @@
+         config: &impl RolloutConfigView,
+         params: RolloutRecorderParams,
+     ) -> std::io::Result<Self> {
+-        Self::new_inner(config, params, /*writer_lock*/ None).await
++        Self::new_inner(
++            config, params, /*writer_lock*/ None, /*replay_seed*/ None,
++        )
++        .await
+     }
+ 
+     /// Opens a recorder under existing thread-store ownership, retaining it through background IO.
+@@ -900,13 +910,30 @@
+         params: RolloutRecorderParams,
+         writer_lock: Arc<crate::WriterLockGuard>,
+     ) -> std::io::Result<Self> {
+-        Self::new_inner(config, params, Some(writer_lock)).await
++        Self::new_inner(config, params, Some(writer_lock), /*replay_seed*/ None).await
++    }
++
++    /// Continue hashing from the exact authenticated snapshot consumed by the caller.
++    pub async fn resume_with_replay_seed(
++        config: &impl RolloutConfigView,
++        path: PathBuf,
++        writer_lock: Arc<crate::WriterLockGuard>,
++        replay_seed: ReplaySeed,
++    ) -> std::io::Result<Self> {
++        Self::new_inner(
++            config,
++            RolloutRecorderParams::resume(path),
++            Some(writer_lock),
++            Some(replay_seed),
++        )
++        .await
+     }
+ 
+     async fn new_inner(
+         config: &impl RolloutConfigView,
+         params: RolloutRecorderParams,
+         writer_lock: Option<Arc<crate::WriterLockGuard>>,
++        replay_seed: Option<ReplaySeed>,
+     ) -> std::io::Result<Self> {
+         // Clone the cwd for the spawned task to collect git info asynchronously.
+         let cwd = config.cwd().to_path_buf();
+@@ -933,6 +960,14 @@
+                 subagent_history_start_ordinal,
+                 initial_window_id,
+             } => {
++                let start_munie_replay =
++                    codex_protocol::shell_environment::external_extensions_disabled_for_process()
++                        && writer_lock.is_some()
++                        && forked_from_id.is_none()
++                        && parent_thread_id.is_none()
++                        && history_base.is_none()
++                        && rollout_id_override.is_none()
++                        && subagent_history_start_ordinal.is_none();
+                 let ordinal_state =
+                     RolloutOrdinalState::for_new_rollout(history_mode, history_base);
+                 let (path, started_at) =
+@@ -990,13 +1025,17 @@
+                     rollout_path: path,
+                     ordinal_state,
+                     last_logged_error: None,
++                    start_munie_replay,
+                 }
+             }
+             RolloutRecorderParams::Resume { path } => {
+                 let (path, file, ordinal_state) =
+                     open_rollout_for_append(path.as_path(), writer_lock.clone()).await?;
++                let munie_replay = replay_seed
++                    .filter(|seed| seed.path == path)
++                    .map(|seed| seed.accumulator);
+                 RolloutWriterState {
+-                    writer: Some(JsonlWriter { file }),
++                    writer: Some(JsonlWriter { file, munie_replay }),
+                     deferred_creation: false,
+                     pending_items: Vec::new(),
+                     meta: None,
+@@ -1004,6 +1043,7 @@
+                     rollout_path: path,
+                     ordinal_state,
+                     last_logged_error: None,
++                    start_munie_replay: false,
+                 }
+             }
+         };
+@@ -1170,6 +1210,19 @@
+         .await
+     }
+ 
++    /// Returns the fingerprint of a fresh owned writer, never a digest of pre-existing contents.
++    /// Callers may checkpoint it only with the corresponding verified destination.
++    pub async fn munie_replay_fingerprint(&self) -> std::io::Result<Option<ReplayFingerprint>> {
++        let (ack, reply) = oneshot::channel();
++        self.tx
++            .send(RolloutCmd::MunieReplayFingerprint { ack })
++            .await
++            .map_err(|_| IoError::other("rollout writer closed before replay fingerprint"))?;
++        reply
++            .await
++            .map_err(|_| IoError::other("rollout writer did not return replay fingerprint"))?
++    }
++
+     pub async fn get_rollout_history(path: &Path) -> std::io::Result<InitialHistory> {
+         let (items, thread_id, _parse_errors) = Self::load_rollout_items(path).await?;
+         let conversation_id = thread_id
+@@ -1798,6 +1851,7 @@
+     rollout_path: PathBuf,
+     ordinal_state: RolloutOrdinalState,
+     last_logged_error: Option<String>,
++    start_munie_replay: bool,
+ }
+ 
+ impl RolloutWriterState {
+@@ -1883,12 +1937,47 @@
+             return Ok(());
+         }
+ 
+-        let file = open_log_file(self.rollout_path.as_path())?;
+-        self.writer = Some(JsonlWriter {
+-            file: tokio::fs::File::from_std(file),
+-        });
++        let path = self.rollout_path.as_path();
++        let (file, munie_replay) = if self.start_munie_replay {
++            let parent = path
++                .parent()
++                .ok_or_else(|| IoError::other("rollout path has no parent"))?;
++            tokio::fs::create_dir_all(parent).await?;
++            // A colliding or previously materialized file cannot be enrolled as fresh history.
++            let file = tokio::fs::OpenOptions::new()
++                .append(true)
++                .create_new(true)
++                .open(path)
++                .await?;
++            self.start_munie_replay = false;
++            (file, Some(ReplayAccumulator::default()))
++        } else {
++            (tokio::fs::File::from_std(open_log_file(path)?), None)
++        };
++        self.writer = Some(JsonlWriter { file, munie_replay });
+         self.deferred_creation = false;
+         Ok(())
++    }
++
++    async fn munie_replay_fingerprint(&mut self) -> std::io::Result<Option<ReplayFingerprint>> {
++        if !self.start_munie_replay
++            && self
++                .writer
++                .as_ref()
++                .and_then(|writer| writer.munie_replay.as_ref())
++                .is_none()
++        {
++            return Ok(None);
++        }
++        self.persist().await?;
++        let Some(writer) = self.writer.as_ref() else {
++            return Ok(None);
++        };
++        let Some(replay) = writer.munie_replay.as_ref() else {
++            return Ok(None);
++        };
++        writer.file.sync_data().await?;
++        Ok(Some(replay.fingerprint()))
+     }
+ 
+     async fn write_session_meta_if_needed(&mut self) -> std::io::Result<()> {
+@@ -1967,6 +2056,9 @@
+             RolloutCmd::Flush { ack } => {
+                 let _ = ack.send(state.flush().await);
+             }
++            RolloutCmd::MunieReplayFingerprint { ack } => {
++                let _ = ack.send(state.munie_replay_fingerprint().await);
++            }
+             RolloutCmd::Discard { ack } => {
+                 let _ = ack.send(());
+                 break;
+@@ -2027,7 +2119,10 @@
+     let (_rollout_path, file, ordinal_state) =
+         open_rollout_for_append(rollout_path, /*writer_lock*/ None).await?;
+     let ordinal = ordinal_state.current()?;
+-    let mut writer = JsonlWriter { file };
++    let mut writer = JsonlWriter {
++        file,
++        munie_replay: None,
++    };
+     writer.write_rollout_item(item, ordinal).await
+ }
+ 
+@@ -2074,6 +2169,7 @@
+ 
+ struct JsonlWriter {
+     file: tokio::fs::File,
++    munie_replay: Option<ReplayAccumulator>,
+ }
+ 
+ #[derive(serde::Serialize)]
+@@ -2110,6 +2206,11 @@
+         json.push('\n');
+         self.file.write_all(json.as_bytes()).await?;
+         self.file.flush().await?;
++        if let Some(replay) = self.munie_replay.as_mut()
++            && replay.record(json.as_bytes()).is_none()
++        {
++            self.munie_replay = None;
++        }
+         Ok(())
+     }
+ }
+--- a/codex-rs/rollout/src/recorder_tests.rs
++++ b/codex-rs/rollout/src/recorder_tests.rs
+@@ -72,8 +72,120 @@
+         delivery: None,
+         questions: None,
+     }))
++}
++
++#[tokio::test]
++async fn munie_replay_fingerprint_tracks_only_writer_owned_bytes() -> anyhow::Result<()> {
++    let dir = TempDir::new()?;
++    let rollout_path = dir.path().join("owned.jsonl");
++    let thread_id = ThreadId::new();
++    let RolloutItem::SessionMeta(header) = paginated_session_meta_item(thread_id, dir.path())
++    else {
++        unreachable!("paginated header fixture");
++    };
++    let ordinal_state = RolloutOrdinalState::for_new_rollout(ThreadHistoryMode::Paginated, None);
++    let mut writer = RolloutWriterState {
++        writer: None,
++        deferred_creation: true,
++        pending_items: vec![agent_message_item("first")],
++        meta: Some(header.meta),
++        cwd: dir.path().to_path_buf(),
++        rollout_path: rollout_path.clone(),
++        ordinal_state,
++        last_logged_error: None,
++        start_munie_replay: true,
++    };
++    let first = writer
++        .munie_replay_fingerprint()
++        .await?
++        .expect("fresh writer");
++    let checkpoint = dir.path().join("binding.json");
++    let route = [31; 32];
++    let key = [19; 32];
++    crate::write_replay_binding(checkpoint.clone(), thread_id, route, first, key, ()).await?;
++    writer.add_items(vec![agent_message_item("second")]);
++    let second = writer
++        .munie_replay_fingerprint()
++        .await?
++        .expect("fresh writer");
++    assert_ne!(first, second);
++    crate::write_replay_binding(checkpoint.clone(), thread_id, route, second, key, ()).await?;
++    writer.shutdown().await?;
++    drop(writer);
++
++    assert!(
++        crate::munie_replay::read_verified_replay(rollout_path.clone(), thread_id, first)
++            .await?
++            .is_none()
++    );
++    let verified =
++        crate::munie_replay::read_verified_replay(rollout_path.clone(), thread_id, second)
++            .await?
++            .expect("closed history matches writer checkpoint");
++    assert_eq!(verified.len(), 3);
++    let replay = crate::read_bound_replay(rollout_path.clone(), checkpoint, thread_id, key)
++        .await?
++        .expect("reopened binding matches history");
++    assert_eq!(replay.destination, route);
++    assert_eq!(replay.items.len(), 3);
++    assert!(
++        matches!(&verified[2], RolloutItem::EventMsg(EventMsg::AgentMessage(event)) if event.message == "second")
++    );
++
++    let mut collision = RolloutWriterState {
++        writer: None,
++        deferred_creation: true,
++        pending_items: Vec::new(),
++        meta: None,
++        cwd: dir.path().to_path_buf(),
++        rollout_path: rollout_path.clone(),
++        ordinal_state: RolloutOrdinalState::for_new_rollout(ThreadHistoryMode::Paginated, None),
++        last_logged_error: None,
++        start_munie_replay: true,
++    };
++    assert_eq!(
++        collision
++            .munie_replay_fingerprint()
++            .await
++            .unwrap_err()
++            .kind(),
++        std::io::ErrorKind::AlreadyExists
++    );
++    assert_eq!(
++        RolloutRecorder::load_rollout_items(&rollout_path)
++            .await?
++            .0
++            .len(),
++        3
++    );
++    Ok(())
+ }
+ 
++#[tokio::test]
++async fn munie_replay_fingerprint_is_lost_on_writer_recovery() -> anyhow::Result<()> {
++    let dir = TempDir::new()?;
++    let path = dir.path().join("rollout.jsonl");
++    File::create(&path)?;
++    let read_only_file = File::open(&path)?;
++    let mut state = RolloutWriterState {
++        writer: Some(JsonlWriter {
++            file: tokio::fs::File::from_std(read_only_file),
++            munie_replay: Some(ReplayAccumulator::default()),
++        }),
++        deferred_creation: false,
++        pending_items: vec![agent_message_item("after reopen")],
++        meta: None,
++        cwd: dir.path().to_path_buf(),
++        rollout_path: path.clone(),
++        ordinal_state: RolloutOrdinalState::Legacy,
++        last_logged_error: None,
++        start_munie_replay: false,
++    };
++    assert!(state.munie_replay_fingerprint().await?.is_none());
++    assert!(std::fs::read_to_string(path)?.contains("after reopen"));
++    Ok(())
++}
++
+ fn write_paginated_rollout(
+     path: &Path,
+     thread_id: ThreadId,
+@@ -997,6 +1109,7 @@
+     let mut state = RolloutWriterState {
+         writer: Some(JsonlWriter {
+             file: tokio::fs::File::from_std(read_only_file),
++            munie_replay: None,
+         }),
+         deferred_creation: false,
+         pending_items: Vec::new(),
+@@ -1005,6 +1118,7 @@
+         rollout_path: rollout_path.clone(),
+         ordinal_state: RolloutOrdinalState::Legacy,
+         last_logged_error: None,
++        start_munie_replay: false,
+     };
+     state.add_items(vec![RolloutItem::EventMsg(EventMsg::AgentMessage(
+         AgentMessageEvent {
+--- a/codex-rs/thread-store/src/live_thread.rs
++++ b/codex-rs/thread-store/src/live_thread.rs
+@@ -1,4 +1,5 @@
+ use std::future::Future;
++use std::path::Path;
+ use std::path::PathBuf;
+ use std::sync::Arc;
+ 
+@@ -181,8 +182,21 @@
+     pub async fn resume(
+         thread_store: Arc<dyn ThreadStore>,
+         history_mode: ThreadHistoryMode,
+-        mut params: ResumeThreadParams,
++        params: ResumeThreadParams,
+     ) -> ThreadStoreResult<(Self, Arc<Vec<RolloutItem>>)> {
++        Self::resume_with_binding(thread_store, history_mode, params, None)
++            .await
++            .map(|(thread, history, _)| (thread, history))
++    }
++
++    /// A local Mac host may pass an authenticated binding from its private state directory.
++    /// Only the returned history can be associated with the returned destination.
++    pub async fn resume_with_binding(
++        thread_store: Arc<dyn ThreadStore>,
++        history_mode: ThreadHistoryMode,
++        mut params: ResumeThreadParams,
++        binding: Option<(&Path, &[u8; 32])>,
++    ) -> ThreadStoreResult<(Self, Arc<Vec<RolloutItem>>, Option<[u8; 32]>)> {
+         let thread_id = params.thread_id;
+         let metadata = if history_mode == ThreadHistoryMode::Paginated
+             && let Some(local_store) = thread_store.as_any().downcast_ref::<LocalThreadStore>()
+@@ -197,7 +211,18 @@
+         } else {
+             None
+         };
+-        let history = thread_store.resume_thread(params.clone()).await?;
++        let (history, destination) = if let Some(binding) = binding
++            && let Some(local_store) = thread_store.as_any().downcast_ref::<LocalThreadStore>()
++        {
++            crate::local::live_writer::resume_thread_with_binding(
++                local_store,
++                params.clone(),
++                Some(binding),
++            )
++            .await?
++        } else {
++            (thread_store.resume_thread(params.clone()).await?, None)
++        };
+         params.history = Some(Arc::clone(&history));
+         let metadata_sync = ThreadMetadataSync::for_resume(&params, metadata.as_ref());
+         Ok((
+@@ -209,7 +234,31 @@
+                 persistence_telemetry: RolloutPersistenceTelemetry::new(thread_id),
+             },
+             history,
++            destination,
+         ))
++    }
++
++    pub async fn checkpoint_binding(
++        &self,
++        path: PathBuf,
++        key: [u8; 32],
++        destination: [u8; 32],
++    ) -> ThreadStoreResult<bool> {
++        let Some(local_store) = self
++            .thread_store
++            .as_any()
++            .downcast_ref::<LocalThreadStore>()
++        else {
++            return Ok(false);
++        };
++        crate::local::live_writer::checkpoint_binding(
++            local_store,
++            self.thread_id,
++            path,
++            key,
++            destination,
++        )
++        .await
+     }
+ 
+     #[tracing::instrument(
+--- a/codex-rs/thread-store/src/local/live_writer.rs
++++ b/codex-rs/thread-store/src/local/live_writer.rs
+@@ -1,3 +1,4 @@
++use std::path::Path;
+ use std::path::PathBuf;
+ use std::sync::Arc;
+ 
+@@ -41,6 +42,16 @@
+     store: &LocalThreadStore,
+     params: ResumeThreadParams,
+ ) -> ThreadStoreResult<Arc<Vec<RolloutItem>>> {
++    resume_thread_with_binding(store, params, None)
++        .await
++        .map(|(history, _)| history)
++}
++
++pub(crate) async fn resume_thread_with_binding(
++    store: &LocalThreadStore,
++    params: ResumeThreadParams,
++    binding: Option<(&Path, &[u8; 32])>,
++) -> ThreadStoreResult<(Arc<Vec<RolloutItem>>, Option<[u8; 32]>)> {
+     let _live_writer_guard = store.live_writer_locks.lock(params.thread_id).await;
+     store.ensure_live_recorder_absent(params.thread_id).await?;
+     let writer_lock = store.acquire_writer_lock(params.thread_id)?;
+@@ -72,27 +83,71 @@
+             message: format!("thread {} is archived", params.thread_id),
+         });
+     }
+-    let history = match params.history {
+-        Some(history)
+-            if !matches!(
+-                history.first(),
+-                Some(RolloutItem::SessionMeta(meta)) if meta.meta.id == params.thread_id
+-            ) =>
+-        {
+-            history
++    let is_external_history = params.history.as_ref().is_some_and(|history| {
++        !matches!(
++            history.first(),
++            Some(RolloutItem::SessionMeta(meta)) if meta.meta.id == params.thread_id
++        )
++    });
++    let trusted = match binding.filter(|_| !is_external_history) {
++        Some((binding_path, key)) => {
++            let resolved = super::thread_rollout_resolver::resolve_current_including_archived(
++                store,
++                params.thread_id,
++            )
++            .await;
++            match resolved {
++                Ok(Some(resolved))
++                    if resolved.rollout_id == params.thread_id
++                        && trusted_rollout_path(store, &resolved.path, &rollout_path).await =>
++                {
++                    match codex_rollout::read_bound_replay(
++                        rollout_path.clone(),
++                        binding_path.to_path_buf(),
++                        params.thread_id,
++                        *key,
++                    )
++                    .await
++                    {
++                        Ok(trusted) => trusted,
++                        Err(_) => {
++                            warn!("Munie replay binding could not be read");
++                            None
++                        }
++                    }
++                }
++                _ => None,
++            }
+         }
+-        Some(history)
+-            if params.history_revision.is_some()
+-                && params.history_revision
+-                    == super::history_revision::read(&rollout_path).await =>
+-        {
+-            history
+-        }
+-        _ => Arc::new(
+-            super::model_context::load_from_rollout_path(store, params.thread_id, &rollout_path)
++        None => None,
++    };
++    let (history, destination, seed) = if let Some(replay) = trusted {
++        (
++            Arc::new(replay.items),
++            Some(replay.destination),
++            Some(replay.seed),
++        )
++    } else {
++        let history = match params.history {
++            Some(history) if is_external_history => history,
++            Some(history)
++                if params.history_revision.is_some()
++                    && params.history_revision
++                        == super::history_revision::read(&rollout_path).await =>
++            {
++                history
++            }
++            _ => Arc::new(
++                super::model_context::load_from_rollout_path(
++                    store,
++                    params.thread_id,
++                    &rollout_path,
++                )
+                 .await?
+                 .items,
+-        ),
++            ),
++        };
++        (history, None, None)
+     };
+     let history_mode = canonical_history_mode_from_rollout_items(&history);
+     let cwd = params
+@@ -114,12 +169,25 @@
+         params.thread_id,
+         history_mode,
+     )?;
+-    let recorder = RolloutRecorder::new_with_writer_lock(
+-        &config,
+-        RolloutRecorderParams::resume(rollout_path),
+-        writer_lock.clone(),
+-    )
+-    .await
++    let recorder = match seed {
++        Some(seed) => {
++            RolloutRecorder::resume_with_replay_seed(
++                &config,
++                rollout_path,
++                writer_lock.clone(),
++                seed,
++            )
++            .await
++        }
++        None => {
++            RolloutRecorder::new_with_writer_lock(
++                &config,
++                RolloutRecorderParams::resume(rollout_path),
++                writer_lock.clone(),
++            )
++            .await
++        }
++    }
+     .map_err(|err| ThreadStoreError::Internal {
+         message: format!("failed to resume local thread recorder: {err}"),
+     })?;
+@@ -132,7 +200,55 @@
+             writer_lock,
+         )
+         .await?;
+-    Ok(history)
++    Ok((history, destination))
++}
++
++async fn trusted_rollout_path(store: &LocalThreadStore, stored: &Path, requested: &Path) -> bool {
++    let Ok(home) = tokio::fs::canonicalize(&store.config.codex_home).await else {
++        return false;
++    };
++    let Ok(stored) = tokio::fs::canonicalize(stored).await else {
++        return false;
++    };
++    stored == requested
++        && [
++            codex_rollout::SESSIONS_SUBDIR,
++            codex_rollout::ARCHIVED_SESSIONS_SUBDIR,
++        ]
++        .iter()
++        .any(|directory| stored.starts_with(home.join(directory)))
++}
++
++pub(crate) async fn checkpoint_binding(
++    store: &LocalThreadStore,
++    thread_id: ThreadId,
++    binding_path: PathBuf,
++    key: [u8; 32],
++    destination: [u8; 32],
++) -> ThreadStoreResult<bool> {
++    let live_writer_guard = store.live_writer_locks.lock(thread_id).await;
++    let (recorder, rollout_id, _) = live_writer_parts(store, thread_id).await?;
++    if rollout_id != thread_id {
++        return Ok(false);
++    }
++    let Some(fingerprint) = recorder
++        .munie_replay_fingerprint()
++        .await
++        .map_err(thread_store_io_error)?
++    else {
++        return Ok(false);
++    };
++    codex_rollout::write_replay_binding(
++        binding_path,
++        thread_id,
++        destination,
++        fingerprint,
++        key,
++        live_writer_guard,
++    )
++    .await
++    .map_err(thread_store_io_error)?;
++    Ok(true)
+ }
+ 
+ #[tracing::instrument(
+--- a/codex-rs/thread-store/src/local/mod.rs
++++ b/codex-rs/thread-store/src/local/mod.rs
+@@ -4,7 +4,7 @@
+ mod helpers;
+ mod history_revision;
+ mod list_threads;
+-mod live_writer;
++pub(crate) mod live_writer;
+ mod model_context;
+ mod move_thread_to_section;
+ mod paginated_fork;
+@@ -850,6 +850,125 @@
+     use crate::local::test_support::write_session_file_with_history_mode;
+ 
+     #[tokio::test]
++    async fn munie_replay_reopens_and_keeps_unverified_history_readable()
++    -> Result<(), Box<dyn std::error::Error>> {
++        const CHILD: &str = "MUNIE_STORE_REPLAY_TEST_CHILD";
++        if std::env::var_os(CHILD).is_none() {
++            let child = std::process::Command::new(std::env::current_exe()?)
++                .env(CHILD, "1")
++                .args([
++                    "--exact",
++                    "local::tests::munie_replay_reopens_and_keeps_unverified_history_readable",
++                ])
++                .output()?;
++            assert!(
++                child.status.success(),
++                "{}",
++                String::from_utf8_lossy(&child.stdout)
++            );
++            assert!(String::from_utf8_lossy(&child.stdout).contains("1 passed"));
++            return Ok(());
++        }
++        codex_protocol::shell_environment::disable_external_extensions_for_process();
++        let home = TempDir::new()?;
++        let private = TempDir::new()?;
++        let binding = private.path().join("replay.json");
++        let key = [51; 32];
++        let destination = [61; 32];
++        let thread_id = ThreadId::new();
++        let store = Arc::new(LocalThreadStore::new(test_config(home.path()), None));
++        let thread = LiveThread::create(store.clone(), create_thread_params(thread_id)).await?;
++        thread
++            .append_items(&[user_message_item("owned message")])
++            .await?;
++        assert!(
++            thread
++                .checkpoint_binding(binding.clone(), key, destination)
++                .await?
++        );
++        let rollout = thread.local_rollout_path().await?.expect("local rollout");
++        thread.shutdown().await?;
++        drop(thread);
++        drop(store);
++
++        let reopened = Arc::new(LocalThreadStore::new(test_config(home.path()), None));
++        let params = || ResumeThreadParams {
++            thread_id,
++            history_revision: None,
++            rollout_path: None,
++            history: None,
++            include_archived: false,
++            metadata: thread_metadata(),
++        };
++        let (thread, history, authority) = LiveThread::resume_with_binding(
++            reopened.clone(),
++            ThreadHistoryMode::Legacy,
++            ResumeThreadParams {
++                history: Some(Arc::new(vec![user_message_item("explicit import")])),
++                ..params()
++            },
++            Some((&binding, &key)),
++        )
++        .await?;
++        assert_eq!(authority, None);
++        assert_eq!(history.len(), 1);
++        assert!(
++            !thread
++                .checkpoint_binding(binding.clone(), key, destination)
++                .await?
++        );
++        thread.shutdown().await?;
++        drop(thread);
++
++        let (thread, history, authority) = LiveThread::resume_with_binding(
++            reopened.clone(),
++            ThreadHistoryMode::Legacy,
++            params(),
++            Some((&binding, &key)),
++        )
++        .await?;
++        assert_eq!(authority, Some(destination));
++        assert!(history.iter().any(|item| matches!(item, RolloutItem::EventMsg(EventMsg::UserMessage(event)) if event.message == "owned message")));
++        thread
++            .append_items(&[user_message_item("owned continuation")])
++            .await?;
++        assert!(
++            thread
++                .checkpoint_binding(binding.clone(), key, destination)
++                .await?
++        );
++        thread.shutdown().await?;
++        drop(thread);
++
++        let (thread, history, authority) = LiveThread::resume_with_binding(
++            reopened.clone(),
++            ThreadHistoryMode::Legacy,
++            params(),
++            Some((&binding, &key)),
++        )
++        .await?;
++        assert_eq!(authority, Some(destination));
++        assert!(history.iter().any(|item| matches!(item, RolloutItem::EventMsg(EventMsg::UserMessage(event)) if event.message == "owned continuation")));
++        thread.shutdown().await?;
++        drop(thread);
++
++        codex_rollout::append_rollout_item_to_path(&rollout, &user_message_item("external append"))
++            .await?;
++        let (thread, history, authority) = LiveThread::resume_with_binding(
++            reopened,
++            ThreadHistoryMode::Legacy,
++            params(),
++            Some((&binding, &key)),
++        )
++        .await?;
++        assert_eq!(authority, None);
++        assert!(history.iter().any(|item| matches!(item, RolloutItem::EventMsg(EventMsg::UserMessage(event)) if event.message == "external append")));
++        assert!(!thread.checkpoint_binding(binding, key, destination).await?);
++        thread.shutdown().await?;
++        Ok(())
++    }
++
++    #[tokio::test]
+     async fn live_writer_lifecycle_writes_and_closes() {
+         let home = TempDir::new().expect("temp dir");
+         let store = LocalThreadStore::new(test_config(home.path()), /*state_db*/ None);
+--- a/codex-rs/core/src/client.rs
++++ b/codex-rs/core/src/client.rs
+@@ -38,6 +38,7 @@
+ mod tool_metadata;
+ 
+ use self::munie_responses_destination::DurableReplay;
++use self::munie_responses_destination::OfficialOwner;
+ use self::munie_responses_destination::ResponsesDestination;
+ use self::munie_responses_destination::ResponsesTransport;
+ use crate::CodexResponsesHeaders;
+@@ -1768,15 +1769,16 @@
+             .with_durable_replay(self.client.munie_replay.clone())
+             .with_routing_identity(
+                 client_setup.api_provider.headers.keys().cloned().collect(),
+-                self.client
+-                    .uses_codex_backend(client_setup.auth.as_ref())
+-                    .then(|| {
+-                        client_setup
+-                            .auth
+-                            .as_ref()
+-                            .and_then(CodexAuth::get_account_id)
+-                    })
+-                    .flatten(),
++                if client_setup.agent_identity_telemetry.is_none()
++                    && self.client.uses_codex_backend(client_setup.auth.as_ref())
++                {
++                    client_setup
++                        .auth
++                        .as_ref()
++                        .and_then(OfficialOwner::from_auth)
++                } else {
++                    None
++                },
+             );
+             let request_auth_context = AuthRequestTelemetryContext::new(
+                 client_setup.auth.as_ref().map(CodexAuth::auth_mode),
+--- a/codex-rs/core/src/munie_responses_destination.rs
++++ b/codex-rs/core/src/munie_responses_destination.rs
+@@ -7,6 +7,8 @@
+ use codex_http_client::Response;
+ use codex_http_client::StreamResponse;
+ use codex_http_client::TransportError;
++use codex_login::CodexAuth;
++use codex_protocol::auth::AuthMode;
+ use http::HeaderMap;
+ use http::HeaderName;
+ use http::HeaderValue;
+@@ -24,12 +26,40 @@
+     auth_owner_generation: Option<u64>,
+ }
+ 
++pub(super) struct OfficialOwner {
++    workspace: String,
++    user: String,
++    mode: AuthMode,
++}
++
++impl OfficialOwner {
++    pub(super) fn from_auth(auth: &CodexAuth) -> Option<Self> {
++        let mode = auth.api_auth_mode();
++        if !matches!(mode, AuthMode::Chatgpt | AuthMode::ChatgptAuthTokens) {
++            return None;
++        }
++        Some(Self {
++            workspace: auth.get_account_id()?,
++            user: auth.get_chatgpt_user_id()?,
++            mode,
++        })
++    }
++}
++
+ impl fmt::Debug for ResponsesDestination {
+     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+         f.write_str("ResponsesDestination(<redacted>)")
+     }
+ }
+ 
++fn authorization(headers: &HeaderMap) -> Option<&str> {
++    let mut values = headers.get_all(http::header::AUTHORIZATION).iter();
++    let value = values.next()?.to_str().ok()?;
++    let (scheme, credential) = value.split_once(' ')?;
++    (!scheme.is_empty() && !credential.trim().is_empty() && values.next().is_none())
++        .then_some(value)
++}
++
+ impl ResponsesDestination {
+     pub(super) fn new(
+         request_url: &str,
+@@ -46,6 +76,13 @@
+         {
+             return None;
+         }
++        if url
++            .host_str()
++            .is_some_and(codex_http_client::is_allowed_chatgpt_host)
++            && authorization(headers).is_none()
++        {
++            return None;
++        }
+         let routing_header = |name: &str| {
+             let values = headers.get_all(name);
+             let mut values = values.iter();
+@@ -76,19 +113,33 @@
+         state: &ReplayState,
+         headers: &HeaderMap,
+         configured_headers: &[HeaderName],
+-        official_account: Option<&str>,
++        official_owner: Option<&OfficialOwner>,
+     ) -> [u8; 32] {
+         let mut fields = vec![
+             Some(self.url.as_str().as_bytes()),
+             self.account_route.as_ref().map(HeaderValue::as_bytes),
+             self.account_id.as_ref().map(HeaderValue::as_bytes),
+         ];
+-        let stable_official_owner = official_account.is_some_and(|account| {
+-            self.url
+-                .host_str()
+-                .is_some_and(codex_http_client::is_allowed_chatgpt_host)
+-                && self.account_id.as_ref().map(HeaderValue::as_bytes) == Some(account.as_bytes())
++        let stable_official_owner = official_owner.filter(|owner| {
++            authorization(headers).is_some_and(|value| value.starts_with("Bearer "))
++                && !owner.workspace.trim().is_empty()
++                && !owner.user.trim().is_empty()
++                && self
++                    .url
++                    .host_str()
++                    .is_some_and(codex_http_client::is_allowed_chatgpt_host)
++                && self.account_id.as_ref().map(HeaderValue::as_bytes)
++                    == Some(owner.workspace.as_bytes())
+         });
++        let mode = stable_official_owner.map(|owner| owner.mode.to_string());
++        if let (Some(owner), Some(mode)) = (stable_official_owner, mode.as_ref()) {
++            // Version this branch so previous workspace-only tags cannot match it.
++            fields.extend([
++                Some(b"munie/official-owner/v2".as_slice()),
++                Some(mode.as_bytes()),
++                Some(owner.user.as_bytes()),
++            ]);
++        }
+         let mut names = configured_headers.to_vec();
+         names.extend([
+             HeaderName::from_static("openai-organization"),
+@@ -96,7 +147,7 @@
+             HeaderName::from_static("x-api-key"),
+             HeaderName::from_static("api-key"),
+         ]);
+-        if !stable_official_owner {
++        if stable_official_owner.is_none() {
+             names.push(http::header::AUTHORIZATION);
+         }
+         names.sort_unstable_by(|a, b| a.as_str().cmp(b.as_str()));
+@@ -192,7 +243,7 @@
+     auth_owner_generation: Option<u64>,
+     durable: Option<Arc<DurableReplay>>,
+     configured_headers: Vec<HeaderName>,
+-    official_account: Option<String>,
++    official_owner: Option<OfficialOwner>,
+ }
+ 
+ impl<T: HttpTransport> ResponsesTransport<T> {
+@@ -207,7 +258,7 @@
+             auth_owner_generation,
+             durable: None,
+             configured_headers: Vec::new(),
+-            official_account: None,
++            official_owner: None,
+         }
+     }
+ 
+@@ -219,10 +270,10 @@
+     pub(super) fn with_routing_identity(
+         mut self,
+         configured_headers: Vec<HeaderName>,
+-        official_account: Option<String>,
++        official_owner: Option<OfficialOwner>,
+     ) -> Self {
+         self.configured_headers = configured_headers;
+-        self.official_account = official_account;
++        self.official_owner = official_owner;
+         self
+     }
+ 
+@@ -242,7 +293,7 @@
+                 &replay.state,
+                 &request.headers,
+                 &self.configured_headers,
+-                self.official_account.as_deref(),
++                self.official_owner.as_ref(),
+             )
+         });
+         if let (Some(replay), Some(tag)) = (&self.durable, tag)
+@@ -283,7 +334,67 @@
+     use std::sync::atomic::AtomicUsize;
+     use std::sync::atomic::Ordering;
+ 
++    #[cfg(unix)]
+     #[test]
++    fn official_cold_tag_requires_the_same_member_and_auth_mode() -> anyhow::Result<()> {
++        use codex_protocol::ThreadId;
++        use codex_protocol::auth::AuthMode;
++        use std::os::unix::fs::PermissionsExt;
++
++        let root = tempfile::Builder::new()
++            .permissions(std::fs::Permissions::from_mode(0o700))
++            .tempdir()?;
++        let state = ReplayState::open(root.path().canonicalize()?, ThreadId::new())?;
++        let workspace = "synthetic-workspace";
++        let tag = |user: &str, mode: AuthMode, bearer: &'static str| {
++            let mut headers = HeaderMap::new();
++            headers.insert("chatgpt-account-id", HeaderValue::from_static(workspace));
++            headers.insert(
++                http::header::AUTHORIZATION,
++                HeaderValue::from_static(bearer),
++            );
++            let destination = ResponsesDestination::new(
++                "https://chatgpt.com/backend-api/codex/responses",
++                &headers,
++                None,
++            )
++            .expect("synthetic official route");
++            let owner = OfficialOwner {
++                workspace: workspace.into(),
++                user: user.into(),
++                mode,
++            };
++            destination.durable_tag(&state, &headers, &[], Some(&owner))
++        };
++        let original = tag("member-one", AuthMode::Chatgpt, "Bearer synthetic-old");
++        assert_eq!(
++            original,
++            tag("member-one", AuthMode::Chatgpt, "Bearer synthetic-new"),
++            "same owner must allow credential-only rotation"
++        );
++        assert_ne!(
++            original,
++            tag("member-two", AuthMode::Chatgpt, "Bearer synthetic-old"),
++            "cold replay must reject a different workspace member"
++        );
++        assert_ne!(
++            original,
++            tag(
++                "member-one",
++                AuthMode::ChatgptAuthTokens,
++                "Bearer synthetic-old"
++            ),
++            "cold replay must reject a different authentication mode"
++        );
++        assert_ne!(
++            original,
++            tag("", AuthMode::Chatgpt, "Bearer synthetic-old"),
++            "missing user cannot inherit the existing binding"
++        );
++        Ok(())
++    }
++
++    #[test]
+     fn preserves_the_first_route_and_auth_owner() {
+         let headers = HeaderMap::new();
+         let bound = OnceLock::new();
+@@ -340,6 +451,62 @@
+     #[derive(Default)]
+     struct CountingTransport(AtomicUsize);
+ 
++    #[tokio::test]
++    async fn official_without_unambiguous_auth_never_delegates() {
++        let transport = ResponsesTransport::new(
++            CountingTransport::default(),
++            Some(Arc::new(OnceLock::new())),
++            None,
++        );
++        let send = |headers| {
++            transport.stream(Request {
++                method: http::Method::POST,
++                url: "https://chatgpt.com/backend-api/codex/responses".into(),
++                headers,
++                body: None,
++                compression: codex_http_client::RequestCompression::None,
++                timeout: None,
++                response_body_limit_bytes: None,
++            })
++        };
++        let mut empty = HeaderMap::new();
++        empty.insert(
++            "chatgpt-account-id",
++            HeaderValue::from_static("synthetic-workspace"),
++        );
++        let mut malformed = empty.clone();
++        malformed.insert(
++            http::header::AUTHORIZATION,
++            HeaderValue::from_static("Bearer "),
++        );
++        let mut duplicate = empty.clone();
++        duplicate.append(
++            http::header::AUTHORIZATION,
++            HeaderValue::from_static("Bearer one"),
++        );
++        duplicate.append(
++            http::header::AUTHORIZATION,
++            HeaderValue::from_static("Bearer two"),
++        );
++        for headers in [malformed, duplicate, empty.clone()] {
++            assert!(matches!(
++                send(headers).await,
++                Err(TransportError::Build(message))
++                    if message == "Munie cannot verify the Responses destination"
++            ));
++        }
++        assert_eq!(transport.inner.0.load(Ordering::Relaxed), 0);
++        empty.insert(
++            http::header::AUTHORIZATION,
++            HeaderValue::from_static("Bearer one"),
++        );
++        assert!(matches!(
++            send(empty).await,
++            Err(TransportError::Build(message)) if message == "inner test transport"
++        ));
++        assert_eq!(transport.inner.0.load(Ordering::Relaxed), 1);
++    }
++
+     impl HttpTransport for CountingTransport {
+         async fn execute(&self, _request: Request) -> Result<Response, TransportError> {
+             self.0.fetch_add(1, Ordering::Relaxed);

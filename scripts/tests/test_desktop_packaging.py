@@ -107,6 +107,14 @@ class DesktopPackageTests(unittest.TestCase):
             with self.subTest(field=field), self.assertRaisesRegex(ValueError, "SHA-256"):
                 PREPARE.verify_policy_preview(self.root, binary, dict(lock, **{field: "0" * 64}))
 
+    def test_committed_policy_patch_matches_runtime_lock(self):
+        references = ROOT / "references"
+        lock = json.loads((references / "desktop-runtime-lock.json").read_text())
+        self.assertEqual(
+            PACKAGE.sha256(references / "codex-munie-stdio-policy.patch"),
+            lock["codexPolicyPreview"]["patchSHA256"],
+        )
+
     def test_embed_binds_policy_marker_to_pinned_binary(self):
         manifest_path = self.fixture()
         manifest = json.loads(manifest_path.read_text())

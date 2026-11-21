@@ -6,7 +6,7 @@ const path = require("node:path");
 const http = require("node:http");
 const { isIPv4 } = require("node:net");
 const { spawn, spawnSync } = require("node:child_process");
-const { createHash } = require("node:crypto");
+const { createHash, X509Certificate } = require("node:crypto");
 const { setTimeout: delay } = require("node:timers/promises");
 
 const MAX_REQUEST_BYTES = 32 * 1024;
@@ -219,7 +219,7 @@ function bridgeSnapshot(value) {
 }
 
 function prepareSimulatorApprovalFixture(fixture, env, { verify = false } = {}) {
-  const { directory, providerPort } = fixture;
+  const { directory, providerPort, certificateHash } = fixture;
   const base = verify ? null : fs.realpathSync(os.tmpdir());
   const assertPrivate = (target) => {
     const info = fs.lstatSync(target);
@@ -242,6 +242,23 @@ function prepareSimulatorApprovalFixture(fixture, env, { verify = false } = {}) 
   }
   for (const dir of [directory, home, project, ...(verify ? [state, path.join(home, "rules")] : [])]) assertPrivate(dir);
   if (!verify && (fs.readdirSync(home).length || fs.readdirSync(project).length)) throw hostError("state_unavailable");
+  // Only the CA generated under this private fixture root can enter the worker's environment.
+  const ca = path.join(directory, "approval-provider-ca.pem");
+  let caHash;
+  try {
+    const info = fs.lstatSync(ca);
+    if (!info.isFile() || info.uid !== process.getuid() || (info.mode & 0o7777) !== 0o600
+        || info.nlink !== 1 || info.size > 4096) throw new Error();
+    const pem = fs.readFileSync(ca, "utf8");
+    if (!/^-----BEGIN CERTIFICATE-----\n[A-Za-z0-9+/=\n]+\n-----END CERTIFICATE-----\n$/.test(pem)) throw new Error();
+    const cert = new X509Certificate(pem);
+    const from = Date.parse(cert.validFrom), to = Date.parse(cert.validTo), now = Date.now();
+    if (!cert.ca || cert.subject !== "CN=Munie Simulator Approval Root" || cert.issuer !== cert.subject
+        || cert.publicKey.asymmetricKeyType !== "rsa" || cert.publicKey.asymmetricKeyDetails.modulusLength !== 2048
+        || !(from <= now && now < to && to - from <= 86_400_000)) throw new Error();
+    caHash = createHash("sha256").update(pem).digest("hex");
+    if (verify && (caHash !== certificateHash || env.CODEX_CA_CERTIFICATE !== ca || env.SSL_CERT_FILE !== ca)) throw new Error();
+  } catch { throw hostError("state_unavailable"); }
   const put = (file, content) => {
     if (!verify) return fs.writeFileSync(file, content, { flag: "wx", mode: 0o600 });
     const info = fs.lstatSync(file);
@@ -252,12 +269,13 @@ function prepareSimulatorApprovalFixture(fixture, env, { verify = false } = {}) 
   };
   put(path.join(home, "config.toml"), 'cli_auth_credentials_store="file"\nanalytics.enabled=false\nfeedback.enabled=false\n'
     + 'model="munie-fixture"\nmodel_provider="munie_fixture"\n[model_providers.munie_fixture]\n'
-    + `name="Munie simulator fixture"\nbase_url="http://127.0.0.1:${providerPort}/v1"\nwire_api="responses"\n`
+    + `name="Munie simulator fixture"\nbase_url="https://127.0.0.1:${providerPort}/v1"\nwire_api="responses"\n`
+    + 'requires_openai_auth=false\nsupports_websockets=false\n'
     + 'request_max_retries=0\nstream_max_retries=0\n');
   if (!verify) fs.mkdirSync(path.join(home, "rules"), { mode: 0o700 });
   put(path.join(home, "rules", "default.rules"), 'prefix_rule(pattern=["/bin/sh", "managed-stop.sh"], decision="prompt")\n');
   put(path.join(project, "managed-stop.sh"), "/bin/mkdir managed-shell-started && /bin/sleep 8 && /bin/mkdir managed-shell-late\n");
-  return { directory, project };
+  return { directory, project, providerPort, ca, caHash };
 }
 
 function createDesktopHost({ env = process.env, emit = () => {}, spawnImpl = spawn, simulatorApprovalFixture = null } = {}) {
@@ -428,7 +446,9 @@ function createDesktopHost({ env = process.env, emit = () => {}, spawnImpl = spa
     if (fixture) {
       childEnv.HOME = fixture.directory;
       childEnv.TMPDIR = fixture.directory;
-      workerArgs.push("--simulator-approval-fixture", String(simulatorApprovalFixture.providerPort));
+      childEnv.CODEX_CA_CERTIFICATE = fixture.ca;
+      childEnv.SSL_CERT_FILE = fixture.ca;
+      workerArgs.push("--simulator-approval-fixture", String(fixture.providerPort), fixture.caHash);
     }
     const child = spawnImpl(guardian, workerArgs, {
       env: childEnv, cwd: project.path, detached: true, stdio: ["pipe", "pipe", "ignore"],
@@ -569,7 +589,7 @@ function monitorLanRelay(loopbackServer, port, onAvailability) {
   };
 }
 
-async function runWorker({ simulatorApprovalFixture = false, fixtureProviderPort = null } = {}) {
+async function runWorker({ simulatorApprovalFixture = false, fixtureProviderPort = null, fixtureCertificateHash = null } = {}) {
   // Imported bridge/relay log text may contain paths or upstream details: discard, never forward it.
   for (const key of ["log", "info", "warn", "error", "debug"]) console[key] = () => {};
   const send = (frame) => writeFrame(process.stdout, frame);
@@ -582,7 +602,7 @@ async function runWorker({ simulatorApprovalFixture = false, fixtureProviderPort
   if (simulatorApprovalFixture) {
     if (!pilotOrigin || process.env.MUNIE_REQUIRE_CODEX_STDIO_POLICY !== "1") throw hostError("runtime_unavailable");
     prepareSimulatorApprovalFixture({
-      directory: process.env.HOME, providerPort: fixtureProviderPort,
+      directory: process.env.HOME, providerPort: fixtureProviderPort, certificateHash: fixtureCertificateHash,
     }, process.env, { verify: true });
   }
   const relay = createRelayServer({ enablePushService: false, maxPayload: MAX_FRAME_BYTES,
@@ -714,6 +734,7 @@ if (require.main === module) {
   else if (process.argv[2] === "--worker") runWorker({
     simulatorApprovalFixture: process.argv[3] === "--simulator-approval-fixture",
     fixtureProviderPort: Number(process.argv[4]),
+    fixtureCertificateHash: process.argv[5],
   }).catch((error) => {
     writeFrame(process.stdout, { event: "fatal", data: publicError(hostError(error?.code === "EADDRINUSE" ? "relay_port_unavailable" : "runtime_failed")) });
     process.exit(1);

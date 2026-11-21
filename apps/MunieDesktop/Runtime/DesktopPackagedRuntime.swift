@@ -7,11 +7,29 @@ struct DesktopRuntimeConfiguration: Sendable {
   let codex: URL
   let stateDirectory: URL
   let defaultProject: URL
+  var lanTaskPreviewProject: String? = nil
+  var hostedRelayOrigin: String? = nil
+
+  static func bundledHostedRelayOrigin(in bundle: Bundle = .main) -> String? {
+    if let preview = bundle.object(forInfoDictionaryKey: "MunieLANTaskPreviewProject") as? String,
+      preview.hasPrefix("/"),
+      bundle.object(forInfoDictionaryKey: "MunieScopedHostedTaskPreview") as? String != "YES"
+    {
+      return nil
+    }
+    guard let origin = bundle.object(forInfoDictionaryKey: "MunieManagedRelayOrigin") as? String,
+      origin.hasPrefix("https://")
+    else { return nil }
+    return origin
+  }
 
   static func bundled(in bundle: Bundle = .main) async throws -> Self {
     guard let resources = bundle.resourceURL else {
       throw DesktopHostFailure.resourcesUnavailable
     }
+    let previewProject =
+      bundle.object(forInfoDictionaryKey: "MunieLANTaskPreviewProject") as? String
+    let hostedRelayOrigin = bundledHostedRelayOrigin(in: bundle)
     return try await Task.detached {
       let files = FileManager.default
       let support = try files.url(
@@ -29,7 +47,9 @@ struct DesktopRuntimeConfiguration: Sendable {
         node: resources.appending(path: "Runtime/bin/node"),
         entryPoint: resources.appending(path: "Host/MunieRemodexBridge/src/desktop-host.js"),
         codex: resources.appending(path: "Runtime/bin/codex"),
-        stateDirectory: state, defaultProject: project)
+        stateDirectory: state, defaultProject: project,
+        lanTaskPreviewProject: previewProject?.hasPrefix("/") == true ? previewProject : nil,
+        hostedRelayOrigin: hostedRelayOrigin)
       guard files.isExecutableFile(atPath: configuration.node.path),
         files.isExecutableFile(atPath: configuration.codex.path),
         files.isReadableFile(atPath: configuration.entryPoint.path)
@@ -82,6 +102,11 @@ actor DesktopPackagedRuntime: DesktopHostRuntime {
     self.configuration = configuration
   }
 
+  static func inheritedHelperEnvironment(_ inherited: [String: String]) -> [String: String] {
+    let allowed = ["HOME", "TMPDIR", "LANG", "LC_ALL", "USER", "LOGNAME", "CODEX_HOME"]
+    return inherited.filter { allowed.contains($0.key) }
+  }
+
   func launch() async throws -> AsyncStream<DesktopHostEvent> {
     guard process == nil else { throw DesktopHostFailure.alreadyRunning }
     let child = Process()
@@ -89,13 +114,19 @@ actor DesktopPackagedRuntime: DesktopHostRuntime {
     let stdout = Pipe()
     let stderr = Pipe()
     child.executableURL = configuration.node
-    child.arguments = [configuration.entryPoint.path]
-    child.currentDirectoryURL = configuration.defaultProject
-    let inherited = ProcessInfo.processInfo.environment
-    var environment: [String: String] = [:]
-    for key in ["HOME", "TMPDIR", "LANG", "LC_ALL", "USER", "LOGNAME"] {
-      environment[key] = inherited[key]
+    var arguments = [configuration.entryPoint.path]
+    if let project = configuration.lanTaskPreviewProject,
+      let origin = configuration.hostedRelayOrigin
+    {
+      arguments += ["--scoped-task-preview-and-managed-relay", project, origin]
+    } else if let project = configuration.lanTaskPreviewProject {
+      arguments += ["--lan-task-preview-project", project]
+    } else if let origin = configuration.hostedRelayOrigin {
+      arguments += ["--managed-relay-origin", origin]
     }
+    child.arguments = arguments
+    child.currentDirectoryURL = configuration.defaultProject
+    var environment = Self.inheritedHelperEnvironment(ProcessInfo.processInfo.environment)
     environment["PATH"] = "/usr/bin:/bin:/usr/sbin:/sbin"
     environment["MUNIE_HOST_STATE_DIR"] = configuration.stateDirectory.path
     environment["MUNIE_CODEX_BINARY"] = configuration.codex.path

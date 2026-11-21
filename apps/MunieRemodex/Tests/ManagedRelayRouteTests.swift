@@ -1,5 +1,6 @@
 #if DEBUG
   import CryptoKit
+  import dnssd
   import Network
   import XCTest
   @testable import MunieRemodex
@@ -7,6 +8,61 @@
   @MainActor
   final class ManagedRelayRouteTests: XCTestCase {
     nonisolated deinit {}
+
+    func testHostedFallbackOnlyAcceptsNearbyLANHints() {
+      for valid in [
+        "ws://paired-mac.local:3200/relay/session", "ws://10.0.0.1:3200/relay/session",
+        "ws://172.31.0.1:3200/relay/session", "ws://192.168.1.1:3200/relay/session",
+      ] {
+        XCTAssertTrue(ContentViewModel.isNearbyRelayURL(valid), valid)
+      }
+      for invalid in [
+        "wss://example.org/relay/session", "ws://100.64.0.1/relay/session",
+        "ws://paired-mac.local@other.net/relay/session", "ws://paired-mac.local/relay?token=a",
+      ] {
+        XCTAssertFalse(ContentViewModel.isNearbyRelayURL(invalid), invalid)
+      }
+    }
+
+    func testBonjourAbsenceIsNotLocalNetworkDenialOrCertificateFailure() {
+      let host = "nearby-mac.local"
+      let missing = NWError.dns(Int32(kDNSServiceErr_NoSuchName))
+      XCTAssertTrue(CodexService.isLANTransportUnreachable(missing, nearbyHost: host))
+      XCTAssertFalse(CodexService.isLANTransportUnreachable(missing, nearbyHost: "example.org"))
+      XCTAssertFalse(
+        CodexService.isLANTransportUnreachable(
+          NWError.dns(Int32(kDNSServiceErr_PolicyDenied)), nearbyHost: host))
+      XCTAssertTrue(
+        CodexService.isLANTransportUnreachable(URLError(.cannotFindHost), nearbyHost: host))
+      XCTAssertFalse(
+        CodexService.isLANTransportUnreachable(
+          URLError(.serverCertificateUntrusted), nearbyHost: host))
+    }
+
+    func testHostedOutagePreservesTypedFailureWithoutRetryingEitherRoute() async {
+      var lanAttempts = 0
+      var hostedAttempts = 0
+      do {
+        try await ContentViewModel.connectWithManagedFallback(
+          shouldContinue: { true }, preserveLANError: false,
+          lan: { unreachable in
+            lanAttempts += 1
+            unreachable()
+            throw NWError.posix(.ENETUNREACH)
+          },
+          managed: {
+            hostedAttempts += 1
+            throw ManagedRelayPhoneConnector.Failure.transientUnavailable(.challenge)
+          }
+        )
+        XCTFail("A hosted outage must be visible.")
+      } catch {
+        XCTAssertEqual(
+          error as? ManagedRelayPhoneConnector.Failure, .transientUnavailable(.challenge))
+      }
+      XCTAssertEqual(lanAttempts, 1)
+      XCTAssertEqual(hostedAttempts, 1)
+    }
 
     func testRotatedMacKeyResetsThreadAndReconnectIntentEvenAtSameEndpoint() throws {
       let service = CodexService()
@@ -138,6 +194,69 @@
         CodexService.isLANTransportUnreachable(
           CodexSecureTransportError.invalidHandshake("identity")))
     }
+
+    func testHostedFallbackRequiresTheSelectedMacSavedLANSnapshot() {
+      let service = CodexService()
+      let mac = CodexTrustedMacRecord(
+        macDeviceId: "paired-mac", macIdentityPublicKey: "paired-key", lastPairedAt: .now)
+      service.relayUrl = "ws://paired-mac.local:3200/relay"
+      service.relaySessionId = "session"
+      service.relayMacDeviceId = mac.macDeviceId
+      service.relayMacIdentityPublicKey = mac.macIdentityPublicKey
+      service.currentTrustedMacDeviceId = mac.macDeviceId
+      service.trustedMacRegistry = CodexTrustedMacRegistry(records: [mac.macDeviceId: mac])
+
+      let endpoint = "ws://paired-mac.local:3200/relay/session"
+      XCTAssertTrue(
+        ContentViewModel.isCurrentPairedLANEndpoint(endpoint, codex: service, pinnedMac: mac))
+      XCTAssertFalse(
+        ContentViewModel.isCurrentPairedLANEndpoint(
+          "ws://other-mac.local:3200/relay/session", codex: service, pinnedMac: mac))
+      XCTAssertFalse(
+        ContentViewModel.isCurrentPairedLANEndpoint(
+          "ws://paired-mac.local:3200/relay/old-session", codex: service, pinnedMac: mac))
+      service.relayMacIdentityPublicKey = "old-key"
+      XCTAssertFalse(
+        ContentViewModel.isCurrentPairedLANEndpoint(endpoint, codex: service, pinnedMac: mac))
+    }
+
+    func testRotatingThePairDuringAnUnreachableLANDialDoesNotDialHosted() async {
+      let service = CodexService()
+      let mac = CodexTrustedMacRecord(
+        macDeviceId: "paired-mac", macIdentityPublicKey: "paired-key", lastPairedAt: .now)
+      service.relayUrl = "ws://paired-mac.local:3200/relay"
+      service.relaySessionId = "session"
+      service.relayMacDeviceId = mac.macDeviceId
+      service.relayMacIdentityPublicKey = mac.macIdentityPublicKey
+      service.currentTrustedMacDeviceId = mac.macDeviceId
+      service.trustedMacRegistry = CodexTrustedMacRegistry(records: [mac.macDeviceId: mac])
+
+      let endpoint = "ws://paired-mac.local:3200/relay/session"
+      var lanAttempts = 0
+      var hostedAttempts = 0
+      do {
+        try await ContentViewModel.connectWithManagedFallback(
+          shouldContinue: {
+            ContentViewModel.isCurrentPairedLANEndpoint(endpoint, codex: service, pinnedMac: mac)
+          },
+          lan: { unreachable in
+            lanAttempts += 1
+            service.trustedMacRegistry.records[mac.macDeviceId] = CodexTrustedMacRecord(
+              macDeviceId: mac.macDeviceId, macIdentityPublicKey: "replacement", lastPairedAt: .now)
+            unreachable()
+            throw NWError.posix(.ECONNREFUSED)
+          },
+          managed: { hostedAttempts += 1 }
+        )
+        XCTFail("A stale LAN dial cannot authorize fallback.")
+      } catch is CancellationError {
+        XCTAssertEqual(lanAttempts, 1)
+        XCTAssertEqual(hostedAttempts, 0)
+      } catch {
+        XCTFail("Unexpected error: \(error)")
+      }
+    }
+
     func testLANDeadlineKeepsTypedWaitingCauseForFailover() {
       let unreachable = CodexConnectionWaitDeadline(
         message: "timed out", waitingError: .posix(.EHOSTUNREACH))

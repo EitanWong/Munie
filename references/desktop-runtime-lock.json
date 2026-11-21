@@ -15,6 +15,12 @@
     "sourceCommit": "092d3acd6bec3e3a14bdc7e7a2810ab628ab759d",
     "licenseSHA256": "d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc"
   },
+  "codexPolicyPreview": {
+    "protocolVersion": 1,
+    "sourceArchiveSHA256": "79c8ea8547e1dd9969f63ef6b76a4fb0d1a024ef36c0c627fbcd2ffb658d9312",
+    "patchSHA256": "0c7a400f373f84859da70e108b8ba8cb1ff344d0f57d52504d2b5651bd94178a",
+    "binarySHA256": "83544c65318557ad0f48a112123e1402a597817009a2f6eb55ac3dad922af5e7"
+  },
   "distributionReady": false,
   "distributionBlockers": [
     "Complete native Codex and bundled ripgrep/zsh/code-mode-host transitive license and notice review before distribution",

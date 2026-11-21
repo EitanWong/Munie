@@ -6,7 +6,7 @@ const { setTimeout: delay } = require("node:timers/promises");
 const test = require("node:test");
 const { WebSocket } = require("ws");
 const { managedAdmissionTranscript } = require("./managed-admission");
-const { startManagedRelayPilot } = require("./managed-relay-pilot");
+const { startManagedRelayPilot, startHostedManagedRelay } = require("./managed-relay-pilot");
 
 function identity() {
   const { publicKey, privateKey } = generateKeyPairSync("ed25519");
@@ -285,4 +285,132 @@ test("legacy routes and oversized challenge bodies are not served on the pilot",
   }
   const response = await fetch(`${relay.origin}/v1/managed/challenge`, { method: "POST", body: "a".repeat(1025) });
   assert.equal(response.status, 413);
+});
+
+test("hosted relay requires bounded operator configuration and cannot select a bind address", async () => {
+  const config = { hostname: "relay.fixture.invalid", port: 0, allowedMacKeys: [identity().key] };
+  for (const invalid of [
+    { ...config, bindAddress: "0.0.0.0" },
+    { ...config, hostname: "https://relay.fixture.invalid" },
+    { ...config, hostname: "Relay.fixture.invalid" },
+    { ...config, hostname: "relay.fixture.invalid:443" },
+    { ...config, hostname: "relay.fixture.invalid." },
+    { ...config, hostname: "127.0.0.1" },
+    { ...config, hostname: "127.1" },
+    { ...config, hostname: "x.0xabcdef" },
+    { ...config, hostname: "localhost" },
+    { ...config, port: 65536 },
+    { ...config, port: "443" },
+    { ...config, allowedMacKeys: [] },
+    { ...config, allowedMacKeys: ["invalid"] },
+    { ...config, allowedMacKeys: [config.allowedMacKeys[0], config.allowedMacKeys[0]] },
+    { ...config, allowedMacKeys: Array.from({ length: 33 }, () => identity().key) },
+  ]) {
+    await assert.rejects(() => startHostedManagedRelay(invalid), { name: "TypeError" });
+  }
+});
+
+test("hosted relay accepts only its own authority and counts exact live routes without exposing keys", {
+  timeout: 5000,
+}, async (t) => {
+  t.mock.timers.enable({ apis: ["setInterval"] });
+  const hostname = "relay.fixture.invalid";
+  const mac = identity();
+  const phone = identity();
+  const replacement = identity();
+  const relay = await startHostedManagedRelay({ hostname, port: 0, allowedMacKeys: [mac.key] });
+  t.after(() => relay.close());
+  assert.equal(new URL(relay.origin).hostname, "127.0.0.1");
+  await assert.rejects(startHostedManagedRelay({
+    hostname, port: Number(new URL(relay.origin).port), allowedMacKeys: [mac.key],
+  }), { code: "EADDRINUSE" });
+  const path = "/v1/managed/challenge";
+  const getChallenge = (role, device = phone, host = hostname) => new Promise((resolve, reject) => {
+    const req = request(`${relay.origin}${path}`, { method: "POST", headers: { Host: host } }, (res) => {
+      const chunks = [];
+      res.on("error", reject);
+      res.on("data", (chunk) => chunks.push(chunk));
+      res.on("end", () => resolve([res.statusCode, JSON.parse(Buffer.concat(chunks))]));
+    });
+    req.on("error", reject);
+    req.end(JSON.stringify({ role, macKey: mac.key, phoneKey: device.key }));
+  });
+  const proof = async (role, device = phone) => {
+    const [status, challenge] = await getChallenge(role, device);
+    assert.equal(status, 200);
+    assert.equal(challenge.audience, hostname);
+    return {
+      "x-munie-role": role,
+      "x-munie-challenge": challenge.id,
+      "x-munie-proof": sign(null, managedAdmissionTranscript(challenge),
+        role === "mac" ? mac.privateKey : device.privateKey).toString("base64url"),
+    };
+  };
+  const socket = (headers, host = hostname, autoPong = true) => new WebSocket(
+    `${relay.origin.replace(/^http/, "ws")}/v1/managed/connect`,
+    { headers: { ...headers, Host: host }, handshakeTimeout: 1000, autoPong },
+  );
+  const connectMac = async (device = phone) => {
+    const ws = socket(await proof("mac", device));
+    const [, [registered]] = await Promise.all([once(ws, "open"), once(ws, "ping")]);
+    assert.equal(registered.toString(), "munie:mac-registered");
+    return ws;
+  };
+  const active = (macCount, phoneCount) => {
+    assert.deepEqual(relay.snapshot(), { activeMacRoutes: macCount, activePhoneRoutes: phoneCount });
+  };
+
+  active(0, 0);
+  assert.equal((await getChallenge("mac", phone, "wrong.fixture.invalid"))[0], 421);
+  assert.equal((await getChallenge("phone"))[0], 403);
+  for (const path of ["/", "/health", "/v1/pairing/code/resolve", "/v1/push/session/register-device"]) {
+    const status = await new Promise((resolve, reject) => {
+      const req = request(`${relay.origin}${path}`, { headers: { Host: hostname } }, (res) => {
+        res.resume();
+        resolve(res.statusCode);
+      });
+      req.on("error", reject);
+      req.end();
+    });
+    assert.equal(status, 404);
+  }
+
+  const macWS = await connectMac();
+  active(1, 0);
+  const phoneProof = await proof("phone");
+  await assert.rejects(once(socket(phoneProof, "wrong.fixture.invalid"), "open"), /421/);
+  // Wrong authority did not consume the proof or touch any existing route.
+  const phoneWS = socket(phoneProof);
+  await once(phoneWS, "open");
+  active(1, 1);
+  const oldProof = await proof("phone");
+  const [, , newMacWS] = await Promise.all(
+    [once(phoneWS, "close"), once(macWS, "close"), connectMac(replacement)],
+  );
+  active(1, 0);
+  assert.equal((await getChallenge("phone"))[0], 403);
+  await assert.rejects(once(socket(oldProof), "open"), /403/);
+  const attached = once(newMacWS, "ping");
+  const unresponsivePhoneWS = socket(await proof("phone", replacement), hostname, false);
+  await once(unresponsivePhoneWS, "open");
+  assert.match((await attached)[0].toString(), /^munie:phone-attached:/);
+  active(1, 1);
+  const firstHeartbeat = Promise.all([once(newMacWS, "ping"), once(unresponsivePhoneWS, "ping")]);
+  t.mock.timers.tick(10_000);
+  assert.deepEqual((await firstHeartbeat).map(([payload]) => payload.toString()),
+    ["munie:heartbeat", "munie:heartbeat"]);
+
+  // The reply to this later ping confirms the Mac's preceding auto-pong reached the relay.
+  const pong = once(newMacWS, "pong");
+  newMacWS.ping("ordering");
+  assert.equal((await pong)[0].toString(), "ordering");
+  const lost = once(unresponsivePhoneWS, "close");
+  t.mock.timers.tick(10_000);
+  assert.equal((await lost)[0], 1006);
+  active(1, 0);
+  await once(socket(await proof("phone", replacement)), "open");
+  active(1, 1);
+  await relay.close();
+  await relay.close();
+  active(0, 0);
 });

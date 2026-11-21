@@ -205,6 +205,36 @@ final class TurnComposerSendAvailabilityTests: XCTestCase {
         XCTAssertEqual(service.thread(for: "thread-new")?.displayTitle, "First message")
     }
 
+    func testFirstSendRejectedByReadOnlyMacKeepsTheDraftWithoutRetrying() async {
+        let service = makeService()
+        service.isConnected = true
+        service.isInitialized = true
+        let viewModel = TurnViewModel()
+        let draftID = "draft-read-only"
+        let draft = "First message"
+        var sentMethods: [String] = []
+        service.requestTransportOverride = { method, params in
+            if let response = self.ancillaryRuntimeResponse(method: method, params: params) { return response }
+            sentMethods.append(method)
+            throw CodexServiceError.rpcError(RPCError(
+                code: -32000,
+                message: "Remote actions are unavailable while the Mac uses the Codex settings preview.",
+                data: .object(["errorCode": .string("shared_codex_actions_unavailable")])
+            ))
+        }
+        viewModel.input = draft
+        XCTAssertTrue(viewModel.sendNewThread(
+            codex: service, draftThreadID: draftID, preferredProjectPath: "/tmp/remodex-local"
+        ) { _ in XCTFail("A rejected request must not open a thread") })
+        await waitForSendCompletion(viewModel)
+
+        XCTAssertEqual(sentMethods, ["thread/start"])
+        XCTAssertEqual(viewModel.input, draft)
+        XCTAssertEqual(service.composerDraftsByThreadID[draftID]?.input, draft)
+        XCTAssertTrue(service.messages(for: draftID).isEmpty)
+        XCTAssertEqual(service.lastErrorMessage, String(localized: "This Mac is connected in read-only mode."))
+    }
+
     func testFirstSendWithLostAcknowledgementKeepsOnlyRealThreadMessage() async {
         let service = makeService()
         service.isConnected = true

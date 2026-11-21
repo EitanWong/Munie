@@ -2218,27 +2218,12 @@ final class TurnViewModel {
         forSession: Bool = false,
         completion: @escaping @MainActor (Bool) -> Void
     ) {
-        Task { @MainActor in
-            isHandlingApproval = true
-            defer { isHandlingApproval = false }
-
-            do {
-                try await codex.approvePendingRequest(request, forSession: forSession)
-                completion(true)
-            } catch {
-                // Error message already stored in CodexService.
-                if let serviceError = error as? CodexServiceError,
-                   case .noPendingApproval = serviceError {
-                    completion(true)
-                } else {
-                    completion(false)
-                }
-            }
-        }
+        respondToApproval(request, decision: forSession ? .acceptForSession : .accept, codex: codex, completion: completion)
     }
 
-    func decline(
+    func respondToApproval(
         _ request: CodexApprovalRequest,
+        decision: CodexApprovalDecision,
         codex: CodexService,
         completion: @escaping @MainActor (Bool) -> Void
     ) {
@@ -2247,7 +2232,7 @@ final class TurnViewModel {
             defer { isHandlingApproval = false }
 
             do {
-                try await codex.declinePendingRequest(request)
+                try await codex.respondToPendingApproval(request, decision: decision)
                 completion(true)
             } catch {
                 // Error message already stored in CodexService.

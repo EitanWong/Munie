@@ -209,6 +209,7 @@ struct ContentView: View {
                         }
 
                         await codex.probeForegroundConnectionIfNeeded()
+                        await viewModel.returnToNearbyNetworkIfIdle(codex: codex)
                         await attemptSavedMacReconnectRecoveryIfNeeded()
                         await subscriptionRefresh
                         scheduleSidebarPrewarmIfNeeded()
@@ -228,6 +229,10 @@ struct ContentView: View {
                 Task {
                     await attemptSavedMacReconnectRecoveryIfNeeded()
                 }
+            }
+            .onChange(of: codex.mayReturnToNearbyTransport) { _, shouldProbe in
+                guard shouldProbe, scenePhase == .active else { return }
+                Task { await viewModel.returnToNearbyNetworkIfIdle(codex: codex) }
             }
             .onChange(of: codex.isConnected) { wasConnected, isNowConnected in
                 debugSidebarLog("connection changed wasConnected=\(wasConnected) isConnected=\(isNowConnected)")

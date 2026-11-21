@@ -4,6 +4,12 @@
 <dict>
 	<key>LSMultipleInstancesProhibited</key>
 	<true/>
+    <key>MunieLANTaskPreviewProject</key>
+    <string>$(MUNIE_LAN_TASK_PREVIEW_PROJECT)</string>
+    <key>MunieScopedHostedTaskPreview</key>
+    <string>$(MUNIE_SCOPED_HOSTED_TASK_PREVIEW)</string>
+    <key>MunieManagedRelayOrigin</key>
+    <string>$(MUNIE_MANAGED_RELAY_ORIGIN)</string>
     <key>NSBonjourServices</key>
     <array>
         <string>_munie-pair._tcp</string>

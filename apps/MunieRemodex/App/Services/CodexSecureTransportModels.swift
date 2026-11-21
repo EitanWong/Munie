@@ -168,6 +168,14 @@ struct SecureErrorMessage: Codable, Sendable {
     let kind: String
     let code: String
     let message: String
+
+    // Munie modification: present pairing conflicts without trusting remote display copy.
+    var userFacingMessage: String {
+        if code == "phone_already_trusted" {
+            return String(localized: "This Mac is paired with another iPhone. Remove that pairing on the Mac to continue.")
+        }
+        return message
+    }
 }
 
 struct SecureEnvelope: Codable, Sendable {
@@ -267,6 +275,7 @@ enum CodexTrustedSessionResolveError: LocalizedError {
     case rePairRequired(String)
     case invalidResponse(String)
     case network(String)
+    case transportUnreachable
 
     var errorDescription: String? {
         switch self {
@@ -274,6 +283,8 @@ enum CodexTrustedSessionResolveError: LocalizedError {
             return String(localized: "No trusted device is available to reconnect.")
         case .unsupportedRelay:
             return String(localized: "This relay does not support trusted reconnect yet.")
+        case .transportUnreachable:
+            return String(localized: "Could not reach the trusted device relay. Check your connection and try again.")
         case .macOffline(let message),
              .rePairRequired(let message),
              .invalidResponse(let message),

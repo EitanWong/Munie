@@ -17,6 +17,7 @@ struct DesktopHostView: View {
         projectSection
         pairedPhoneSection
         pairingSection
+        if controller.hasAwayPilot { awaySection }
         if let error = controller.error {
           Label(String(localized: error, table: "Desktop"), systemImage: "exclamationmark.triangle")
             .foregroundStyle(.red)
@@ -45,6 +46,27 @@ struct DesktopHostView: View {
     }
   }
 
+  private var awaySection: some View {
+    GroupBox {
+      VStack(alignment: .leading, spacing: 10) {
+        Toggle(
+          String(localized: "Allow Connections Away from Home", table: "Desktop"),
+          isOn: Binding(
+            get: { controller.awayState != .stopped },
+            set: { enabled in Task { await controller.setAwayEnabled(enabled) } }
+          )
+        )
+        .disabled(
+          !controller.ready || controller.busy || controller.awayBusy
+            || controller.projectBusy || controller.deviceBusy)
+        Text(String(localized: controller.awayState.title, table: "Desktop"))
+          .font(.caption).foregroundStyle(.secondary)
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .padding(8)
+    }
+  }
+
   private var header: some View {
     HStack(spacing: 14) {
       Image(systemName: "desktopcomputer")
@@ -67,42 +89,15 @@ struct DesktopHostView: View {
   private var accountSection: some View {
     GroupBox {
       VStack(alignment: .leading, spacing: 10) {
-        Text("Your account", tableName: "Desktop").font(.headline)
-        accountContent
-        Text(
-          "Your Codex account stays on this Mac. Munie never sends account credentials to your iPhone.",
-          tableName: "Desktop"
+        Text("Codex", tableName: "Desktop").font(.headline)
+        Label(
+          String(localized: controller.accountState.title, table: "Desktop"),
+          systemImage: controller.accountState.symbol
         )
-        .font(.caption).foregroundStyle(.secondary)
+        .accessibilityIdentifier("desktop.codexStatus")
       }
       .frame(maxWidth: .infinity, alignment: .leading)
       .padding(8)
-    }
-  }
-
-  @ViewBuilder private var accountContent: some View {
-    switch controller.accountState {
-    case .signedIn:
-      Label(
-        String(localized: "Signed in to Codex", table: "Desktop"), systemImage: "checkmark.shield")
-    case .signingIn:
-      Text("Finish signing in in your browser, then return to Munie.", tableName: "Desktop")
-      HStack {
-        Button(String(localized: "Open Sign-In Page", table: "Desktop")) {
-          coordinator.reopenLogin()
-        }
-        Button(String(localized: "Cancel Sign-In", table: "Desktop")) {
-          Task { await controller.cancelLogin() }
-        }
-        .disabled(controller.accountBusy)
-      }
-    case .unknown, .signedOut:
-      Text("Sign in to use Codex from your iPhone.", tableName: "Desktop")
-      Button(String(localized: "Sign In to Codex", table: "Desktop")) {
-        Task { await coordinator.signIn() }
-      }
-      .disabled(!controller.ready || controller.accountBusy)
-      .accessibilityIdentifier("desktop.signIn")
     }
   }
 
@@ -196,11 +191,13 @@ struct DesktopHostView: View {
           }
         } else if !controller.ready || controller.nearbyReady {
           Text("Open Munie on your iPhone near this Mac and choose this Mac.", tableName: "Desktop")
-          Text(
-            "This version connects nearby. Connecting away from home is not ready yet.",
-            tableName: "Desktop"
-          )
-          .font(.caption).foregroundStyle(.secondary)
+          if !controller.hasAwayPilot {
+            Text(
+              "This version connects nearby. Connecting away from home is not ready yet.",
+              tableName: "Desktop"
+            )
+            .font(.caption).foregroundStyle(.secondary)
+          }
         }
         if coordinator.nearbyFailed || nearby.errorMessage != nil {
           Text(

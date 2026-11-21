@@ -1,3 +1,4 @@
+// Munie modification: observe the full actionable approval payload.
 // FILE: TurnViewLifecycleModifier.swift
 // Purpose: Groups TurnView lifecycle hooks and change observers so the screen body stays compact.
 // Layer: View Modifier
@@ -13,7 +14,7 @@ private struct TurnViewLifecycleModifier: ViewModifier {
     let isThreadRunning: Bool
     let isConnected: Bool
     let scenePhase: ScenePhase
-    let approvalRequestChangeToken: String?
+    let approvalRequest: CodexApprovalRequest?
     let photoPickerItems: [PhotosPickerItem]
 
     let onTask: @Sendable () async -> Void
@@ -46,7 +47,7 @@ private struct TurnViewLifecycleModifier: ViewModifier {
             .onChange(of: scenePhase) { _, newPhase in
                 onScenePhaseChanged(newPhase)
             }
-            .onChange(of: approvalRequestChangeToken) { _, _ in
+            .onChange(of: approvalRequest) { _, _ in
                 onApprovalRequestChanged()
             }
     }
@@ -59,7 +60,7 @@ extension View {
         isThreadRunning: Bool,
         isConnected: Bool,
         scenePhase: ScenePhase,
-        approvalRequestChangeToken: String?,
+        approvalRequest: CodexApprovalRequest?,
         photoPickerItems: [PhotosPickerItem],
         onTask: @escaping @Sendable () async -> Void,
         onInitialAppear: @escaping () -> Void,
@@ -77,7 +78,7 @@ extension View {
                 isThreadRunning: isThreadRunning,
                 isConnected: isConnected,
                 scenePhase: scenePhase,
-                approvalRequestChangeToken: approvalRequestChangeToken,
+                approvalRequest: approvalRequest,
                 photoPickerItems: photoPickerItems,
                 onTask: onTask,
                 onInitialAppear: onInitialAppear,

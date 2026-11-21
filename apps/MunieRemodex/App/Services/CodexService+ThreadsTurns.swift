@@ -1,4 +1,5 @@
-// Munie modification: use the shared catalog-aware runtime model for collaboration modes.
+// Munie modification: use the shared catalog-aware runtime model and honor one-time host approvals.
+// Munie modification: map the paired Mac read-only preview rejection to localized copy.
 // FILE: CodexService+ThreadsTurns.swift
 // Purpose: Thread/turn operations exposed to the UI.
 // Layer: Service
@@ -65,9 +66,7 @@ extension CodexService {
             return permissionApprovalResult(for: request, grantsRequestedPermissions: decision == "accept")
         }
 
-        let isCommandApproval = normalizedMethod == "item/commandExecution/requestApproval"
-            || normalizedMethod == "item/command_execution/request_approval"
-        let resolvedDecision = (decision == "accept" && forSession && isCommandApproval) ? "acceptForSession" : decision
+        let resolvedDecision = (decision == "accept" && forSession && request.isCommandApproval) ? "acceptForSession" : decision
         return approvalDecisionResult(resolvedDecision)
     }
 
@@ -79,6 +78,18 @@ extension CodexService {
 
         return pendingApprovals.first(where: { $0.threadId == normalizedThreadID })
             ?? pendingApprovals.first(where: { $0.threadId == nil })
+    }
+
+    // Keep submitted requests in canonical pending state without offering a second submission.
+    func actionableApproval(for threadId: String) -> CodexApprovalRequest? {
+        let actionable = pendingApprovals.lazy.filter { self.approvalRepliesAwaitingResolution[$0.id] == nil }
+        return actionable.first(where: { $0.threadId == threadId }) ?? actionable.first(where: { $0.threadId == nil })
+    }
+
+    func isAwaitingApprovalResolution(for threadId: String) -> Bool {
+        pendingApprovals.contains {
+            ($0.threadId == threadId || $0.threadId == nil) && approvalRepliesAwaitingResolution[$0.id] != nil
+        }
     }
 
     // Preserves arrival order while replacing retried copies of the same request id.
@@ -103,6 +114,7 @@ extension CodexService {
     // Clears all volatile approval prompts on disconnect or server switch.
     func clearPendingApprovals() {
         pendingApprovals.removeAll()
+        approvalRepliesAwaitingResolution.removeAll()
         autoApprovalRetryReviewIDsInFlight.removeAll()
         autoApprovalRetryTokensByReviewKey.removeAll()
     }
@@ -868,16 +880,7 @@ extension CodexService {
 
     // Accepts the latest pending approval request.
     func approvePendingRequest(_ request: CodexApprovalRequest, forSession: Bool = false) async throws {
-        let requestKey = request.id
-        guard pendingApprovals.contains(where: { $0.id == requestKey }) else {
-            throw CodexServiceError.noPendingApproval
-        }
-
-        try await sendResponse(
-            id: request.requestID,
-            result: approvalResponseResult(for: request, decision: "accept", forSession: forSession)
-        )
-        removePendingApproval(requestID: request.requestID)
+        try await respondToPendingApproval(request, decision: forSession ? .acceptForSession : .accept)
     }
 
     // Accepts the next pending approval request, optionally scoped to a thread.
@@ -891,16 +894,51 @@ extension CodexService {
 
     // Declines the latest pending approval request.
     func declinePendingRequest(_ request: CodexApprovalRequest) async throws {
-        let requestKey = request.id
-        guard pendingApprovals.contains(where: { $0.id == requestKey }) else {
+        try await respondToPendingApproval(request, decision: .decline)
+    }
+
+    func respondToPendingApproval(_ request: CodexApprovalRequest, decision: CodexApprovalDecision) async throws {
+        try await respondToPendingApproval(request, decision: decision) { message, onSendAttempt in
+            try await self.sendMessage(message, onSendAttempt: onSendAttempt)
+        }
+    }
+
+    func respondToPendingApproval(
+        _ request: CodexApprovalRequest,
+        decision: CodexApprovalDecision,
+        send: @MainActor (RPCMessage, @escaping @MainActor () -> Void) async throws -> Void
+    ) async throws {
+        guard let current = pendingApprovals.first(where: { $0 == request }),
+              approvalRepliesAwaitingResolution[current.id] == nil else {
             throw CodexServiceError.noPendingApproval
         }
+        let oneTime = current.oneTimeDecisions
+        if let oneTime, !oneTime.contains(decision) {
+            throw CodexServiceError.invalidInput(String(localized: "That approval decision is no longer available."))
+        }
 
-        try await sendResponse(
-            id: request.requestID,
-            result: approvalResponseResult(for: request, decision: "decline")
+        let result = approvalResponseResult(
+            for: current,
+            decision: decision == .acceptForSession ? "accept" : decision.rawValue,
+            forSession: decision == .acceptForSession
         )
-        removePendingApproval(requestID: request.requestID)
+        let attempt = UUID()
+        approvalRepliesAwaitingResolution[current.id] = attempt
+        var didAttempt = false
+        do {
+            try await send(RPCMessage(id: current.requestID, result: result, includeJSONRPC: false)) {
+                didAttempt = true
+            }
+        } catch {
+            // The transport may have delivered a sent decision even when it reports failure.
+            if approvalRepliesAwaitingResolution[current.id] == attempt, oneTime == nil || !didAttempt {
+                approvalRepliesAwaitingResolution.removeValue(forKey: current.id)
+            }
+            throw error
+        }
+        if oneTime == nil, approvalRepliesAwaitingResolution[current.id] == attempt {
+            removePendingApproval(requestID: current.requestID)
+        }
     }
 
     // Declines the next pending approval request, optionally scoped to a thread.
@@ -1054,6 +1092,7 @@ private extension CodexService {
             return nil
         }
 
+        approvalRepliesAwaitingResolution.removeValue(forKey: requestID)
         return pendingApprovals.remove(at: exactIndex)
     }
 }
@@ -2188,6 +2227,9 @@ extension CodexService {
         if let serviceError = error as? CodexServiceError {
             switch serviceError {
             case .rpcError(let rpcError):
+                if rpcError.data?.objectValue?["errorCode"]?.stringValue == "shared_codex_actions_unavailable" {
+                    return String(localized: "This Mac is connected in read-only mode.")
+                }
                 if let mappedMessage = userFacingRuntimeMessage(for: rpcError.message) {
                     return mappedMessage
                 }

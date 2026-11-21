@@ -6,7 +6,8 @@
 // Depends on: ws, crypto, os, ./bridge-status, ./codex-desktop-refresher, ./codex-transport, ./rollout-watch, ./voice-handler
 
 // Munie modification: constrain explicit launches before local handlers/native forwarding.
-const { configuredRoot, scopedPath, withinRoot, bindNativeRequest, assertNativeMethod, createPendingResponseGate } = require("./munie-project-policy");
+const { configuredRoot, scopedPath, withinRoot, bindNativeRequest, assertNativeMethod, assertFollowCodexPreview, createPendingResponseGate } = require("./munie-project-policy");
+const { createSimulatorApprovalBoundary, FIXTURE_ACTIONS } = require("./munie-simulator-approval");
 const WebSocket = require("ws");
 const { constants: bufferConstants } = require("buffer");
 const { createHash, randomBytes } = require("crypto");
@@ -28,7 +29,7 @@ const { createCodexTransport } = require("./codex-transport");
 const { createTurnCancellationController } = require("./munie-turn-cancellation");
 const { createOpenCodeRuntime } = require("./opencode-runtime");
 const { createRelayWatchdog } = require("./relay-watchdog");
-const { createManagedRelayClient, MANAGED_RELAY_FRAME_LIMIT } = require("./managed-relay-client");
+const { createManagedRelayClient, createHostedManagedRelayClient, MANAGED_RELAY_FRAME_LIMIT } = require("./managed-relay-client");
 const { createManagedRouteReplies, isManagedRouteRequestId } = require("./managed-route-replies");
 const {
   createThreadRolloutActivityWatcher,
@@ -727,6 +728,9 @@ function startBridge({
   onPairingSession = null,
   onBridgeStatus = null,
   desktopManagedRelay = null,
+  desktopHostedRelay = null,
+  desktopMobileRouteFrame = null,
+  desktopLanTaskExecution = false,
 } = {}) {
   const config = explicitConfig || readBridgeConfig();
   const projectResponseGate = createPendingResponseGate();
@@ -772,11 +776,41 @@ function startBridge({
   });
   logIOSAppCompatibilityWarning(cachedIOSAppCompatibilityWarning);
   const sessionId = relaySession.sessionId;
-  const managedClient = initializeForLocalAccount && desktopManagedRelay
+  let managedClient = initializeForLocalAccount && desktopManagedRelay
     ? createManagedRelayClient({ ...desktopManagedRelay, sessionId }) : null;
-  const managedRouteReplies = managedClient ? createManagedRouteReplies() : null;
-  let managedRouteId = null;
-  let managedSecureGeneration = null;
+  const mobileRouteFrame = initializeForLocalAccount ? desktopMobileRouteFrame : null;
+  const mobileRouteReplies = mobileRouteFrame ? createManagedRouteReplies() : null;
+  const bindSecureRoute = Boolean(mobileRouteFrame) || (initializeForLocalAccount && config.followCodexAccount === true);
+  let secureRouteGeneration = null;
+  let mobileRouteId = null;
+  let securePhoneId = null;
+  const taskBoundaryOptions = () => ({
+    root: configuredRoot(),
+    currentRoute: () => isCurrentApplicationRoute(secureRouteGeneration) ? secureRouteGeneration : null,
+    currentPhone: () => securePhoneId,
+    cancellationPending: (threadId, turnId) => turnCancellation.isPending(threadId, turnId),
+    sendNative: (message) => codex.send(JSON.stringify(message)),
+    sendPhone: (message) => secureTransport.sendUnbufferedApplicationMessage(JSON.stringify(message)),
+  });
+  const simulatorApproval = config.simulatorApprovalFixture === true ? (() => {
+    const root = configuredRoot();
+    if (!root || !managedClient || !mobileRouteFrame || config.followCodexAccount !== true || !initializeForLocalAccount
+        || config.codexEndpoint || config.requireCodexStdioPolicy !== true) {
+      throw new Error("Simulator approvals require the isolated managed route and pinned native transport.");
+    }
+    return createSimulatorApprovalBoundary(taskBoundaryOptions());
+  })() : null;
+  const taskBoundary = desktopLanTaskExecution === true ? (() => {
+    if (!configuredRoot() || managedClient || !mobileRouteFrame || config.followCodexAccount !== true
+        || !initializeForLocalAccount || config.codexEndpoint || config.requireCodexStdioPolicy !== true
+        || simulatorApproval || config.desktopIpcLiveSyncEnabled !== false) {
+      throw new Error("Preview tasks require a scoped local desktop host and pinned native transport.");
+    }
+    const { createSharedCodexTaskBoundary } = require("./munie-shared-task-boundary");
+    return createSharedCodexTaskBoundary(taskBoundaryOptions());
+  })() : simulatorApproval;
+  const approvalTimer = taskBoundary ? setInterval(() => taskBoundary.expire(), 1_000) : null;
+  approvalTimer?.unref();
   const relaySessionUrl = `${relayBaseUrl}/${sessionId}`;
   const notificationSecret = randomBytes(24).toString("hex");
   const desktopRefresher = new CodexDesktopRefresher({
@@ -881,13 +915,13 @@ function startBridge({
     relayUrl: (config.publicRelayUrl || relayBaseUrl).replace(/\/+$/, ""),
     deviceState,
     displayName: os.hostname(),
-    requireTrustResetForReplacement: Boolean(managedClient),
+    requireTrustResetForReplacement: initializeForLocalAccount,
     // Encrypted base64 expands by 4/3. Leave room for the envelope, local
     // route wrapper and historical replay metadata under the 1 MiB wire cap.
-    maxEncodedPayloadBytes: managedClient ? 750 * 1024 : null,
+    maxEncodedPayloadBytes: mobileRouteFrame ? 750 * 1024 : null,
     onSecureSessionResumed() {
-      if (!managedRouteId || socket?.readyState !== WebSocket.OPEN) return;
-      socket.send(JSON.stringify({ kind: desktopManagedRelay.routeFrame, routeId: managedRouteId, ready: true }));
+      if (!mobileRouteId || socket?.readyState !== WebSocket.OPEN) return;
+      socket.send(JSON.stringify({ kind: mobileRouteFrame, routeId: mobileRouteId, ready: true }));
     },
     onTrustedPhoneUpdate(nextDeviceState) {
       deviceState = nextDeviceState;
@@ -895,10 +929,12 @@ function startBridge({
       managedClient?.replaceTrust(nextDeviceState);
     },
     onSecureSessionReady(session) {
-      if (managedRouteReplies) {
-        managedSecureGeneration = Symbol();
-        managedRouteReplies.clear();
+      if (mobileRouteReplies) {
+        taskBoundary?.closeApprovals();
+        mobileRouteReplies.clear();
       }
+      if (bindSecureRoute) secureRouteGeneration = Symbol();
+      securePhoneId = session?.phoneDeviceId ?? null;
       activityStore.resetSubscriber();
       activePhoneSummary = buildActivePhoneSummary(session, deviceState);
       const lastPublishedBridgeStatus = bridgeStatusPublisher.latest();
@@ -914,24 +950,26 @@ function startBridge({
       return false;
     }
 
-    if (managedClient && !managedRouteId) return false;
-    const frame = managedClient ? JSON.stringify({
-      kind: desktopManagedRelay.routeFrame, routeId: managedRouteId, message: wireMessage,
+    if (mobileRouteFrame && !mobileRouteId) return false;
+    const frame = mobileRouteFrame ? JSON.stringify({
+      kind: mobileRouteFrame, routeId: mobileRouteId, message: wireMessage,
     }) : wireMessage;
-    if (managedClient && Buffer.byteLength(frame) > MANAGED_RELAY_FRAME_LIMIT) return false;
+    if (mobileRouteFrame && Buffer.byteLength(frame) > MANAGED_RELAY_FRAME_LIMIT) return false;
     socket.send(frame);
     return true;
   }
 
-  function changeManagedRoute(routeId) {
-    managedRouteId = routeId;
-    managedSecureGeneration = null;
-    managedRouteReplies.clear();
+  function changeMobileRoute(routeId) {
+    if (secureRouteGeneration) taskBoundary?.closeApprovals();
+    mobileRouteId = routeId;
+    secureRouteGeneration = null;
+    securePhoneId = null;
+    mobileRouteReplies.clear();
     secureTransport.invalidateMobileRoute();
   }
   // Only the spawned local runtime needs rollout mirroring; a real endpoint
   // already provides the authoritative live stream for resumed threads.
-  const rolloutLiveMirror = !config.codexEndpoint
+  const rolloutLiveMirror = !config.codexEndpoint && !taskBoundary
     ? createRolloutLiveMirrorController({
       sendApplicationResponse,
       // One live source per thread. The follower keeps fresh/idle Desktop state
@@ -945,7 +983,7 @@ function startBridge({
       ),
     })
     : null;
-  const desktopIpcActionFollower = !config.codexEndpoint
+  const desktopIpcActionFollower = !config.codexEndpoint && !taskBoundary
     ? createDesktopIpcActionFollower({
       sendApplicationResponse,
       readConversationState: async (threadId) => seedConversationStateFromThreadRead(
@@ -1012,7 +1050,9 @@ function startBridge({
 
   const codex = createCodexTransport({
     endpoint: config.codexEndpoint,
-    env: process.env,
+    env: config.requireCodexStdioPolicy
+      ? { ...process.env, MUNIE_CODEX_DISABLE_EXTERNAL_EXTENSIONS: "1" }
+      : process.env,
     appPath: config.codexAppPath,
     logPrefix: "[remodex]",
   });
@@ -1075,11 +1115,15 @@ function startBridge({
     if (isShuttingDown) return;
     if (initializeOwnedTransport) {
       try {
-        await sendCodexRequest("initialize", {
+        const result = await sendCodexRequest("initialize", {
           clientInfo: { name: "remodex", version: bridgePackageVersion },
           capabilities: { experimentalApi: true },
         });
         if (isShuttingDown) return;
+        if (config.requireCodexStdioPolicy && result?.munieStdioPolicyVersion !== 1) {
+          throw new Error("The bundled Codex runtime did not acknowledge the required stdio policy.");
+        }
+        taskBoundary?.attest();
         codex.send(JSON.stringify({ method: "initialized" }));
         codexHandshakeState = "warm";
       } catch (error) {
@@ -1114,6 +1158,8 @@ function startBridge({
   }
 
   function prepareBridgeShutdown() {
+    taskBoundary?.closeApprovals();
+    if (approvalTimer) clearInterval(approvalTimer);
     isShuttingDown = true;
     managedClient?.stop();
     bridgeWakeAssertion.stop();
@@ -1239,7 +1285,7 @@ function startBridge({
       reconnectAttempt = 0;
       startRelayWatchdog(nextSocket);
       logConnectionStatus("connected");
-      if (managedClient) changeManagedRoute(null);
+      if (mobileRouteFrame) changeMobileRoute(null);
       secureTransport.bindLiveSendWireMessage(sendRelayWireMessage);
       sendRelayRegistrationUpdate(deviceState);
       managedClient?.replaceTrust(deviceState);
@@ -1249,14 +1295,14 @@ function startBridge({
       if (socket !== nextSocket) return;
       markRelayActivity();
       let message = typeof data === "string" ? data : data.toString("utf8");
-      if (managedClient) {
+      if (mobileRouteFrame) {
         const frame = parseBridgeMessage(message);
-        if (frame?.kind !== desktopManagedRelay.routeFrame) return;
+        if (frame?.kind !== mobileRouteFrame) return;
         if (frame.message === undefined) {
-          changeManagedRoute(typeof frame.routeId === "string" ? frame.routeId : null);
+          changeMobileRoute(typeof frame.routeId === "string" ? frame.routeId : null);
           return;
         }
-        if (!managedRouteId || frame.routeId !== managedRouteId || typeof frame.message !== "string") return;
+        if (!mobileRouteId || frame.routeId !== mobileRouteId || typeof frame.message !== "string") return;
         message = frame.message;
       }
       if (secureTransport.handleIncomingWireMessage(message, {
@@ -1264,13 +1310,15 @@ function startBridge({
           sendRelayWireMessage(JSON.stringify(controlMessage));
         },
         onApplicationMessage(plaintextMessage) {
-          if (!managedRouteReplies) return handleApplicationMessage(plaintextMessage);
+          if (!mobileRouteReplies) return handleApplicationMessage(plaintextMessage, false, secureRouteGeneration);
           if (!secureTransport.isSecureChannelReady()) return;
           const message = parseBridgeMessage(plaintextMessage);
-          if (message?.method && message.id != null) {
+          if (message?.id != null) {
             if (!(typeof message.id === "string" && Buffer.byteLength(message.id) <= 128)
                 && !Number.isSafeInteger(message.id)) return;
-            const request = managedRouteReplies.wrapRequest(message);
+          }
+          if (message?.method && message.id != null) {
+            const request = mobileRouteReplies.wrapRequest(message);
             if (!request) {
               secureTransport.sendUnbufferedApplicationMessage(createJsonRpcErrorResponse(
                 message.id, new Error("The current connection has too many pending replies."), "relay_reply_limit"
@@ -1279,7 +1327,7 @@ function startBridge({
             }
             plaintextMessage = JSON.stringify(request);
           }
-          handleApplicationMessage(plaintextMessage, false, managedSecureGeneration);
+          handleApplicationMessage(plaintextMessage, false, secureRouteGeneration);
         },
       })) {
         return;
@@ -1297,7 +1345,7 @@ function startBridge({
     nextSocket.on("close", (code) => {
       if (socket === nextSocket) {
         clearRelayWatchdog();
-        if (managedClient) changeManagedRoute(null);
+        if (mobileRouteFrame) changeMobileRoute(null);
       }
       logConnectionStatus("disconnected");
       if (socket === nextSocket) {
@@ -1334,7 +1382,26 @@ function startBridge({
   function handleCodexMessage(message) {
     // Streaming deltas make this the hottest path in the bridge: parse the
     // envelope once and share the read-only object with every observer.
-    const parsedMessage = parseBridgeMessage(message);
+    let parsedMessage = parseBridgeMessage(message);
+    // Reject native callbacks before they can reach a read-only phone or wait on its reply.
+    if (config.followCodexAccount === true
+      && (typeof parsedMessage?.id === "string" || Number.isSafeInteger(parsedMessage?.id))
+      && typeof parsedMessage.method === "string" && parsedMessage.method.length > 0
+      && !hasOwn(parsedMessage, "result") && !hasOwn(parsedMessage, "error") && !hasOwn(parsedMessage, "payload")) {
+      if (taskBoundary?.offer(parsedMessage)) return;
+      codex.send(createJsonRpcErrorResponse(parsedMessage.id,
+        new Error("Phone callbacks are unavailable in the Codex settings preview."),
+        "shared_codex_actions_unavailable"));
+      return;
+    }
+    if (taskBoundary) {
+      const observed = taskBoundary.observe(parsedMessage);
+      if (observed === null && parsedMessage !== null) return;
+      if (observed !== parsedMessage) {
+        parsedMessage = observed;
+        message = JSON.stringify(observed);
+      }
+    }
     if (turnCancellation.observe(parsedMessage)) return;
     if (configuredRoot() && parsedMessage?.id != null && isRelayBoundServerRequestMethod(parsedMessage.method)) {
       projectResponseGate.remember(parsedMessage.id);
@@ -1369,6 +1436,7 @@ function startBridge({
   }
 
   codex.onClose(() => {
+    taskBoundary?.closeApprovals({ nativeAlive: false });
     activityStore.markSourceStale(APP_SERVER_SOURCE);
     const wasShuttingDown = isShuttingDown;
     clearRelayWatchdog();
@@ -1402,27 +1470,62 @@ function startBridge({
 
   // Routes decrypted app payloads through the same bridge handlers as before.
   function handleApplicationMessage(rawMessage, projectAuthorized = false, expectedGeneration = null) {
-    if (managedClient && (!expectedGeneration || expectedGeneration !== managedSecureGeneration)) return;
+    if (!isCurrentApplicationRoute(expectedGeneration)) return;
     const projectRoot = configuredRoot();
     if (projectRoot) {
       const incoming = parseBridgeMessage(rawMessage);
+      if (config.followCodexAccount === true) {
+        if (taskBoundary && !incoming?.method && incoming?.id != null) {
+          taskBoundary.reply(incoming);
+          return;
+        }
+        try {
+          if (!(taskBoundary && FIXTURE_ACTIONS.has(incoming?.method))) assertFollowCodexPreview(incoming);
+        }
+        catch (error) {
+          if (incoming?.id != null) {
+            const denial = createJsonRpcErrorResponse(incoming.id, error, "shared_codex_actions_unavailable");
+            if (mobileRouteReplies && !incoming.method) {
+              // A rejected callback response has no request mapping. Reply only on
+              // this live route and never consume a mapping using the phone's ID.
+              secureTransport.sendUnbufferedApplicationMessage(denial);
+            } else {
+              sendApplicationResponse(denial);
+            }
+          }
+          return;
+        }
+      }
       const requestedThread = incoming?.params?.threadId || incoming?.params?.thread_id
         || incoming?.params?.conversationId || incoming?.params?.conversation_id;
       // Munie modification: a caller-supplied cwd cannot rebind another project's existing thread.
       if (!projectAuthorized && requestedThread && incoming?.method) {
+        const authorizationSocket = socket;
         sendCodexRequest("thread/read", { threadId: requestedThread, includeTurns: false }).then((result) => {
+          if (!isCurrentApplicationRoute(expectedGeneration, authorizationSocket)) return;
           scopedPath(result?.thread?.cwd || result?.cwd, { root: projectRoot });
           handleApplicationMessage(rawMessage, true, expectedGeneration);
         }).catch((error) => {
-          if (incoming?.id != null) sendApplicationResponse(createJsonRpcErrorResponse(incoming.id, error, "project_not_authorized"));
+          if (incoming?.id != null && isCurrentApplicationRoute(expectedGeneration, authorizationSocket)) {
+            sendApplicationResponse(createJsonRpcErrorResponse(incoming.id, error, "project_not_authorized"));
+          }
         });
         return;
       }
       try {
         if (!incoming?.method && incoming?.id != null) projectResponseGate.consume(incoming.id);
-        rawMessage = JSON.stringify(bindNativeRequest(incoming, projectRoot));
+        rawMessage = JSON.stringify(bindNativeRequest(incoming, projectRoot, {
+          followCodexAccount: config.followCodexAccount === true,
+        }));
       } catch (error) {
         if (incoming?.id != null) sendApplicationResponse(createJsonRpcErrorResponse(incoming.id, error, "project_not_authorized"));
+        return;
+      }
+      if (taskBoundary && FIXTURE_ACTIONS.has(incoming?.method)) {
+        // Owned tasks never enter alternate dispatchers or use projected Desktop state.
+        const bound = parseBridgeMessage(rawMessage);
+        if (bound.method !== "turn/interrupt" && turnCancellation.handle(bound)) return;
+        forwardInboundRequestToCodex(normalizePhoneRuntimeRequest(rawMessage));
         return;
       }
     }
@@ -1559,6 +1662,12 @@ function startBridge({
         || (method.startsWith("thread/") && !/\/(?:read|list|get)$/.test(method)));
   }
 
+  function isCurrentApplicationRoute(expectedGeneration, expectedSocket = socket) {
+    return !bindSecureRoute || (expectedGeneration != null && expectedGeneration === secureRouteGeneration
+      && !isShuttingDown && socket === expectedSocket && socket?.readyState === WebSocket.OPEN
+      && secureTransport.isSecureChannelReady());
+  }
+
   function rejectDesktopHandoffMutation(message) {
     if (!isDesktopHandoffMutation(message)) return false;
     if (message.id != null) {
@@ -1582,13 +1691,19 @@ function startBridge({
   function forwardInboundRequestToCodex(rawMessage) {
     const codexRequest = normalizeTurnStartForCodex(rawMessage);
     const parsedRequest = parseBridgeMessage(codexRequest);
-    try { assertNativeMethod(parsedRequest); }
+    try {
+      assertNativeMethod(parsedRequest);
+      if (taskBoundary && FIXTURE_ACTIONS.has(parsedRequest?.method)) taskBoundary.reserve(parsedRequest);
+    }
     catch (error) {
       if (parsedRequest?.id != null) sendApplicationResponse(createJsonRpcErrorResponse(parsedRequest.id, error, "native_method_not_authorized"));
       return;
     }
     if (configuredRoot() && parsedRequest?.method === "turn/interrupt"
-      && turnCancellation.handle(parsedRequest)) return;
+      && turnCancellation.handle(parsedRequest)) {
+      taskBoundary?.settlePendingBeforeStop();
+      return;
+    }
     if (parsedRequest?.id != null
       && (parsedRequest.method === "thread/start" || parsedRequest.method === "thread/fork")) {
       pendingLocalThreadCreationRequestsById.set(String(parsedRequest.id), true);
@@ -1711,11 +1826,11 @@ function startBridge({
     const listRequest = pendingOpenCodeThreadListRequests.get(requestKey);
     const sanitizedMessage = sanitizeRelayBoundCodexMessage(rawMessage, outboundMessage);
     if (configuredRoot() && listRequest) pendingOpenCodeThreadListRequests.delete(requestKey);
-    const sanitizedResponse = managedRouteReplies && sanitizedMessage === rawMessage
-      ? outboundMessage : managedRouteReplies && sanitizedMessage && parseBridgeMessage(sanitizedMessage);
-    if (managedRouteReplies && (isManagedRouteRequestId(responseId)
+    const sanitizedResponse = mobileRouteReplies && sanitizedMessage === rawMessage
+      ? outboundMessage : mobileRouteReplies && sanitizedMessage && parseBridgeMessage(sanitizedMessage);
+    if (mobileRouteReplies && (isManagedRouteRequestId(responseId)
         || (sanitizedResponse?.id != null && !sanitizedResponse.method))) {
-      const response = sanitizedResponse && !sanitizedResponse.method && managedRouteReplies.takeReply(sanitizedResponse);
+      const response = sanitizedResponse && !sanitizedResponse.method && mobileRouteReplies.takeReply(sanitizedResponse);
       if (response && !secureTransport.sendUnbufferedApplicationMessage(JSON.stringify(response))) {
         secureTransport.sendUnbufferedApplicationMessage(createJsonRpcErrorResponse(
           response.id, new Error("The response could not fit the current connection."), "relay_response_too_large"
@@ -2001,6 +2116,7 @@ function startBridge({
 
     const method = typeof parsed?.method === "string" ? parsed.method.trim() : "";
     if (method !== "account/status/read"
+      && !(config.followCodexAccount && method === "account/read")
       && method !== "getAuthStatus"
       && method !== "account/login/openOnMac"
       && method !== "voice/resolveAuth") {
@@ -2028,6 +2144,7 @@ function startBridge({
   async function readBridgeManagedAccountResult(method, params) {
     switch (method) {
       case "account/status/read":
+      case "account/read":
       case "getAuthStatus":
         return readSanitizedAuthStatus();
       case "account/login/openOnMac":
@@ -2042,6 +2159,33 @@ function startBridge({
   // Combines account/read + getAuthStatus into one safe snapshot for the phone UI.
   // The two RPCs are settled independently so one transient failure does not hide the other.
   async function readSanitizedAuthStatus() {
+    if (config.followCodexAccount) {
+      // Read the native account manager's current state; do not request a credential.
+      // Where ChatGPT is signed in, voice still has its separate, bridge-private auth path.
+      let accountRead;
+      try {
+        const rawAccount = await sendCodexRequest("account/read", { refreshToken: false });
+        if (typeof rawAccount?.requiresOpenaiAuth !== "boolean"
+          || !(rawAccount.account === null || (rawAccount.account && typeof rawAccount.account.type === "string"))) {
+          throw new Error("Unexpected native account state.");
+        }
+        accountRead = normalizeAccountRead(rawAccount);
+      } catch {
+        throw new Error("Could not read Codex account status on this Mac.");
+      }
+      const method = accountRead.account?.type;
+      const configured = method === "apiKey" || (!accountRead.requiresOpenaiAuth && method !== "chatgpt");
+      const snapshot = composeSanitizedAuthStatusFromSettledResults({
+        accountReadResult: { status: "fulfilled", value: accountRead },
+        allowPackageUpdates,
+        transportMode: codex.mode,
+      });
+      return { ...snapshot, email: null, planType: null, followsCodexAccount: true,
+        ...(configured ? { authMethod: method === "apiKey" ? "apiKey" : "customProvider",
+          status: "authenticated", needsReauth: false, tokenReady: false } : {}),
+        ...(method === "chatgpt" ? { status: "authenticated", needsReauth: false, tokenReady: false } : {}),
+      };
+    }
     const [accountReadResult, authStatusResult, bridgeVersionInfoResult] = await Promise.allSettled([
       sendCodexRequest("account/read", {
         refreshToken: false,
@@ -2758,6 +2902,19 @@ function startBridge({
 
   return {
     stop: stopBridge,
+    // The scoped task boundary is worker-owned, not tied to a particular transport.
+    localAway: initializeForLocalAccount && desktopHostedRelay && !desktopManagedRelay && !simulatorApproval ? {
+        setEnabled(enabled) {
+          if (isShuttingDown) throw new Error("The bridge is stopping.");
+          if (enabled && !managedClient) {
+            managedClient = createHostedManagedRelayClient({ ...desktopHostedRelay, sessionId });
+            if (socket?.readyState === WebSocket.OPEN) managedClient.replaceTrust(deviceState);
+          } else if (!enabled && managedClient) {
+            managedClient.stop();
+            managedClient = null;
+          }
+        },
+      } : null,
     localPairing: initializeForLocalAccount ? {
       refresh() {
         if (isShuttingDown) throw new Error("The bridge is stopping.");
@@ -2773,6 +2930,7 @@ function startBridge({
     // Local process control only. These functions are never registered as relay RPC methods.
     localAccount: initializeForLocalAccount ? {
       async read() {
+        if (config.followCodexAccount) return readSanitizedAuthStatus();
         const [accountReadResult, authStatusResult] = await Promise.allSettled([
           sendCodexRequest("account/read", { refreshToken: false }, { timeoutMs: 10_000 }),
           sendCodexRequest("getAuthStatus", { includeToken: true, refreshToken: true }, { timeoutMs: 10_000 }),
@@ -2784,24 +2942,6 @@ function startBridge({
           allowPackageUpdates,
           transportMode: codex.mode,
         });
-      },
-      async startLogin() {
-        if (pendingAuthLogin.loginId) {
-          return { loginId: pendingAuthLogin.loginId, authUrl: pendingAuthLogin.authUrl };
-        }
-        const result = await sendCodexRequest("account/login/start", { type: "chatgpt" }, { timeoutMs: 10_000 });
-        if (result?.type !== "chatgpt" || typeof result.loginId !== "string" || typeof result.authUrl !== "string") {
-          throw new Error("Codex did not return a browser login flow.");
-        }
-        Object.assign(pendingAuthLogin, { loginId: result.loginId, authUrl: result.authUrl, startedAt: Date.now() });
-        return { loginId: result.loginId, authUrl: result.authUrl };
-      },
-      async cancelLogin() {
-        if (pendingAuthLogin.loginId) {
-          await sendCodexRequest("account/login/cancel", { loginId: pendingAuthLogin.loginId }, { timeoutMs: 10_000 });
-          clearPendingAuthLogin();
-        }
-        return { cancelled: true };
       },
     } : null,
   };

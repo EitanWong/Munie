@@ -2124,6 +2124,7 @@ test("bridge restores a newer completed text turn on a stale canonical first pag
 // Loads bridge.js with plaintext test transports while leaving the production module untouched.
 function loadBridgeWithTestDoubles({
   createCodexTransportImpl,
+  createSecureTransportImpl = createPlaintextSecureTransport,
   createOpenCodeRuntimeImpl = null,
   desktopIpcActionFollowerModule = null,
   desktopIpcLiveOwnerModule = null,
@@ -2153,7 +2154,7 @@ function loadBridgeWithTestDoubles({
       return desktopIpcLiveOwnerModule;
     }
     if (parent?.filename === bridgePath && request === "./secure-transport") {
-      return { createBridgeSecureTransport: createPlaintextSecureTransport };
+      return { createBridgeSecureTransport: createSecureTransportImpl };
     }
     if (parent?.filename === bridgePath && request === "./secure-device-state") {
       return createSecureDeviceStateDouble();
@@ -2292,6 +2293,100 @@ test("explicit Munie cancellation withholds terminal state until its native back
   socket.send(JSON.stringify({ id: "continue", method: "turn/start", params: { threadId: "thread-1", input: [] } }));
   const continued = await waitForMessage(messages, (message) => message.id === "continue");
   assert.equal(continued.result.turn.id, "turn-2");
+});
+
+test("packaged LAN discards project lookups from a replaced session or socket", async (t) => {
+  const directory = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "munie-lan-generation-")));
+  const previousRoot = process.env.REMODEX_PROJECT_ROOT;
+  process.env.REMODEX_PROJECT_ROOT = directory;
+  const relayServer = new WebSocket.Server({ port: 0 });
+  await new Promise((resolve) => relayServer.once("listening", resolve));
+  const messages = [];
+  const lookups = [];
+  const dispatched = [];
+  let socket, bridge, confirmSecureSession;
+  relayServer.on("connection", (connected) => {
+    socket = connected;
+    socket.on("message", (data) => messages.push(JSON.parse(data)));
+  });
+  const { startBridge } = loadBridgeWithTestDoubles({
+    createSecureTransportImpl({ onSecureSessionReady }) {
+      confirmSecureSession = () => onSecureSessionReady({ phoneDeviceId: "paired-phone" });
+      return { ...createPlaintextSecureTransport(), isSecureChannelReady: () => true };
+    },
+    desktopIpcActionFollowerModule: { createDesktopIpcActionFollower: () => null },
+    rolloutLiveMirrorModule: { createRolloutLiveMirrorController: () => null },
+    createCodexTransportImpl() {
+      const listeners = {};
+      return {
+        describe: () => "synthetic policy-attested runtime",
+        send(raw) {
+          const request = JSON.parse(raw);
+          const reply = (value) => listeners.message(JSON.stringify({ ...value, id: request.id }));
+          if (request.method === "initialize") reply({ result: { munieStdioPolicyVersion: 1 } });
+          if (request.method === "thread/read") lookups.push(reply);
+          if (request.method === "thread/goal/get") {
+            dispatched.push(request.id);
+            reply({ result: { goal: null } });
+          }
+        },
+        onMessage: (handler) => { listeners.message = handler; },
+        onClose: (handler) => { listeners.close = handler; },
+        onError() {},
+        onStarted: (handler) => setImmediate(handler),
+        shutdown: () => listeners.close?.(),
+      };
+    },
+  });
+  t.after(() => {
+    bridge?.stop(); socket?.close(); relayServer.close();
+    if (previousRoot === undefined) delete process.env.REMODEX_PROJECT_ROOT;
+    else process.env.REMODEX_PROJECT_ROOT = previousRoot;
+    fs.rmdirSync(directory);
+  });
+  bridge = startBridge({ printPairingQr: false, config: bridgeTestConfig(relayServer, {
+    followCodexAccount: true, localAccountControlEnabled: true, requireCodexStdioPolicy: true,
+  }) });
+  await waitFor(() => socket?.readyState === WebSocket.OPEN);
+  const request = (id) => socket.send(JSON.stringify({
+    id, method: "thread/goal/get", params: { threadId: "thread" },
+  }));
+  const allowed = { result: { thread: { id: "thread", cwd: directory } } };
+  const denied = { error: { code: -32000, message: "synthetic read failure" } };
+  confirmSecureSession();
+  request("old-success");
+  request("old-failure");
+  await waitFor(() => lookups.length === 2);
+  confirmSecureSession();
+  lookups[0](allowed);
+  lookups[1](denied);
+  request("current-denial");
+  request("current-success");
+  await waitFor(() => lookups.length === 4);
+  lookups[2](denied);
+  lookups[3](allowed);
+  assert.equal((await waitForMessage(messages, (m) => m.id === "current-denial")).error.data.errorCode,
+    "project_not_authorized");
+  assert.deepEqual((await waitForMessage(messages, (m) => m.id === "current-success")).result, { goal: null });
+  assert.deepEqual({
+    dispatched,
+    oldReplies: messages.filter((m) => m.id === "old-success" || m.id === "old-failure").map((m) => m.id),
+  }, { dispatched: ["current-success"], oldReplies: [] });
+
+  request("old-socket");
+  await waitFor(() => lookups.length === 5);
+  const originalSocket = socket;
+  originalSocket.close(1012);
+  await waitFor(() => socket !== originalSocket && socket?.readyState === WebSocket.OPEN, 3500);
+  // The encrypted phone session may survive the relay socket reconnect.
+  // A new request can use it, but the old socket's authorization cannot.
+  lookups[4](allowed);
+  request("new-socket");
+  await waitFor(() => lookups.length === 6);
+  lookups[5](allowed);
+  assert.deepEqual((await waitForMessage(messages, (m) => m.id === "new-socket")).result, { goal: null });
+  assert.deepEqual(dispatched, ["current-success", "new-socket"]);
+  assert.equal(messages.some((m) => m.id === "old-socket"), false);
 });
 
 function createFakeCodexTransport({

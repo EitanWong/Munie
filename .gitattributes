@@ -1,2 +1,4 @@
 # Preserve archived upstream license/NOTICE bytes, including trailing whitespace.
 references/licenses/device-identity/*.txt -whitespace
+# A unified diff uses a space to represent an unchanged blank line.
+references/codex-munie-stdio-policy.patch whitespace=-blank-at-eol

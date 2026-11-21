@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { configuredRoot, scopedPath, bindNativeRequest, assertNativeMethod,
-  createPendingResponseGate } = require('../src/munie-project-policy');
+  createPendingResponseGate, assertFollowCodexPreview, SHARED_CODEX_PERMISSIONS, SHARED_CODEX_APPROVAL } = require('../src/munie-project-policy');
 const { createCodexLaunchPlans } = require('../src/codex-transport');
 const { readBridgeConfig } = require('../src/codex-desktop-refresher');
 const { handleProjectMethod } = require('../src/project-handler');
@@ -76,6 +76,35 @@ test('native mutations keep fixed cwd and user approvals while replacing client 
   } finally { fs.rmSync(temporary, { recursive: true, force: true }); }
 });
 
+test('following the local Codex account permits status but not phone login, logout or provider overrides', () => {
+  const root = fs.realpathSync(os.tmpdir());
+  const options = { followCodexAccount: true };
+  for (const method of ['account/read', 'account/status/read', 'getAuthStatus']) {
+    assert.equal(bindNativeRequest({ method }, root, options).method, method);
+  }
+  for (const method of ['account/login/start', 'account/login/cancel', 'account/login/openOnMac', 'account/logout']) {
+    assert.throws(() => bindNativeRequest({ method, params: { type: 'chatgpt' } }, root, options),
+      /Manage the account in Codex/);
+  }
+  for (const key of ['modelProvider', 'model_provider']) {
+    assert.throws(() => bindNativeRequest({ method: 'thread/start', params: { [key]: 'different' } }, root, options),
+      /follows the model provider/);
+  }
+  const browserLogin = { method: 'account/login/start', params: { type: 'chatgpt' } };
+  assert.deepEqual(bindNativeRequest(browserLogin, root), browserLogin);
+  for (const method of ['thread/start', 'thread/resume', 'thread/fork', 'turn/start']) {
+    const request = bindNativeRequest({ method, params: {
+      threadId: 'fixture-thread', input: [{ type: 'text', text: 'fixture text' }],
+      cwd: root, permissions: ':danger-full-access', sandbox: 'danger-full-access',
+      sandboxPolicy: { type: 'dangerFullAccess' }, approvalPolicy: 'never',
+    } }, root, options);
+    assert.equal(request.params.permissions, SHARED_CODEX_PERMISSIONS);
+    assert.equal(request.params.sandbox, undefined);
+    assert.equal(request.params.sandboxPolicy, undefined);
+    assert.deepEqual(request.params.approvalPolicy, SHARED_CODEX_APPROVAL);
+  }
+});
+
 test('the phone may start browser login but may not set credential material', () => {
   const login = { id: 1, method: 'account/login/start' };
   assert.deepEqual(bindNativeRequest({ ...login, params: { type: 'chatgpt' } }, '/fixture'),
@@ -97,11 +126,69 @@ test('the phone may start browser login but may not set credential material', ()
   assert.equal(bindNativeRequest(legacy, null), legacy);
 });
 
+test('shared task requests never override the native approval reviewer', () => {
+  const root = fs.realpathSync(os.tmpdir());
+  for (const method of ['thread/start', 'thread/resume', 'turn/start']) {
+    const request = bindNativeRequest({ method, params: {
+      threadId: 'fixture-thread', input: [{ type: 'text', text: 'fixture text' }],
+      approvalsReviewer: 'user', approvals_reviewer: 'user',
+    } }, root, { followCodexAccount: true });
+    assert.equal(Object.hasOwn(request.params, 'approvalsReviewer'), false);
+    assert.equal(Object.hasOwn(request.params, 'approvals_reviewer'), false);
+    assert.deepEqual(request.params.approvalPolicy, SHARED_CODEX_APPROVAL);
+    assert.equal(request.params.permissions, SHARED_CODEX_PERMISSIONS);
+  }
+});
+
 test('the public QR endpoint is independent of the bridge loopback connection', () => {
   const config = readBridgeConfig({ env: { REMODEX_RELAY: 'ws://127.0.0.1:9275/relay',
     REMODEX_PUBLIC_RELAY: 'wss://fixture.invalid:8443/relay' } });
   assert.equal(config.relayUrl, 'ws://127.0.0.1:9275/relay');
   assert.equal(config.publicRelayUrl, 'wss://fixture.invalid:8443/relay');
+});
+
+test('the shared-account preview fails closed before an execution or a native response', () => {
+  for (const method of ['initialize', 'model/list', 'thread/list', 'project/listDirectory']) {
+    assert.doesNotThrow(() => assertFollowCodexPreview({ method }));
+  }
+  for (const method of ['thread/start', 'thread/resume', 'thread/fork', 'turn/start', 'plugin/list',
+    'mcpServerStatus/list', 'voice/transcribe', 'account/logout', 'account/login/start', undefined]) {
+    assert.throws(() => assertFollowCodexPreview({ method }), { errorCode: 'shared_codex_actions_unavailable' });
+  }
+});
+
+test('the read-only phone picker can open only the Mac-authorized project', async (t) => {
+  const fixture = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'munie-preview-picker-')));
+  const root = path.join(fixture, 'Shared Project');
+  const outside = path.join(fixture, 'Private Sibling');
+  fs.mkdirSync(root);
+  fs.mkdirSync(outside);
+  fs.mkdirSync(path.join(root, 'src'));
+  fs.symlinkSync(outside, path.join(root, 'escape'), 'dir');
+  const previousRoot = process.env.REMODEX_PROJECT_ROOT;
+  process.env.REMODEX_PROJECT_ROOT = root;
+  t.after(() => {
+    if (previousRoot === undefined) delete process.env.REMODEX_PROJECT_ROOT;
+    else process.env.REMODEX_PROJECT_ROOT = previousRoot;
+    fs.rmSync(fixture, { recursive: true, force: true });
+  });
+
+  const read = (method, params = {}) => {
+    const request = { method, params };
+    assertFollowCodexPreview(request);
+    const bound = bindNativeRequest(request, root, { followCodexAccount: true });
+    return handleProjectMethod(bound.method, bound.params);
+  };
+  const { locations } = await read('project/quickLocations');
+  assert.deepEqual(locations.map((entry) => entry.path), [root]);
+  const listing = await read('project/listDirectory', { path: locations[0].path });
+  assert.equal(listing.path, root);
+  assert.equal(listing.parentPath, null);
+  assert.deepEqual(listing.entries.map((entry) => entry.name), ['src']);
+  await assert.rejects(async () => read('project/listDirectory', { path: outside }));
+  for (const method of ['project/createDirectory', 'project/projectlessRoots', 'thread/start', 'turn/start']) {
+    assert.throws(() => assertFollowCodexPreview({ method }), { errorCode: 'shared_codex_actions_unavailable' });
+  }
 });
 
 test('generic native execution, configuration and future unknown methods require explicit policy', () => {

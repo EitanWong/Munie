@@ -21,6 +21,7 @@ def load(name, file):
 
 PACKAGE = load("desktop_package", "package-desktop-runtime.py")
 EMBED = load("desktop_embed", "embed-desktop-runtime.py")
+PREPARE = load("desktop_prepare", "prepare-desktop-runtime.py")
 
 
 class DesktopPackageTests(unittest.TestCase):
@@ -90,6 +91,51 @@ class DesktopPackageTests(unittest.TestCase):
         path.write_bytes(b"binary")
         with self.assertRaisesRegex(ValueError, "SHA-256"):
             PACKAGE.locked_file({"path": str(path), "sha256": "0" * 64})
+
+    def test_policy_preview_requires_both_pins_and_exact_version(self):
+        patch = self.root / "references/codex-munie-stdio-policy.patch"
+        patch.parent.mkdir()
+        patch.write_bytes(b"patch")
+        binary = self.root / "binary"
+        binary.write_bytes(b"binary")
+        lock = {"protocolVersion": 1, "patchSHA256": PACKAGE.sha256(patch),
+                "binarySHA256": PACKAGE.sha256(binary)}
+        self.assertEqual(PREPARE.verify_policy_preview(self.root, binary, lock), binary)
+        with self.assertRaisesRegex(ValueError, "policy version"):
+            PREPARE.verify_policy_preview(self.root, binary, dict(lock, protocolVersion=2))
+        for field in ("patchSHA256", "binarySHA256"):
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, "SHA-256"):
+                PREPARE.verify_policy_preview(self.root, binary, dict(lock, **{field: "0" * 64}))
+
+    def test_committed_policy_patch_matches_runtime_lock(self):
+        references = ROOT / "references"
+        lock = json.loads((references / "desktop-runtime-lock.json").read_text())
+        self.assertEqual(
+            PACKAGE.sha256(references / "codex-munie-stdio-policy.patch"),
+            lock["codexPolicyPreview"]["patchSHA256"],
+        )
+
+    def test_embed_binds_policy_marker_to_pinned_binary(self):
+        manifest_path = self.fixture()
+        manifest = json.loads(manifest_path.read_text())
+        binary = next(entry for entry in manifest["files"] if entry["path"] == EMBED.CODEX_BINARY)
+        marker_path = self.root / EMBED.POLICY_MARKER
+        marker_path.parent.mkdir()
+        lock_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(lock_dir.cleanup)
+        lock = Path(lock_dir.name) / "runtime-lock.json"
+        lock.write_text(json.dumps({"codexPolicyPreview": {"binarySHA256": binary["sha256"]}}))
+        with patch.object(EMBED, "RUNTIME_LOCK", lock):
+            with self.assertRaisesRegex(ValueError, "bundled together"):
+                EMBED.verify_bundle(self.root, False)
+            marker_path.write_bytes(b"1\n")
+            manifest["files"].append({"path": EMBED.POLICY_MARKER, "bytes": 2,
+                                      "sha256": PACKAGE.sha256(marker_path)})
+            manifest_path.write_text(json.dumps(manifest))
+            self.assertEqual(EMBED.verify_bundle(self.root, False), manifest)
+            lock.write_text(json.dumps({"codexPolicyPreview": {"binarySHA256": "0" * 64}}))
+            with self.assertRaisesRegex(ValueError, "bundled together"):
+                EMBED.verify_bundle(self.root, False)
 
     def test_no_existing_output_is_replaced(self):
         manifest = self.root / "input.json"

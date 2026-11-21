@@ -15,9 +15,8 @@ private struct TurnViewAlertModifier: ViewModifier {
     @Binding var isShowingMacHandoffConfirm: Bool
     @Binding var macHandoffErrorMessage: String?
 
-    let onDeclineApproval: (CodexApprovalRequest) -> Void
-    let onApproveApproval: (CodexApprovalRequest) -> Void
-    let onApproveForSession: ((CodexApprovalRequest) -> Void)?
+    let allowsSessionApproval: Bool
+    let onApprovalDecision: (CodexApprovalRequest, CodexApprovalDecision) -> Void
     let onConfirmGitSyncAction: (TurnGitSyncAlertAction) -> Void
     let onDismissGitSyncAlert: () -> Void
     let onConfirmMacHandoff: () -> Void
@@ -29,22 +28,26 @@ private struct TurnViewAlertModifier: ViewModifier {
                 isPresented: $isApprovalAlertPresented,
                 presenting: alertApprovalRequest
             ) { request in
-                Button(String(localized: "Decline"), role: .destructive) {
-                    onDeclineApproval(request)
-                }
-                Button(String(localized: "Approve")) {
-                    onApproveApproval(request)
-                }
-                if let onApproveForSession,
-                   (request.method == "item/commandExecution/requestApproval"
-                    || request.method == "item/command_execution/request_approval") {
-                    Button(String(localized: "Always allow this pattern")) {
-                        onApproveForSession(request)
+                let decisions = request.oneTimeDecisions
+                if decisions?.contains(.decline) != false {
+                    Button(String(localized: "Decline"), role: .destructive) {
+                        onApprovalDecision(request, .decline)
                     }
                 }
-                Button(String(localized: "Cancel"), role: .cancel) {
-                    // A dismissed permission request still blocks the agent.
-                    onDeclineApproval(request)
+                if decisions?.contains(.accept) != false {
+                    Button(String(localized: "Approve")) {
+                        onApprovalDecision(request, .accept)
+                    }
+                }
+                if decisions == nil, allowsSessionApproval, request.isCommandApproval {
+                    Button(String(localized: "Always allow this pattern")) {
+                        onApprovalDecision(request, .acceptForSession)
+                    }
+                }
+                if decisions?.contains(.cancel) != false {
+                    Button(String(localized: "Cancel"), role: .cancel) {
+                        onApprovalDecision(request, decisions == nil ? .decline : .cancel)
+                    }
                 }
             } message: { request in
                 Text(approvalAlertMessage(for: request))
@@ -123,8 +126,7 @@ private struct TurnViewAlertModifier: ViewModifier {
             lines.append(reason)
         }
 
-        if let command = request.command?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !command.isEmpty {
+        if let command = request.command, !command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             lines.append(String(localized: "Command: \(command)"))
         }
 
@@ -159,9 +161,8 @@ extension View {
         gitSyncAlert: Binding<TurnGitSyncAlert?>,
         isShowingMacHandoffConfirm: Binding<Bool>,
         macHandoffErrorMessage: Binding<String?>,
-        onDeclineApproval: @escaping (CodexApprovalRequest) -> Void,
-        onApproveApproval: @escaping (CodexApprovalRequest) -> Void,
-        onApproveForSession: ((CodexApprovalRequest) -> Void)? = nil,
+        allowsSessionApproval: Bool = false,
+        onApprovalDecision: @escaping (CodexApprovalRequest, CodexApprovalDecision) -> Void,
         onConfirmGitSyncAction: @escaping (TurnGitSyncAlertAction) -> Void,
         onDismissGitSyncAlert: @escaping () -> Void,
         onConfirmMacHandoff: @escaping () -> Void
@@ -174,9 +175,8 @@ extension View {
                 gitSyncAlert: gitSyncAlert,
                 isShowingMacHandoffConfirm: isShowingMacHandoffConfirm,
                 macHandoffErrorMessage: macHandoffErrorMessage,
-                onDeclineApproval: onDeclineApproval,
-                onApproveApproval: onApproveApproval,
-                onApproveForSession: onApproveForSession,
+                allowsSessionApproval: allowsSessionApproval,
+                onApprovalDecision: onApprovalDecision,
                 onConfirmGitSyncAction: onConfirmGitSyncAction,
                 onDismissGitSyncAlert: onDismissGitSyncAlert,
                 onConfirmMacHandoff: onConfirmMacHandoff

@@ -27,6 +27,7 @@ final class ContentViewModel {
     private(set) var switchingMacDeviceId: String?
     private(set) var macSwitchNotice: String?
     private var shouldCancelManualReconnect = false
+    private var lastNearbyReturnProbe = ContinuousClock.now - .seconds(10)
     private let macSwitchInterruptTimeoutNanoseconds: UInt64 = 1_500_000_000
     // Test hooks keep reconnect verification fast without changing production retry behavior.
     @ObservationIgnored var reconnectAttemptLimitOverride: Int?
@@ -196,6 +197,41 @@ final class ContentViewModel {
         )
     }
 
+    // A Wi-Fi path is only a reason to probe. Keep the managed socket until the same Mac
+    // returns a matching nearby hint, and do not interrupt work or an in-flight request.
+    func returnToNearbyNetworkIfIdle(codex: CodexService) async {
+        func canReturn() -> Bool {
+            codex.mayReturnToNearbyTransport && !isSwitchingMac && !isRunningManualReconnect
+        }
+        guard canReturn(), !isRunningAutoReconnect, ContinuousClock.now - lastNearbyReturnProbe >= .seconds(5),
+              let mac = codex.currentTrustedMacRecord,
+              let relay = mac.relayURL, Self.isNearbyRelayURL(relay) else { return }
+        isRunningAutoReconnect = true
+        lastNearbyReturnProbe = .now
+        defer { isRunningAutoReconnect = false }
+        do {
+            let resolved = try await codex.resolveTrustedMacSession(deviceId: mac.macDeviceId, applyResult: false)
+            try validateResolvedTrustedReconnectTarget(resolved, trustedMac: mac)
+            guard canReturn(), codex.currentTrustedMacRecord?.macDeviceId == mac.macDeviceId,
+                  codex.currentTrustedMacRecord?.macIdentityPublicKey == mac.macIdentityPublicKey,
+                  !Task.isCancelled else { return }
+            codex.applyResolvedTrustedSession(resolved, relayURL: relay)
+            try await connect(
+                codex: codex, serverURL: "\(relay)/\(resolved.sessionId)",
+                shouldAttemptManagedFallback: { codex.hasWiFiNetworkPath && !Task.isCancelled })
+        } catch let error as CodexTrustedSessionResolveError {
+            // Nearby discovery is not authoritative over a live authenticated session.
+            // A denied or invalid probe never takes the existing route down.
+            if !codex.isConnected { codex.lastErrorMessage = error.localizedDescription }
+        } catch is CancellationError {
+            return
+        } catch {
+            if !codex.isConnected {
+                codex.lastErrorMessage = codex.userFacingConnectFailureMessage(error)
+            }
+        }
+    }
+
     // Reconnects after benign background disconnects.
     func attemptAutoReconnectOnForegroundIfNeeded(codex: CodexService) async {
         await attemptAutoReconnectOnForegroundIfNeeded(
@@ -358,6 +394,21 @@ extension ContentViewModel {
             return
         }
 
+        if let shouldAttemptManagedFallback, let origin = codex.enabledHostedRelayOrigin,
+           let pinnedMac = codex.currentTrustedMacRecord, Self.isNearbyRelayURL(serverURL) {
+            try await Self.connectWithManagedFallback(
+                shouldContinue: {
+                    shouldAttemptManagedFallback() && codex.enabledHostedRelayOrigin == origin
+                        && Self.isCurrentPairedLANEndpoint(serverURL, codex: codex, pinnedMac: pinnedMac)
+                },
+                preserveLANError: false
+            ) { unreachable in
+                try await codex.connect(serverURL: serverURL, token: "", role: "iphone", onLANUnavailable: unreachable)
+            } managed: {
+                try await codex.connectHostedRelay(origin: origin, pinnedMac: pinnedMac)
+            }
+            return
+        }
         #if DEBUG && targetEnvironment(simulator)
         if let shouldAttemptManagedFallback,
            let origin = ProcessInfo.processInfo.environment["MUNIE_DEV_MANAGED_RELAY_ORIGIN"],
@@ -373,9 +424,35 @@ extension ContentViewModel {
         try await codex.connect(serverURL: serverURL, token: "", role: "iphone")
     }
 
-    #if DEBUG
+    static func isCurrentPairedLANEndpoint(
+        _ endpoint: String, codex: CodexService, pinnedMac: CodexTrustedMacRecord
+    ) -> Bool {
+        guard codex.currentTrustedMacRecord?.macDeviceId == pinnedMac.macDeviceId,
+              codex.currentTrustedMacRecord?.macIdentityPublicKey == pinnedMac.macIdentityPublicKey,
+              codex.normalizedRelayMacDeviceId == pinnedMac.macDeviceId,
+              codex.normalizedRelayMacIdentityPublicKey == pinnedMac.macIdentityPublicKey,
+              let relay = codex.normalizedRelayURL, let session = codex.normalizedRelaySessionId else {
+            return false
+        }
+        return endpoint == "\(relay)/\(session)"
+    }
+
+    static func isNearbyRelayURL(_ value: String) -> Bool {
+        guard let url = URL(string: value), url.scheme == "ws",
+              url.user == nil, url.password == nil, url.query == nil, url.fragment == nil,
+              let host = url.host?.lowercased() else { return false }
+        if host.hasSuffix(".local"), host.count > 6 { return true }
+        let octets = host.split(separator: ".", omittingEmptySubsequences: false)
+        let parts = octets.compactMap { UInt8($0) }
+        guard octets.count == 4, parts.count == 4,
+              parts.map({ String($0) }).joined(separator: ".") == host else { return false }
+        return parts[0] == 10 || (parts[0] == 192 && parts[1] == 168)
+            || (parts[0] == 172 && (16...31).contains(parts[1]))
+    }
+
     static func connectWithManagedFallback(
-        shouldContinue: () -> Bool, lan: (_ reportUnreachable: @escaping () -> Void) async throws -> Void,
+        shouldContinue: () -> Bool, preserveLANError: Bool = true,
+        lan: (_ reportUnreachable: @escaping () -> Void) async throws -> Void,
         managed: () async throws -> Void
     ) async throws {
         guard shouldContinue() else { throw CancellationError() }
@@ -388,13 +465,12 @@ extension ContentViewModel {
             guard lanUnavailable else { throw lanError }
             do {
                 try await managed()
-            } catch ManagedRelayPhoneConnector.Failure.transientUnavailable(_) {
+            } catch ManagedRelayPhoneConnector.Failure.transientUnavailable(_) where preserveLANError {
                 // Preserve the established retry policy when both transports are unreachable.
                 throw lanError
             }
         }
     }
-    #endif
 
     // Re-resolves the reconnect target on every retry so bridge restarts cannot pin
     // launch/manual recovery loops to one stale saved session id.
@@ -521,7 +597,8 @@ extension ContentViewModel {
     ) async -> String? {
         switch await trustedReconnectResolution(
             codex: codex,
-            targetMacDeviceId: targetMacDeviceId
+            targetMacDeviceId: targetMacDeviceId,
+            strictManagedPolicy: codex.enabledHostedRelayOrigin != nil
         ) {
         case .use(let resolvedURL):
             return resolvedURL
@@ -539,7 +616,8 @@ extension ContentViewModel {
         let targetMacDeviceId = codex.normalizedCurrentTrustedMacDeviceId
         switch await trustedReconnectResolution(
             codex: codex,
-            targetMacDeviceId: targetMacDeviceId
+            targetMacDeviceId: targetMacDeviceId,
+            strictManagedPolicy: codex.enabledHostedRelayOrigin != nil
         ) {
         case .use(let resolvedURL):
             return AutoRecoveryReconnectURLResolution(url: resolvedURL, shouldKeepRetrying: true)
@@ -568,7 +646,8 @@ extension ContentViewModel {
 
     private func trustedReconnectResolution(
         codex: CodexService,
-        targetMacDeviceId: String?
+        targetMacDeviceId: String?,
+        strictManagedPolicy: Bool = false
     ) async -> ReconnectURLResolution {
         let normalizedTargetMacDeviceId = normalizedMacDeviceId(targetMacDeviceId)
         guard let targetMacDeviceId = normalizedTargetMacDeviceId,
@@ -590,12 +669,21 @@ extension ContentViewModel {
             logMacSwitchState("resolve-use-live-session", targetMacDeviceId: targetMacDeviceId, codex: codex)
             return .use(trustedReconnectURL)
         } catch let error as CodexTrustedSessionResolveError {
+            if strictManagedPolicy {
+                switch error {
+                case .transportUnreachable, .unsupportedRelay, .macOffline, .noTrustedMac:
+                    break
+                case .rePairRequired, .invalidResponse, .network:
+                    codex.lastErrorMessage = error.localizedDescription
+                    return .stop
+                }
+            }
             logMacSwitchState(
                 "resolve-error \(String(describing: error))",
                 targetMacDeviceId: targetMacDeviceId,
                 codex: codex
             )
-            if case .macOffline = error,
+            if !strictManagedPolicy, case .macOffline = error,
                let alternate = await resolvedAlternateTrustedReconnectURL(
                     codex: codex,
                     offlineTrustedMac: trustedMac
@@ -607,7 +695,7 @@ extension ContentViewModel {
                 )
                 return .use(alternate.url)
             }
-            if case .macOffline = error {
+            if !strictManagedPolicy, case .macOffline = error {
                 let prunedCount = codex.pruneOfflineTrustedMacRecords(matching: trustedMac)
                 logMacSwitchState(
                     "pruned-offline-selection count=\(prunedCount)",
@@ -627,6 +715,10 @@ extension ContentViewModel {
             logMacSwitchState("resolve-cancelled", targetMacDeviceId: targetMacDeviceId, codex: codex)
             return .stop
         } catch {
+            if strictManagedPolicy {
+                codex.lastErrorMessage = codex.userFacingConnectFailureMessage(error)
+                return .stop
+            }
             if savedReconnectURL(codex: codex, targetMacDeviceId: targetMacDeviceId) == nil {
                 codex.lastErrorMessage = codex.userFacingTurnErrorMessageForFooter(from: error)
             }
@@ -739,6 +831,8 @@ extension ContentViewModel {
     ) -> ReconnectURLResolution {
         let hasSavedReconnectURL = savedReconnectURL(codex: codex, targetMacDeviceId: targetMacDeviceId) != nil
         switch error {
+        case .transportUnreachable:
+            return hasSavedReconnectURL ? .fallbackToSaved : .retryLater
         case .unsupportedRelay:
             if !hasSavedReconnectURL {
                 codex.secureConnectionState = .liveSessionUnresolved

@@ -11,7 +11,14 @@ import Observation
 import UIKit
 import UserNotifications
 
-struct CodexApprovalRequest: Identifiable, Sendable {
+enum CodexApprovalDecision: String, Hashable, Sendable {
+    case accept
+    case decline
+    case cancel
+    case acceptForSession
+}
+
+struct CodexApprovalRequest: Equatable, Identifiable, Sendable {
     let id: String
     let requestID: JSONValue
     let method: String
@@ -20,6 +27,21 @@ struct CodexApprovalRequest: Identifiable, Sendable {
     let threadId: String?
     let turnId: String?
     let params: JSONValue?
+
+    var isCommandApproval: Bool {
+        let normalizedMethod = method.trimmingCharacters(in: .whitespacesAndNewlines)
+        return normalizedMethod == "item/commandExecution/requestApproval"
+            || normalizedMethod == "item/command_execution/request_approval"
+    }
+
+    // An advertised list opts a host command request into one-time decisions only.
+    var oneTimeDecisions: Set<CodexApprovalDecision>? {
+        guard isCommandApproval, let advertised = params?.objectValue?["availableDecisions"] else {
+            return nil
+        }
+        let decisions = advertised.arrayValue?.compactMap { $0.stringValue.flatMap(CodexApprovalDecision.init(rawValue:)) }
+        return Set(decisions ?? []).subtracting([.acceptForSession])
+    }
 
     var workingDirectory: String? {
         guard let cwd = params?.objectValue?["cwd"]?.stringValue,
@@ -507,6 +529,7 @@ final class CodexService {
     @ObservationIgnored var projectedTerminalStateByThreadID: [String: [String: CodexTurnTerminalState]] = [:]
     // Ordered pending runtime approvals keyed by request id so concurrent prompts do not overwrite each other.
     var pendingApprovals: [CodexApprovalRequest] = []
+    var approvalRepliesAwaitingResolution: [String: UUID] = [:]
     @ObservationIgnored var autoApprovalRetryReviewIDsInFlight: Set<String> = []
     @ObservationIgnored var autoApprovalRetryTokensByReviewKey: [String: CodexAutoApprovalRetryToken] = [:]
     var lastRawMessage: String?
@@ -646,11 +669,15 @@ final class CodexService {
     var webSocketSession: URLSession?
     var webSocketSessionDelegate: CodexURLSessionWebSocketDelegate?
     var webSocketTask: URLSessionWebSocketTask?
-    #if DEBUG
     @ObservationIgnored var managedRelayAttemptID: UUID?
     @ObservationIgnored var managedRelayBootstrapTask: Task<ManagedRelayPhoneConnector.Bootstrap, Error>?
     @ObservationIgnored var managedRelayHandshakeControls: Set<String> = []
-    #endif
+    var isUsingHostedRelay = false
+    var hasWiFiNetworkPath = false
+    var mayReturnToNearbyTransport: Bool {
+        isUsingHostedRelay && hasWiFiNetworkPath && isAppInForeground && !isConnecting
+            && !hasAnyRunningTurn && pendingApprovals.isEmpty && pendingRequests.isEmpty
+    }
     var webSocketKeepAliveTask: Task<Void, Never>?
     // Raw frame buffer used when the relay runs over manual TCP websocket framing.
     var manualWebSocketReadBuffer = Data()
@@ -1060,8 +1087,10 @@ final class CodexService {
         networkPathMonitor = monitor
         monitor.pathUpdateHandler = { [weak self] path in
             let constrained = path.isConstrained
+            let hasWiFi = path.status == .satisfied && path.usesInterfaceType(.wifi)
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                self.hasWiFiNetworkPath = hasWiFi
                 if self.isConstrainedNetwork != constrained {
                     self.isConstrainedNetwork = constrained
                     if self.isConnected, self.isInitialized {

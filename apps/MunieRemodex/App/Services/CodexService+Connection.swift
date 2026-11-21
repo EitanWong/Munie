@@ -5,11 +5,24 @@
 // Exports: CodexService connection APIs
 // Depends on: Network.NWConnection, UIKit
 
+import dnssd
 import Foundation
 import Network
 import UIKit
 
 extension CodexService {
+    static let hostedRelayPreferenceKey = "munieHostedRelayEnabled"
+
+    var configuredHostedRelayOrigin: String? {
+        guard let origin = Bundle.main.object(forInfoDictionaryKey: "MunieManagedRelayOrigin") as? String,
+              origin.hasPrefix("https://") else { return nil }
+        return origin
+    }
+
+    var enabledHostedRelayOrigin: String? {
+        defaults.bool(forKey: Self.hostedRelayPreferenceKey) ? configuredHostedRelayOrigin : nil
+    }
+
     struct ConnectionMacIdentity: Equatable {
         let deviceId: String
         let publicKey: String
@@ -73,11 +86,9 @@ extension CodexService {
         do {
             transport = try await establishWebSocketConnection(url: url, token: trimmedToken, role: role)
         } catch let transportError {
-            #if DEBUG
-            if Self.isLANTransportUnreachable(transportError) {
+            if Self.isLANTransportUnreachable(transportError, nearbyHost: url.host) {
                 onLANUnavailable?()
             }
-            #endif
             let error: Error
             if let deadline = transportError as? CodexConnectionWaitDeadline {
                 error = CodexServiceError.invalidInput(deadline.message)
@@ -139,8 +150,23 @@ extension CodexService {
     }
 
     #if DEBUG
-    // Reuses the selected Mac trust and runtime without reading or replacing the LAN URL/session hint.
     func connectManagedRelay(origin: String, pinnedMac: CodexTrustedMacRecord) async throws {
+        let admission = try ManagedRelayPhoneAdmission(identity: phoneIdentityState, trustedMac: pinnedMac)
+        try await connectManagedRelay(
+            try ManagedRelayPhoneConnector(origin: origin, admission: admission), pinnedMac: pinnedMac, hosted: false)
+    }
+    #endif
+
+    func connectHostedRelay(origin: String, pinnedMac: CodexTrustedMacRecord) async throws {
+        let admission = try ManagedRelayPhoneAdmission(identity: phoneIdentityState, trustedMac: pinnedMac)
+        try await connectManagedRelay(
+            try ManagedRelayPhoneConnector(hostedOrigin: origin, admission: admission), pinnedMac: pinnedMac, hosted: true)
+    }
+
+    // Reuses the selected Mac trust and runtime without replacing the LAN URL/session hint.
+    private func connectManagedRelay(
+        _ connector: ManagedRelayPhoneConnector, pinnedMac: CodexTrustedMacRecord, hosted: Bool
+    ) async throws {
         guard !isConnecting, !isConnected, !shouldForceQRBootstrapOnNextHandshake,
               isCurrentManagedRelayTarget(pinnedMac),
               secureConnectionState != .rePairRequired, secureConnectionState != .updateRequired else {
@@ -152,8 +178,6 @@ extension CodexService {
         try Task.checkCancellation()
         guard isCurrentManagedRelayTarget(pinnedMac) else { throw CancellationError() }
 
-        let admission = try ManagedRelayPhoneAdmission(identity: phoneIdentityState, trustedMac: pinnedMac)
-        let connector = try ManagedRelayPhoneConnector(origin: origin, admission: admission)
         let attemptID = UUID()
         managedRelayAttemptID = attemptID
         let bootstrapTask = Task { try await connector.connect() }
@@ -184,6 +208,7 @@ extension CodexService {
             }
 
             isConnected = true
+            isUsingHostedRelay = hosted
             publishInitializedSession(probePlanCollaboration: supportsTurnCollaborationMode)
             finishConnection(performInitialSync: true)
         } catch {
@@ -200,19 +225,27 @@ extension CodexService {
             && trustedMacRegistry.records[pinnedMac.macDeviceId]?.macIdentityPublicKey == pinnedMac.macIdentityPublicKey
     }
 
-    static func isLANTransportUnreachable(_ error: Error) -> Bool {
+    static func isLANTransportUnreachable(_ error: Error, nearbyHost: String? = nil) -> Bool {
         let unreachableCodes: Set<POSIXErrorCode> = [.ECONNREFUSED, .EHOSTUNREACH, .ENETUNREACH, .ENETDOWN, .ETIMEDOUT]
         if let deadline = error as? CodexConnectionWaitDeadline {
-            return deadline.waitingError.map { isLANTransportUnreachable($0) } ?? false
+            return deadline.waitingError.map { isLANTransportUnreachable($0, nearbyHost: nearbyHost) } ?? false
         }
+        let isBonjourHost = nearbyHost?.lowercased().hasSuffix(".local") == true
         if let networkError = error as? NWError, case .posix(let code) = networkError {
             return unreachableCodes.contains(code)
+        }
+        if let networkError = error as? NWError, case .dns(let code) = networkError {
+            return isBonjourHost && (code == kDNSServiceErr_NoSuchName || code == kDNSServiceErr_NoSuchRecord)
         }
         let error = error as NSError
         if error.domain == NSPOSIXErrorDomain, let code = POSIXErrorCode(rawValue: Int32(clamping: error.code)) {
             return unreachableCodes.contains(code)
         }
         guard error.domain == NSURLErrorDomain else { return false }
+        guard error.userInfo[NSURLErrorNetworkUnavailableReasonKey] == nil else { return false }
+        if isBonjourHost && [NSURLErrorCannotFindHost, NSURLErrorDNSLookupFailed].contains(error.code) {
+            return true
+        }
         return [NSURLErrorCannotConnectToHost, NSURLErrorNotConnectedToInternet, NSURLErrorTimedOut].contains(error.code)
     }
 
@@ -221,7 +254,6 @@ extension CodexService {
         guard managedRelayAttemptID == id else { throw CodexServiceError.disconnected }
         guard isCurrentManagedRelayTarget(pinnedMac) else { throw CancellationError() }
     }
-    #endif
 
     private func finishConnection(performInitialSync: Bool) {
         lastInitializedMacIdentity = secureSession.map {
@@ -611,11 +643,7 @@ extension CodexService {
             return
         }
 
-        #if DEBUG
         let wasManagedRelay = managedRelayAttemptID != nil
-        #else
-        let wasManagedRelay = false
-        #endif
         cancelCurrentSocketConnection()
 
         cancelRuntimeSettingsUpdates()
@@ -872,12 +900,11 @@ extension CodexService {
     // Removes the current socket reference before reconnect/teardown logic mutates shared state.
     private func cancelCurrentSocketConnection() {
         stopWebSocketKeepAliveLoop()
-        #if DEBUG
+        isUsingHostedRelay = false
         managedRelayAttemptID = nil
         managedRelayBootstrapTask?.cancel()
         managedRelayBootstrapTask = nil
         managedRelayHandshakeControls.removeAll()
-        #endif
 
         if let connection = webSocketConnection {
             connection.stateUpdateHandler = nil
@@ -1290,6 +1317,14 @@ extension CodexService {
     }
 
     func userFacingConnectFailureMessage(_ error: Error) -> String {
+        if let failure = error as? ManagedRelayPhoneConnector.Failure {
+            switch failure {
+            case .transientUnavailable, .challengeQuotaExceeded:
+                return String(localized: "Managed relay unavailable. Try reconnecting later.")
+            default:
+                return String(localized: "The managed relay refused a secure connection.")
+            }
+        }
         if let retryableSessionUnavailableMessage = retryableSessionUnavailableMessage(forConnectError: error) {
             return retryableSessionUnavailableMessage
         }

@@ -27,6 +27,108 @@
       }
     }
 
+    func testHostedOriginRequiresCanonicalHTTPSDNSOrigin() throws {
+      let admission = try credential()
+      for origin in [
+        "http://relay.example.test", "wss://relay.example.test", "https://Relay.example.test",
+        "https://relay.example.test/", "https://relay.example.test:443",
+        "https://relay.example.test:9999", "https://user@relay.example.test",
+        "https://relay.example.test@other.example.test", "https://relay%2Eexample.test",
+        "https://relay.example.test/connect", "https://relay.example.test?",
+        "https://relay.example.test#", "https://relay.example.test.", "https://relay..test",
+        "https://-relay.test", "https://relay-.test", "https://relay_test.example",
+        "https://relay.test\n", "https://localhost", "https://relay.local",
+        "https://127.0.0.1", "https://[::1]", "https://0x7f.0x0.0x1",
+      ] {
+        XCTAssertThrowsError(try Connector(hostedOrigin: origin, admission: admission), origin) {
+          XCTAssertEqual($0 as? Connector.Failure, .invalidHostedOrigin)
+        }
+      }
+      XCTAssertNoThrow(
+        try Connector(hostedOrigin: "https://relay.example.test", admission: admission))
+    }
+
+    func testHostedBootstrapBindsTheProofToTheHTTPSOriginAndUsesWSS() async throws {
+      let fixture = try Fixture(admission: credential(), hosted: true)
+      fixture.reply(
+        .http(
+          body: try fixture.challenge(
+            ["audience": ManagedRelayPhoneAdmission.audience])))
+      await expect(try fixture.connector(), .invalidChallenge)
+      fixture.reply(.http(body: try fixture.challenge(["audience": "elsewhere.example.test"])))
+      await expect(try fixture.connector(), .invalidChallenge)
+
+      let challenge = try fixture.challenge()
+      fixture.reply(.http(body: challenge))
+      let text = hint()
+      let bootstrap = try await fixture.connector { _, _ in .string(text) }.connect()
+      defer { bootstrap.cancel() }
+      XCTAssertEqual(fixture.requests.count, 3)
+      XCTAssertTrue(
+        fixture.requests.allSatisfy {
+          $0.url?.absoluteString == fixture.origin + "/v1/managed/challenge"
+        })
+      let upgrade = try XCTUnwrap(bootstrap.webSocketTask.originalRequest)
+      XCTAssertEqual(upgrade.url?.absoluteString, "wss://\(fixture.host)/v1/managed/connect")
+      XCTAssertNil(upgrade.value(forHTTPHeaderField: "Cookie"))
+      XCTAssertNil(upgrade.value(forHTTPHeaderField: "Authorization"))
+      try assertSignature(
+        try XCTUnwrap(upgrade.value(forHTTPHeaderField: "x-munie-proof")), challenge: challenge)
+      XCTAssertEqual(bootstrap.untrustedSessionIDHint, Self.hintID)
+    }
+
+    func testHostedOutageIsDistinctFromAmbiguousResponsesAndAuthorizationFailure() async throws {
+      let fixture = try Fixture(admission: credential(), hosted: true)
+      for status in [502, 503, 504] {
+        fixture.reply(.http(status: status))
+        await expect(try fixture.connector(), .transientUnavailable(.challenge))
+      }
+      for status in [401, 403] {
+        fixture.reply(.http(status: status))
+        await expect(try fixture.connector(), .admissionForbidden(.challenge))
+      }
+      fixture.reply(.http(status: 500))
+      await expect(try fixture.connector(), .unexpectedResponse(.challenge))
+      fixture.reply(.http(status: 307, headers: ["Location": fixture.origin + "/other"]))
+      await expect(try fixture.connector(), .redirectRejected(.challenge))
+      fixture.reply(.failure(.serverCertificateUntrusted))
+      await expect(try fixture.connector(), .certificateRejected(.challenge))
+      fixture.reply(.failure(.cannotFindHost))
+      await expect(try fixture.connector(), .transientUnavailable(.challenge))
+      XCTAssertEqual(
+        Connector.classify(
+          URLError(.cannotConnectToHost), stage: .bootstrap, redirected: false, status: 403,
+          hosted: true), .admissionForbidden(.bootstrap))
+      XCTAssertEqual(
+        Connector.classify(
+          URLError(.badServerResponse), stage: .bootstrap, redirected: false, status: 503,
+          hosted: true), .transientUnavailable(.bootstrap))
+    }
+
+    func testHostedTrustUsesDefaultEvaluationOnlyForTheConfiguredHost() {
+      let host = "relay.example.test"
+      let policy = Connector.SessionPolicy(hostedHost: host)
+      let tlsSpace = URLProtectionSpace(
+        host: host, port: 443, protocol: "https", realm: nil,
+        authenticationMethod: NSURLAuthenticationMethodServerTrust)
+      let otherSpace = URLProtectionSpace(
+        host: "other.example.test", port: 443, protocol: "https", realm: nil,
+        authenticationMethod: NSURLAuthenticationMethodServerTrust)
+      let basicSpace = URLProtectionSpace(
+        host: host, port: 443, protocol: "https", realm: "fixture",
+        authenticationMethod: NSURLAuthenticationMethodHTTPBasic)
+      let clientCertificateSpace = URLProtectionSpace(
+        host: host, port: 443, protocol: "https", realm: nil,
+        authenticationMethod: NSURLAuthenticationMethodClientCertificate)
+      XCTAssertEqual(policy.authenticationDisposition(for: tlsSpace), .performDefaultHandling)
+      for space in [otherSpace, basicSpace, clientCertificateSpace] {
+        XCTAssertEqual(policy.authenticationDisposition(for: space), .cancelAuthenticationChallenge)
+      }
+      XCTAssertEqual(
+        Connector.SessionPolicy().authenticationDisposition(for: tlsSpace),
+        .cancelAuthenticationChallenge)
+    }
+
     func testUsesExactEndpointsAndHandsOffSameOwnedPairAfterOneHint() async throws {
       let fixture = try Fixture(admission: credential())
       let challenge = try fixture.challenge()
@@ -323,11 +425,14 @@
       let stopObserved = XCTestExpectation(description: "Cancelled challenge I/O")
       let admission: ManagedRelayPhoneAdmission
       let port: Int
-      var origin: String { "http://127.0.0.1:\(port)" }
+      let hosted: Bool
+      var host: String { "relay-\(port).example.test" }
+      var origin: String { hosted ? "https://\(host)" : "http://127.0.0.1:\(port)" }
       var requests: [URLRequest] { state.withLock { $0.requests } }
 
-      init(admission: ManagedRelayPhoneAdmission) {
+      init(admission: ManagedRelayPhoneAdmission, hosted: Bool = false) {
         self.admission = admission
+        self.hosted = hosted
         port = ChallengeProtocol.registry.withLock { registry in
           defer { registry.nextPort += 1 }
           return registry.nextPort
@@ -335,7 +440,7 @@
         let state = self.state
         let stopObserved = self.stopObserved
         ChallengeProtocol.registry.withLock {
-          $0.responders[port] = { request in
+          $0.responders[origin] = { request in
             state.withLock {
               $0.requests.append(request)
               return ($0.reply, stopObserved)
@@ -344,7 +449,7 @@
         }
       }
 
-      deinit { ChallengeProtocol.registry.withLock { $0.responders[port] = nil } }
+      deinit { ChallengeProtocol.registry.withLock { $0.responders[origin] = nil } }
 
       func reply(_ reply: StubReply) { state.withLock { $0.reply = reply } }
 
@@ -357,16 +462,17 @@
             throw URLError(.badServerResponse)
           }
       ) throws -> Connector {
-        try Connector(
-          origin: origin, admission: admission,
-          io: .init(
-            challengeProtocol: ChallengeProtocol.self, challengeDeadline: challengeDeadline,
-            bootstrapDeadline: bootstrapDeadline, receiveFirstMessage: receive))
+        let io = Connector.IO(
+          challengeProtocol: ChallengeProtocol.self, challengeDeadline: challengeDeadline,
+          bootstrapDeadline: bootstrapDeadline, receiveFirstMessage: receive)
+        return try hosted
+          ? Connector(hostedOrigin: origin, admission: admission, io: io)
+          : Connector(origin: origin, admission: admission, io: io)
       }
 
       func challenge(_ overrides: [String: Any] = [:]) throws -> Data {
         var fields: [String: Any] = [
-          "role": "phone", "audience": ManagedRelayPhoneAdmission.audience,
+          "role": "phone", "audience": hosted ? host : ManagedRelayPhoneAdmission.audience,
           "phoneKey": admission.phoneKey, "macKey": admission.macKey,
           "id": String(repeating: "A", count: 43), "generation": String(repeating: "E", count: 43),
           "expiresAt": Int64(Date().timeIntervalSince1970 * 1000) + 15_000,
@@ -386,19 +492,26 @@
     nonisolated private final class ChallengeProtocol: URLProtocol, @unchecked Sendable {
       struct Registry {
         var nextPort = 50_000
-        var responders: [Int: @Sendable (URLRequest) -> (StubReply, XCTestExpectation)] = [:]
+        var responders: [String: @Sendable (URLRequest) -> (StubReply, XCTestExpectation)] = [:]
       }
       static let registry = OSAllocatedUnfairLock(initialState: Registry())
       private let stopObserved = OSAllocatedUnfairLock<XCTestExpectation?>(initialState: nil)
 
       override class func canInit(with request: URLRequest) -> Bool {
-        request.url?.scheme == "http"
+        request.url?.path == "/v1/managed/challenge"
       }
       override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
       override func startLoading() {
-        guard let url = request.url, let port = url.port,
-          let respond = Self.registry.withLock({ $0.responders[port] })
+        guard let url = request.url,
+          var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        else {
+          client?.urlProtocol(self, didFailWithError: URLError(.badURL))
+          return
+        }
+        components.path = ""
+        guard let origin = components.string,
+          let respond = Self.registry.withLock({ $0.responders[origin] })
         else {
           client?.urlProtocol(self, didFailWithError: URLError(.badURL))
           return

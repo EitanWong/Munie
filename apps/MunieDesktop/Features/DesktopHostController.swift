@@ -22,14 +22,62 @@ enum DesktopServiceState: Equatable {
 }
 
 enum DesktopAccountState: Equatable {
-  case unknown
-  case signedOut
-  case signingIn
+  case notChecked
   case signedIn
+  case configured
+  case needsAttention
+  case unavailable
+
+  init(snapshot: DesktopJSON) {
+    switch snapshot["status"]?.string {
+    case "authenticated":
+      switch snapshot["authMethod"]?.string {
+      case "chatgpt", "chatgptAuthTokens": self = .signedIn
+      default: self = .configured
+      }
+    case "configured": self = .configured
+    case "not_logged_in", "expired", "pending_login": self = .needsAttention
+    default: self = snapshot == .null ? .notChecked : .unavailable
+    }
+  }
+
+  var title: String.LocalizationValue {
+    switch self {
+    case .notChecked: "Codex status not checked"
+    case .signedIn: "Signed in to Codex"
+    case .configured: "Using Codex settings"
+    case .needsAttention: "Check sign-in or provider in Codex"
+    case .unavailable: "Codex status unavailable"
+    }
+  }
+
+  var symbol: String {
+    switch self {
+    case .notChecked: "circle"
+    case .signedIn, .configured: "checkmark.shield"
+    case .needsAttention: "exclamationmark.circle"
+    case .unavailable: "questionmark.circle"
+    }
+  }
 }
 
 struct DesktopPairedDevice: Equatable, Sendable, Identifiable {
   let id: String
+}
+
+enum DesktopAwayState: String {
+  case stopped, waitingForPair, connecting, registered, unavailable, denied
+
+  var title: String.LocalizationValue {
+    switch self {
+    case .stopped: "Away connection is off"
+    case .waitingForPair: "Waiting for a paired iPhone"
+    case .connecting: "Connecting to the managed relay…"
+    case .registered: "Mac registered with the managed relay"
+    case .unavailable: "Managed relay unavailable"
+    case .denied: "Managed relay connection refused"
+    }
+  }
 }
 
 @MainActor @Observable
@@ -46,15 +94,16 @@ final class DesktopHostController {
       if ready && oldValue != lanAvailable { onNearbyAvailabilityChange?() }
     }
   }
-  private(set) var accountState: DesktopAccountState = .unknown
+  private(set) var accountState: DesktopAccountState = .notChecked
   private(set) var projectName = ""
   private(set) var pairedDevices: [DesktopPairedDevice] = []
   private(set) var hasPairingStatus = false
   private(set) var revokingDeviceID: String?
   private(set) var error: String.LocalizationValue?
-  private(set) var accountBusy = false
   private(set) var projectBusy = false
-  private(set) var loginURL: URL?
+  private(set) var awayState: DesktopAwayState = .stopped
+  private(set) var awayBusy = false
+  let hasAwayPilot: Bool
 
   var busy: Bool { starting != nil || stopping != nil }
   var canStart: Bool { runtime == nil && !busy }
@@ -80,10 +129,13 @@ final class DesktopHostController {
   @ObservationIgnored private var eventTask: Task<Void, Never>?
   @ObservationIgnored private var generation = UUID()
   @ObservationIgnored private var statusRevision = UUID()
+  @ObservationIgnored private var accountRevision = UUID()
   @ObservationIgnored private var latestLANRevision: UInt64?
+  @ObservationIgnored private var latestAwayRevision: UInt64?
   @ObservationIgnored private var deviceOperation: UUID?
 
   init(
+    hasAwayPilot: Bool = DesktopRuntimeConfiguration.bundledHostedRelayOrigin() != nil,
     makeRuntime: @escaping RuntimeFactory = {
       DesktopPackagedRuntime(configuration: try await .bundled())
     },
@@ -91,6 +143,7 @@ final class DesktopHostController {
       try await DesktopRuntimeConfiguration.bundled().defaultProject
     }
   ) {
+    self.hasAwayPilot = hasAwayPilot
     self.makeRuntime = makeRuntime
     self.defaultProject = defaultProject
   }
@@ -112,6 +165,7 @@ final class DesktopHostController {
       let activeGeneration = UUID()
       generation = activeGeneration
       latestLANRevision = nil
+      latestAwayRevision = nil
       let stream = try await owned.launch()
       eventTask = Task { [weak self] in
         for await event in stream {
@@ -166,6 +220,7 @@ final class DesktopHostController {
       try await runtime?.shutdown()
     } catch {
       serviceState = .cleanupUnconfirmed
+      accountState = .unavailable
       self.error = "Munie could not confirm that all work stopped. Retry before quitting."
       return false
     }
@@ -176,9 +231,10 @@ final class DesktopHostController {
     runtime = nil
     serviceState = .stopped
     lanAvailable = false
-    accountBusy = false
+    awayState = .stopped
+    awayBusy = false
+    accountState = .notChecked
     projectBusy = false
-    loginURL = nil
     error = nil
     return true
   }
@@ -198,43 +254,22 @@ final class DesktopHostController {
     }
   }
 
-  func beginLogin() async -> URL? {
-    guard ready, !accountBusy, let runtime else { return nil }
-    let operationGeneration = generation
-    accountBusy = true
-    defer { if operationGeneration == generation { accountBusy = false } }
-    do {
-      let result = try await runtime.request("account/login/start", params: .object([:]))
-      guard operationGeneration == generation else { return nil }
-      guard let value = result["authUrl"]?.string else {
-        throw DesktopHostFailure.loginURLRejected
-      }
-      let url = try DesktopLoginURL.validated(value)
-      loginURL = url
-      accountState = .signingIn
-      error = nil
-      return url
-    } catch {
-      guard operationGeneration == generation else { return nil }
-      self.error = "Sign-in could not start. Try again."
-      return nil
+  func setAwayEnabled(_ enabled: Bool) async {
+    guard hasAwayPilot, ready, !busy, !awayBusy, !deviceBusy, !projectBusy, let runtime else {
+      return
     }
-  }
-
-  func cancelLogin() async {
-    guard ready, !accountBusy, let runtime else { return }
     let operationGeneration = generation
-    accountBusy = true
-    defer { if operationGeneration == generation { accountBusy = false } }
+    awayBusy = true
+    defer { if operationGeneration == generation { awayBusy = false } }
     do {
-      _ = try await runtime.request("account/login/cancel", params: .object([:]))
-      guard operationGeneration == generation else { return }
-      loginURL = nil
-      accountState = .signedOut
+      let status = try await runtime.request(
+        "away/set", params: .object(["enabled": .bool(enabled)]))
+      guard operationGeneration == generation, ready, !busy else { return }
+      applyAwayStatus(status)
       error = nil
     } catch {
-      guard operationGeneration == generation else { return }
-      self.error = "Sign-in could not be cancelled. Try again."
+      guard operationGeneration == generation, ready, !busy else { return }
+      self.error = "Could not change the away connection. Try again."
     }
   }
 
@@ -250,6 +285,7 @@ final class DesktopHostController {
       guard operationGeneration == generation else { return }
       apply(result)
       error = nil
+      await refreshAccount(using: runtime)
     } catch {
       guard operationGeneration == generation else { return }
       self.error = "This project could not be selected. Try another folder."
@@ -281,7 +317,10 @@ final class DesktopHostController {
         "devices/revoke", params: .object(["deviceId": .string(deviceID)]))
       guard operationGeneration == generation, deviceOperation == operation else { return }
       guard status["devices"] != nil else { throw DesktopHostFailure.invalidProtocol }
-      if apply(status), serviceState != .cleanupUnconfirmed { error = nil }
+      if apply(status), serviceState != .cleanupUnconfirmed {
+        error = nil
+        await refreshAccount(using: runtime)
+      }
     } catch {
       guard operationGeneration == generation, deviceOperation == operation else { return }
       // Status events can already reflect a completed reset even if the restart failed.
@@ -324,20 +363,28 @@ final class DesktopHostController {
     error = "Pairing did not finish. Keep both apps open and try again."
   }
 
-  func loginBrowserFailed() {
-    error = "The sign-in page could not open. Try opening it again."
-  }
-
   private func refreshAccount(using runtime: any DesktopHostRuntime) async {
+    guard ready, stopping == nil else { return }
     let operationGeneration = generation
+    let revision = UUID()
+    accountRevision = revision
     do {
       let account = try await runtime.request("account/read", params: .object([:]))
-      guard operationGeneration == generation else { return }
-      apply(.object(["account": account]))
+      guard operationGeneration == generation, revision == accountRevision, ready,
+        stopping == nil
+      else { return }
+      applyAccount(account)
     } catch {
-      guard operationGeneration == generation else { return }
-      self.error = "Account status is unavailable. You can try signing in again."
+      guard operationGeneration == generation, revision == accountRevision, ready,
+        stopping == nil
+      else { return }
+      accountState = .unavailable
     }
+  }
+
+  private func applyAccount(_ snapshot: DesktopJSON) {
+    accountRevision = UUID()
+    accountState = DesktopAccountState(snapshot: snapshot)
   }
 
   private func receive(_ event: DesktopHostEvent, generation: UUID) {
@@ -348,15 +395,19 @@ final class DesktopHostController {
         statusRevision = UUID()
         apply(data)
       }
-      if name == "account" { apply(.object(["account": data["account"] ?? data])) }
+      if name == "account", ready, stopping == nil {
+        applyAccount(data["account"] ?? data)
+      }
     case .exited:
       guard serviceState != .stopping, serviceState != .stopped else { return }
       invalidateDeviceOperation()
       serviceState = .cleanupUnconfirmed
+      accountState = .unavailable
       error = "Munie stopped unexpectedly. Cleanup must be confirmed before restarting."
     case .protocolFailure:
       invalidateDeviceOperation()
       serviceState = .cleanupUnconfirmed
+      accountState = .unavailable
       error = "Munie lost its local connection. Retry stopping before restarting."
     }
   }
@@ -369,6 +420,7 @@ final class DesktopHostController {
 
   @discardableResult
   private func apply(_ value: DesktopJSON) -> Bool {
+    applyAwayStatus(value)
     // Replies and events arrive on separate paths even though the helper writes them in order.
     if let available = value["lanAvailable"]?.boolean,
       case .number(let rawRevision)? = value["lanRevision"], rawRevision <= 9_007_199_254_740_991,
@@ -398,6 +450,7 @@ final class DesktopHostController {
     let state = value["state"]?.string
     if state == "error", serviceState != .stopping {
       serviceState = .cleanupUnconfirmed
+      accountState = .unavailable
       error = "Munie lost its local connection. Retry stopping before restarting."
     } else if starting == nil, stopping == nil, serviceState != .cleanupUnconfirmed {
       switch state {
@@ -409,16 +462,22 @@ final class DesktopHostController {
       }
     }
     if let project = value["project"]?["name"]?.string { projectName = project }
-    if let account = value["account"] {
-      if account["status"]?.string == "authenticated" {
-        accountState = .signedIn
-        loginURL = nil
-      } else if account["status"]?.string == "pending_login" {
-        accountState = .signingIn
-      } else {
-        accountState = .signedOut
-      }
+    if let account = value["account"], ready || (serviceState == .starting && state == "running"),
+      stopping == nil
+    {
+      applyAccount(account)
     }
     return true
+  }
+
+  private func applyAwayStatus(_ value: DesktopJSON) {
+    guard case .number(let rawRevision)? = value["awayRevision"],
+      rawRevision <= 9_007_199_254_740_991,
+      let revision = UInt64(exactly: rawRevision),
+      latestAwayRevision.map({ revision > $0 }) ?? true,
+      let state = value["awayState"]?.string.flatMap(DesktopAwayState.init(rawValue:))
+    else { return }
+    latestAwayRevision = revision
+    awayState = state
   }
 }

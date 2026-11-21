@@ -1,3 +1,4 @@
+// Munie modification: show host approval settlement separately from actionable prompts.
 // FILE: TurnView.swift
 // Purpose: Orchestrates turn screen composition, wiring service state to timeline + composer components.
 // Layer: View
@@ -357,7 +358,7 @@ struct TurnView: View {
             isThreadRunning: isThreadRunning,
             isConnected: codex.isConnected,
             scenePhase: scenePhase,
-            approvalRequestChangeToken: approvalRequestChangeToken,
+            approvalRequest: approvalForThread,
             photoPickerItems: viewModel.photoPickerItems,
             onTask: {
                 await prepareThreadIfReady(
@@ -545,33 +546,12 @@ struct TurnView: View {
             gitSyncAlert: gitSyncAlertBinding,
             isShowingMacHandoffConfirm: $isShowingMacHandoffConfirm,
             macHandoffErrorMessage: $macHandoffErrorMessage,
-            onDeclineApproval: { request in
-                viewModel.decline(request, codex: codex) { didSucceed in
-                    if didSucceed {
-                        syncApprovalAlertPresentation()
-                    } else {
-                        restoreApprovalAlert(afterFailureOf: request)
-                    }
+            allowsSessionApproval: thread.runtimeProvider == .opencode,
+            onApprovalDecision: { request, decision in
+                viewModel.respondToApproval(request, decision: decision, codex: codex) { _ in
+                    syncApprovalAlertPresentation()
                 }
             },
-            onApproveApproval: { request in
-                viewModel.approve(request, codex: codex) { didSucceed in
-                    if didSucceed {
-                        syncApprovalAlertPresentation()
-                    } else {
-                        restoreApprovalAlert(afterFailureOf: request)
-                    }
-                }
-            },
-            onApproveForSession: thread.runtimeProvider == .opencode ? { request in
-                viewModel.approve(request, codex: codex, forSession: true) { didSucceed in
-                    if didSucceed {
-                        syncApprovalAlertPresentation()
-                    } else {
-                        restoreApprovalAlert(afterFailureOf: request)
-                    }
-                }
-            } : nil,
             onConfirmGitSyncAction: { alertAction in
                 viewModel.confirmGitSyncAlertAction(
                     alertAction,
@@ -1517,26 +1497,11 @@ struct TurnView: View {
     }
 
     private var approvalForThread: CodexApprovalRequest? {
-        codex.pendingApproval(for: thread.id)
-    }
-
-    private var approvalRequestChangeToken: String? {
-        guard let request = approvalForThread else {
-            return nil
-        }
-
-        let reason = request.reason?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let command = request.command?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return [request.id, reason, command].joined(separator: "|")
+        codex.actionableApproval(for: thread.id)
     }
 
     private func syncApprovalAlertPresentation() {
         alertApprovalRequest = approvalForThread
-        isApprovalAlertPresented = alertApprovalRequest != nil
-    }
-
-    private func restoreApprovalAlert(afterFailureOf request: CodexApprovalRequest) {
-        alertApprovalRequest = approvalForThread ?? request
         isApprovalAlertPresented = alertApprovalRequest != nil
     }
 
@@ -1574,6 +1539,12 @@ struct TurnView: View {
         gitWorkingDirectory: String?
     ) -> some View {
         VStack(spacing: 8) {
+            if codex.isAwaitingApprovalResolution(for: currentThread.id) {
+                ProgressView(String(localized: "Waiting for Mac approval confirmation"))
+                    .font(AppFont.caption())
+                    .padding(.horizontal, 12)
+            }
+
             if let parentThread = parentThread {
                 SubagentParentAccessoryCard(
                     parentTitle: parentThread.displayTitle,

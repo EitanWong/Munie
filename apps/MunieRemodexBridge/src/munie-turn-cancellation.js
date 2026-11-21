@@ -186,7 +186,9 @@ function createTurnCancellationController({ request, respond, publish, diagnose 
     ownersByThread.clear();
   }
 
-  return { handle, observe, holdOutbound, close };
+  return { handle, observe, holdOutbound, close,
+    isPending(threadId, turnId) { return pending.get(threadId)?.turnId === turnId && validId(turnId); },
+  };
 }
 
 function validId(value) { return typeof value === "string" && value.length > 0 && value.trim() === value; }

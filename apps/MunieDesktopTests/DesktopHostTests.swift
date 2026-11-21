@@ -50,6 +50,32 @@ struct DesktopInstanceLockTests {
 
 @MainActor
 struct DesktopHostLifecycleTests {
+  @Test func awayOptInUsesOwnedRuntimeWithoutRestartingIt() async {
+    let runtime = DesktopRuntimeFixture()
+    let controller = DesktopHostController(hasAwayPilot: true, makeRuntime: { runtime })
+    await controller.start()
+    #expect(controller.awayState == .stopped)
+    let startupMethods = await runtime.methods
+    #expect(!startupMethods.contains("away/set"))
+    await controller.setAwayEnabled(true)
+    #expect(controller.awayState == .connecting)
+    await controller.setAwayEnabled(false)
+    #expect(controller.awayState == .stopped)
+    #expect(await runtime.launchCount == 1)
+    #expect(await runtime.stopCount == 0)
+    #expect(await controller.stop())
+  }
+
+  @Test func noPackagedPilotDoesNotForwardAnAwayRequest() async {
+    let runtime = DesktopRuntimeFixture()
+    let controller = DesktopHostController(hasAwayPilot: false, makeRuntime: { runtime })
+    await controller.start()
+    await controller.setAwayEnabled(true)
+    let methods = await runtime.methods
+    #expect(!methods.contains("away/set"))
+    #expect(await controller.stop())
+  }
+
   @Test func controlsObserveBusyClearingAfterStartup() async {
     let runtime = DesktopRuntimeFixture(blockStart: true)
     let controller = makeController(runtime)
@@ -170,6 +196,7 @@ struct DesktopHostLifecycleTests {
     let controller = makeController(runtime)
     await controller.start()
     #expect(await runtime.methods == ["status", "project/set", "start", "account/read"])
+    #expect(await runtime.startParameters == [.object([:])])
     #expect(controller.projectName == "My Project")
     #expect(await controller.stop())
   }
@@ -190,11 +217,47 @@ struct DesktopHostLifecycleTests {
     let runtime = DesktopRuntimeFixture()
     let controller = makeController(runtime)
     await controller.start()
-    #expect(controller.accountState == .signedOut)
+    #expect(controller.accountState == .needsAttention)
     await runtime.emit(
-      .message(name: "account", data: .object(["status": .string("authenticated")])))
-    while controller.accountState != .signedIn { await Task.yield() }
-    #expect(controller.loginURL == nil)
+      .message(
+        name: "account",
+        data: .object([
+          "status": .string("authenticated"), "authMethod": .string("chatgpt"),
+          "authToken": .string("synthetic-token-must-not-be-displayed"),
+        ])))
+    let deadline = ContinuousClock.now.advanced(by: .seconds(2))
+    while controller.accountState != .signedIn, ContinuousClock.now < deadline {
+      await Task.yield()
+    }
+    #expect(controller.accountState == .signedIn)
+    #expect(controller.nearbyReady)
+    #expect(await runtime.methods == ["status", "start", "account/read"])
+    #expect(await controller.stop())
+    #expect(controller.accountState == .notChecked)
+  }
+
+  @Test func configuredProviderDoesNotClaimItsAuthenticationWasVerified() async {
+    let runtime = DesktopRuntimeFixture(
+      accountResponse: .object([
+        "status": .string("authenticated"), "authMethod": .string("customProvider"),
+      ]))
+    let controller = makeController(runtime)
+    await controller.start()
+    #expect(controller.accountState == .configured)
+    #expect(controller.nearbyReady)
+    #expect(await runtime.startParameters == [.object([:])])
+    #expect(await controller.stop())
+  }
+
+  @Test func unavailableAccountStatusDoesNotDisablePairing() async throws {
+    let runtime = DesktopRuntimeFixture(failAccountRead: true)
+    let controller = makeController(runtime)
+    await controller.start()
+    #expect(controller.accountState == .unavailable)
+    #expect(controller.error == nil)
+    #expect(controller.nearbyReady)
+    let result = try await controller.pairingPayload()
+    #expect(try JSONDecoder().decode(DesktopJSON.self, from: result)["v"] == .number(2))
     #expect(await controller.stop())
   }
 
@@ -217,6 +280,19 @@ struct DesktopHostLifecycleTests {
 }
 
 struct DesktopHostProtocolTests {
+  @Test func helperInheritsCodexHomeButNotShellCredentialsOrOverrides() {
+    let environment = DesktopPackagedRuntime.inheritedHelperEnvironment([
+      "HOME": "/fixture", "CODEX_HOME": "/fixture/main-codex", "LANG": "en_US.UTF-8",
+      "OPENAI_API_KEY": "synthetic-key", "CUSTOM_PROVIDER_TOKEN": "synthetic-token",
+      "OPENAI_BASE_URL": "https://untrusted.invalid", "NODE_OPTIONS": "--fixture",
+    ])
+    #expect(
+      environment == [
+        "HOME": "/fixture", "CODEX_HOME": "/fixture/main-codex", "LANG": "en_US.UTF-8",
+      ])
+    #expect(DesktopPackagedRuntime.inheritedHelperEnvironment([:])["CODEX_HOME"] == nil)
+  }
+
   @Test func ownershipMustMatchTheActualLocalHelper() {
     let trusted: DesktopJSON = .object([
       "ownership": .object(["ownerPid": .number(42), "groupId": .number(99)])
@@ -324,26 +400,17 @@ struct DesktopHostProtocolTests {
     }
   }
 
-  @Test func authURLRejectsRemoteAndScriptSchemes() throws {
-    for value in [
-      "http://auth.openai.com/login", "https://auth.openai.com.evil.example/login",
-      "https://evil.example/login", "javascript:alert(1)", "file:///tmp/login",
-      "https://user:password@auth.openai.com/login", "https://auth.openai.com:8443/login",
-    ] {
-      #expect(throws: DesktopHostFailure.loginURLRejected) { try DesktopLoginURL.validated(value) }
-    }
-    #expect(
-      try DesktopLoginURL.validated("https://auth.openai.com/authorize?state=fixture").host
-        == "auth.openai.com")
-  }
 }
 
 private actor DesktopRuntimeFixture: DesktopHostRuntime {
   private(set) var launchCount = 0
   private(set) var stopCount = 0
   private(set) var methods: [String] = []
+  private(set) var startParameters: [DesktopJSON] = []
   private var stopFailures: Int
   private let failStart: Bool
+  private let accountResponse: DesktopJSON
+  private let failAccountRead: Bool
   private var blockStart: Bool
   private var hasProject: Bool
   private var isRunning = false
@@ -351,15 +418,20 @@ private actor DesktopRuntimeFixture: DesktopHostRuntime {
   private var startRequested = false
   private var startWaiters: [CheckedContinuation<Void, Never>] = []
   private var events: AsyncStream<DesktopHostEvent>.Continuation?
+  private var awayRevision = 0
 
   init(
     stopFailures: Int = 0, failStart: Bool = false, blockStart: Bool = false,
-    hasProject: Bool = true
+    hasProject: Bool = true,
+    accountResponse: DesktopJSON = .object(["status": .string("not_logged_in")]),
+    failAccountRead: Bool = false
   ) {
     self.stopFailures = stopFailures
     self.failStart = failStart
     self.blockStart = blockStart
     self.hasProject = hasProject
+    self.accountResponse = accountResponse
+    self.failAccountRead = failAccountRead
   }
 
   func launch() -> AsyncStream<DesktopHostEvent> {
@@ -373,6 +445,7 @@ private actor DesktopRuntimeFixture: DesktopHostRuntime {
     methods.append(method)
     if method == "project/set" { hasProject = true }
     if method == "start" {
+      startParameters.append(params)
       startRequested = true
       for waiter in startWaiters { waiter.resume() }
       startWaiters.removeAll()
@@ -385,7 +458,17 @@ private actor DesktopRuntimeFixture: DesktopHostRuntime {
     if method == "pairing/get" {
       return .object(["payload": .object(["v": .number(2)])])
     }
-    if method == "account/read" { return .object(["status": .string("not_logged_in")]) }
+    if method == "account/read" {
+      if failAccountRead { throw DesktopHostFailure.timedOut }
+      return accountResponse
+    }
+    if method == "away/set" {
+      awayRevision += 1
+      return .object([
+        "awayState": .string(params["enabled"]?.boolean == true ? "connecting" : "stopped"),
+        "awayRevision": .number(Double(awayRevision)),
+      ])
+    }
     return .object([
       "state": .string(isRunning ? "running" : "stopped"),
       "lanAvailable": .bool(isRunning),

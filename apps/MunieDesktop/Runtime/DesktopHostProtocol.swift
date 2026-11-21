@@ -113,7 +113,6 @@ enum DesktopHostFailure: Error, Equatable {
   case writeFailed
   case helperExited
   case cleanupUnconfirmed
-  case loginURLRejected
 }
 
 struct DesktopProcessOwnership: Codable, Equatable, Sendable {
@@ -158,17 +157,5 @@ struct DesktopHostLineBuffer: Sendable {
 
   func finish() throws {
     guard pending.isEmpty else { throw DesktopHostFailure.invalidProtocol }
-  }
-}
-
-enum DesktopLoginURL {
-  /// Only the native account service may supply an OpenAI HTTPS authorization URL.
-  static func validated(_ value: String) throws -> URL {
-    guard let url = URL(string: value), url.scheme == "https",
-      let host = url.host?.lowercased(),
-      host == "auth.openai.com" || host == "auth0.openai.com" || host == "chatgpt.com",
-      url.user == nil, url.password == nil, url.port == nil || url.port == 443
-    else { throw DesktopHostFailure.loginURLRejected }
-    return url
   }
 }

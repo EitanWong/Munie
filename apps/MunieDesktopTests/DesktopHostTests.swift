@@ -5,6 +5,49 @@ import Testing
 
 @testable import MunieDesktop
 
+struct DesktopInstanceLockTests {
+  @Test func secondOpenCannotOwnTheSlotUntilFirstReleasesIt() throws {
+    let directory = try makeDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    do {
+      let acquired = try DesktopInstanceLock.acquire(in: directory)
+      let first = try #require(acquired)
+      try withExtendedLifetime(first) {
+        let contender = try DesktopInstanceLock.acquire(in: directory)
+        #expect(contender == nil)
+      }
+    }
+
+    let reacquired = try DesktopInstanceLock.acquire(in: directory)
+    let next = try #require(reacquired)
+    try withExtendedLifetime(next) {
+      let contender = try DesktopInstanceLock.acquire(in: directory)
+      #expect(contender == nil)
+    }
+  }
+
+  @Test func refusesSymlinkWithoutChangingItsTarget() throws {
+    let directory = try makeDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let target = directory.appending(path: "unrelated")
+    let bytes = Data("unchanged".utf8)
+    try bytes.write(to: target)
+    try FileManager.default.createSymbolicLink(
+      at: directory.appending(path: ".desktop-instance.lock"), withDestinationURL: target)
+
+    #expect(throws: POSIXError.self) { try DesktopInstanceLock.acquire(in: directory) }
+    #expect(try Data(contentsOf: target) == bytes)
+  }
+
+  private func makeDirectory() throws -> URL {
+    let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    try FileManager.default.createDirectory(
+      at: directory, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+    return directory
+  }
+}
+
 @MainActor
 struct DesktopHostLifecycleTests {
   @Test func controlsObserveBusyClearingAfterStartup() async {

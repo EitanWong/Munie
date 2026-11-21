@@ -168,6 +168,14 @@ struct SecureErrorMessage: Codable, Sendable {
     let kind: String
     let code: String
     let message: String
+
+    // Munie modification: present pairing conflicts without trusting remote display copy.
+    var userFacingMessage: String {
+        if code == "phone_already_trusted" {
+            return String(localized: "This Mac is paired with another iPhone. Remove that pairing on the Mac to continue.")
+        }
+        return message
+    }
 }
 
 struct SecureEnvelope: Codable, Sendable {

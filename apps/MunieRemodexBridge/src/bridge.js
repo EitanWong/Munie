@@ -898,7 +898,7 @@ function startBridge({
     relayUrl: (config.publicRelayUrl || relayBaseUrl).replace(/\/+$/, ""),
     deviceState,
     displayName: os.hostname(),
-    requireTrustResetForReplacement: Boolean(managedClient),
+    requireTrustResetForReplacement: initializeForLocalAccount,
     // Encrypted base64 expands by 4/3. Leave room for the envelope, local
     // route wrapper and historical replay metadata under the 1 MiB wire cap.
     maxEncodedPayloadBytes: managedClient ? 750 * 1024 : null,

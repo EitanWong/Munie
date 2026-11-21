@@ -942,7 +942,7 @@ private extension CodexService {
         if let bufferedSecureError = bufferedSecureControlMessages["secureError"]?.first,
            let secureError = try? decodeSecureControl(SecureErrorMessage.self, from: bufferedSecureError) {
             bufferedSecureControlMessages["secureError"] = []
-            throw CodexSecureTransportError.secureError(secureError.message)
+            throw CodexSecureTransportError.secureError(secureError.userFacingMessage)
         }
 
         if var buffered = bufferedSecureControlMessages[kind], !buffered.isEmpty {
@@ -974,7 +974,8 @@ private extension CodexService {
     func bufferSecureControlMessage(kind: String, rawText: String) {
         if kind == "secureError",
            let secureError = try? decodeSecureControl(SecureErrorMessage.self, from: rawText) {
-            lastErrorMessage = secureError.message
+            let displayMessage = secureError.userFacingMessage
+            lastErrorMessage = displayMessage
             if secureError.code == "update_required" {
                 secureConnectionState = .updateRequired
                 presentBridgeUpdatePrompt(message: secureError.message)
@@ -990,7 +991,7 @@ private extension CodexService {
             bufferedSecureControlMessages.removeAll()
             for waiters in continuations.values {
                 for waiter in waiters {
-                    waiter.continuation.resume(throwing: CodexSecureTransportError.secureError(secureError.message))
+                    waiter.continuation.resume(throwing: CodexSecureTransportError.secureError(displayMessage))
                 }
             }
             if continuations.isEmpty {

@@ -695,20 +695,80 @@ test("read-only preview denies native writes and approvals on the encrypted rout
   assert.deepEqual(fixture.nativeFrames().slice(before), [{ id: "read-after-denials", method: "model/list" }]);
 });
 
-async function openFixtureSecureChannel(peer, { sessionId, mac, phone, macDeviceId, phoneDeviceId }) {
+test("packaged LAN pairing preserves existing trust until the Mac explicitly removes it", {
+  timeout: 30000, skip: process.platform !== "darwin",
+}, async (t) => {
+  const fixture = setupRuntime(t, { policyAck: 1, packagedPolicy: true });
+  const host = createDesktopHost({ env: fixture.env });
+  t.after(() => host.stop());
+  const mac = generateKeyPairSync("ed25519");
+  const phone = generateKeyPairSync("ed25519");
+  const replacement = generateKeyPairSync("ed25519");
+  const macDeviceId = randomUUID();
+  const phoneDeviceId = randomUUID();
+  const publicKey = (key) => Buffer.from(key.export({ format: "jwk" }).x, "base64url").toString("base64");
+  const state = fixture.env.MUNIE_HOST_STATE_DIR;
+  const stateFile = path.join(state, "bridge", "device-state.json");
+  fs.writeFileSync(stateFile, JSON.stringify({
+    version: 1, macDeviceId,
+    macIdentityPublicKey: publicKey(mac.publicKey),
+    macIdentityPrivateKey: Buffer.from(mac.privateKey.export({ format: "jwk" }).d, "base64url").toString("base64"),
+    trustedPhones: { [phoneDeviceId]: publicKey(phone.publicKey) },
+  }), { mode: 0o600 });
+
+  await host.run("project/set", { path: fixture.project });
+  await host.run("start");
+  const original = host.status().devices;
+  assert.equal(original.length, 1);
+  async function pair(deviceId, identity) {
+    const { payload: { sessionId } } = await host.run("pairing/get");
+    const { relayPort } = JSON.parse(fs.readFileSync(path.join(state, "host.json")));
+    const socket = new WebSocket(`ws://127.0.0.1:${relayPort}/relay/${sessionId}`, {
+      headers: { "x-role": "iphone" }, handshakeTimeout: 3000,
+    });
+    const messages = [];
+    socket.on("message", (data) => messages.push(JSON.parse(data.toString())));
+    const closed = new Promise((resolve) => socket.once("close", resolve));
+    try {
+      await new Promise((resolve, reject) => { socket.once("open", resolve); socket.once("error", reject); });
+      return await openFixtureSecureChannel({ socket, messages }, {
+        sessionId, mac, macDeviceId, phone: identity, phoneDeviceId: deviceId,
+        handshakeMode: "qr_bootstrap", returnPairingError: true,
+      });
+    } finally {
+      socket.terminate();
+      await closed;
+    }
+  }
+  const denied = await pair(randomUUID(), replacement);
+  assert.equal(denied.error, "phone_already_trusted", "A fresh bootstrap must not replace saved LAN trust");
+  assert.deepEqual(host.status().devices, original);
+  assert.equal((await pair(phoneDeviceId, phone)).error, undefined, "The original device can repair its connection");
+  assert.deepEqual(host.status().devices, original);
+  await host.run("devices/revoke", { deviceId: phoneDeviceId });
+  assert.deepEqual(host.status().devices, []);
+  const replacementId = randomUUID();
+  assert.equal((await pair(replacementId, replacement)).error, undefined);
+  assert.equal(host.status().devices[0]?.id, replacementId);
+});
+
+async function openFixtureSecureChannel(peer, {
+  sessionId, mac, phone, macDeviceId, phoneDeviceId, handshakeMode = "trusted_reconnect",
+  returnPairingError = false,
+}) {
   const macKey = mac.publicKey.export({ format: "jwk" }).x;
   const phoneKey = phone.publicKey.export({ format: "jwk" }).x;
   const ephemeral = generateKeyPairSync("x25519");
   const ephemeralKey = ephemeral.publicKey.export({ format: "jwk" }).x;
   const clientNonce = Buffer.alloc(32, 7);
-  const handshakeMode = "trusted_reconnect";
   const send = (frame) => peer.socket.send(JSON.stringify(frame));
   const find = (kind) => peer.messages.find((frame) => frame.kind === kind);
   const base64 = (value) => Buffer.from(value, "base64url").toString("base64");
   send({ kind: "clientHello", sessionId, protocolVersion: 2, handshakeMode, phoneDeviceId,
     phoneIdentityPublicKey: base64(phoneKey), phoneEphemeralPublicKey: base64(ephemeralKey),
     clientNonce: clientNonce.toString("base64") });
-  await until(() => find("serverHello"));
+  await until(() => find("serverHello") || (returnPairingError && find("secureError")));
+  if (returnPairingError && find("secureError")) return { error: find("secureError").code };
   const hello = find("serverHello");
   assert.equal(hello.macDeviceId, macDeviceId);
   assert.equal(hello.macIdentityPublicKey, base64(macKey));

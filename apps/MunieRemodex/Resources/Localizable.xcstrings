@@ -477,6 +477,22 @@
         }
       }
     },
+    "This Mac is paired with another iPhone. Remove that pairing on the Mac to continue.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This Mac is paired with another iPhone. Remove that pairing on the Mac to continue."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台 Mac 已与另一部 iPhone 配对。请先在 Mac 上移除原配对，再继续。"
+          }
+        }
+      }
+    },
     "Forget Pair": {
       "localizations": {
         "en": {

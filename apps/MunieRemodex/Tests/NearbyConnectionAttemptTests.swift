@@ -8,6 +8,21 @@ final class NearbyConnectionAttemptTests: XCTestCase {
   // Swift 6.2 compatibility: avoid inferred isolated teardown (Swift #85663).
   nonisolated deinit {}
 
+  func testExistingPairingErrorIsLocalizedWithoutChangingTrustState() throws {
+    let suite = "NearbyConnectionAttemptTests." + UUID().uuidString
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let service = CodexService(defaults: defaults)
+    let previous = service.secureConnectionState
+    let rawText = #"{"kind":"secureError","code":"phone_already_trusted","message":"Untrusted remote copy."}"#
+    let expected = String(
+      localized: "This Mac is paired with another iPhone. Remove that pairing on the Mac to continue.")
+
+    service.processIncomingWireText(rawText)
+    XCTAssertEqual(service.lastErrorMessage, expected)
+    XCTAssertEqual(service.secureConnectionState, previous)
+  }
+
   func testSuccessCommitsBeforeRemovingOnboardingAndDoesNotDisconnect() async {
     let connected = expectation(description: "Connected")
     let attempt = NearbyConnectionAttempt()

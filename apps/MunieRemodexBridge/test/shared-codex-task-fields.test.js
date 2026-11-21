@@ -11,7 +11,7 @@ const follow = { followCodexAccount: true };
 const root = fs.realpathSync(os.tmpdir());
 const fixed = {
   cwd: root, approvalPolicy: SHARED_CODEX_APPROVAL,
-  approvalsReviewer: "user", permissions: SHARED_CODEX_PERMISSIONS,
+  permissions: SHARED_CODEX_PERMISSIONS,
 };
 const unsafe = {
   model: "stale-phone-model", effort: "high", serviceTier: "fast",

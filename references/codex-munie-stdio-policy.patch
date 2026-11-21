@@ -3888,3 +3888,17 @@ index 39dc2cd..89610d9 100644
      impl HttpTransport for CountingTransport {
          async fn execute(&self, _request: Request) -> Result<Response, TransportError> {
              self.0.fetch_add(1, Ordering::Relaxed);
+--- a/codex-rs/app-server/src/request_processors/thread_processor.rs
++++ b/codex-rs/app-server/src/request_processors/thread_processor.rs
+@@ -4254,7 +4254,10 @@
+             if typesafe_overrides.approval_policy.is_none() {
+                 typesafe_overrides.approval_policy = Some(persisted_settings.approval_policy);
+             }
+-            if typesafe_overrides.approvals_reviewer.is_none()
++            // The restricted host uses current Mac review policy, not the
++            // reviewer that happened to be persisted in the old conversation.
++            if !codex_protocol::shell_environment::external_extensions_disabled_for_process()
++                && typesafe_overrides.approvals_reviewer.is_none()
+                 && !request_overrides
+                     .as_ref()
+                     .is_some_and(|overrides| overrides.contains_key("approvals_reviewer"))

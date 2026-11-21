@@ -14,9 +14,13 @@ final class NearbyConnectionAttemptTests: XCTestCase {
     defer { defaults.removePersistentDomain(forName: suite) }
     let service = CodexService(defaults: defaults)
     let previous = service.secureConnectionState
-    let rawText = #"{"kind":"secureError","code":"phone_already_trusted","message":"Untrusted remote copy."}"#
+    let rawText = """
+      {"kind":"secureError","code":"phone_already_trusted","message":"Untrusted remote copy."}
+      """
     let expected = String(
-      localized: "This Mac is paired with another iPhone. Remove that pairing on the Mac to continue.")
+      localized: """
+        This Mac is paired with another iPhone. Remove that pairing on the Mac to continue.
+        """)
 
     service.processIncomingWireText(rawText)
     XCTAssertEqual(service.lastErrorMessage, expected)

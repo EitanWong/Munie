@@ -776,8 +776,9 @@ function startBridge({
   const managedClient = initializeForLocalAccount && desktopManagedRelay
     ? createManagedRelayClient({ ...desktopManagedRelay, sessionId }) : null;
   const managedRouteReplies = managedClient ? createManagedRouteReplies() : null;
+  const bindSecureRoute = Boolean(managedClient) || (initializeForLocalAccount && config.followCodexAccount === true);
+  let secureRouteGeneration = null;
   let managedRouteId = null;
-  let managedSecureGeneration = null;
   const simulatorApproval = config.simulatorApprovalFixture === true ? (() => {
     const root = configuredRoot();
     if (!root || !managedClient || config.followCodexAccount !== true || !initializeForLocalAccount
@@ -786,7 +787,7 @@ function startBridge({
     }
     return createSimulatorApprovalBoundary({
       root,
-      currentRoute: () => secureTransport.isSecureChannelReady() ? managedSecureGeneration : null,
+      currentRoute: () => secureTransport.isSecureChannelReady() ? secureRouteGeneration : null,
       cancellationPending: (threadId, turnId) => turnCancellation.isPending(threadId, turnId),
       sendNative: (message) => codex.send(JSON.stringify(message)),
       sendPhone: (message) => secureTransport.sendUnbufferedApplicationMessage(JSON.stringify(message)),
@@ -914,9 +915,9 @@ function startBridge({
     onSecureSessionReady(session) {
       if (managedRouteReplies) {
         simulatorApproval?.closeApprovals();
-        managedSecureGeneration = Symbol();
         managedRouteReplies.clear();
       }
+      if (bindSecureRoute) secureRouteGeneration = Symbol();
       activityStore.resetSubscriber();
       activePhoneSummary = buildActivePhoneSummary(session, deviceState);
       const lastPublishedBridgeStatus = bridgeStatusPublisher.latest();
@@ -942,9 +943,9 @@ function startBridge({
   }
 
   function changeManagedRoute(routeId) {
-    if (managedSecureGeneration) simulatorApproval?.closeApprovals();
+    if (secureRouteGeneration) simulatorApproval?.closeApprovals();
     managedRouteId = routeId;
-    managedSecureGeneration = null;
+    secureRouteGeneration = null;
     managedRouteReplies.clear();
     secureTransport.invalidateMobileRoute();
   }
@@ -1291,7 +1292,7 @@ function startBridge({
           sendRelayWireMessage(JSON.stringify(controlMessage));
         },
         onApplicationMessage(plaintextMessage) {
-          if (!managedRouteReplies) return handleApplicationMessage(plaintextMessage);
+          if (!managedRouteReplies) return handleApplicationMessage(plaintextMessage, false, secureRouteGeneration);
           if (!secureTransport.isSecureChannelReady()) return;
           const message = parseBridgeMessage(plaintextMessage);
           if (message?.method && message.id != null) {
@@ -1306,7 +1307,7 @@ function startBridge({
             }
             plaintextMessage = JSON.stringify(request);
           }
-          handleApplicationMessage(plaintextMessage, false, managedSecureGeneration);
+          handleApplicationMessage(plaintextMessage, false, secureRouteGeneration);
         },
       })) {
         return;
@@ -1449,7 +1450,7 @@ function startBridge({
 
   // Routes decrypted app payloads through the same bridge handlers as before.
   function handleApplicationMessage(rawMessage, projectAuthorized = false, expectedGeneration = null) {
-    if (managedClient && (!expectedGeneration || expectedGeneration !== managedSecureGeneration)) return;
+    if (!isCurrentApplicationRoute(expectedGeneration)) return;
     const projectRoot = configuredRoot();
     if (projectRoot) {
       const incoming = parseBridgeMessage(rawMessage);
@@ -1470,11 +1471,15 @@ function startBridge({
         || incoming?.params?.conversationId || incoming?.params?.conversation_id;
       // Munie modification: a caller-supplied cwd cannot rebind another project's existing thread.
       if (!projectAuthorized && requestedThread && incoming?.method) {
+        const authorizationSocket = socket;
         sendCodexRequest("thread/read", { threadId: requestedThread, includeTurns: false }).then((result) => {
+          if (!isCurrentApplicationRoute(expectedGeneration, authorizationSocket)) return;
           scopedPath(result?.thread?.cwd || result?.cwd, { root: projectRoot });
           handleApplicationMessage(rawMessage, true, expectedGeneration);
         }).catch((error) => {
-          if (incoming?.id != null) sendApplicationResponse(createJsonRpcErrorResponse(incoming.id, error, "project_not_authorized"));
+          if (incoming?.id != null && isCurrentApplicationRoute(expectedGeneration, authorizationSocket)) {
+            sendApplicationResponse(createJsonRpcErrorResponse(incoming.id, error, "project_not_authorized"));
+          }
         });
         return;
       }
@@ -1626,6 +1631,12 @@ function startBridge({
     return desktopIpcLiveOwner?.isThreadHandoffInProgress(threadId)
       && (method.startsWith("turn/") || method === "review/start"
         || (method.startsWith("thread/") && !/\/(?:read|list|get)$/.test(method)));
+  }
+
+  function isCurrentApplicationRoute(expectedGeneration, expectedSocket = socket) {
+    return !bindSecureRoute || (expectedGeneration != null && expectedGeneration === secureRouteGeneration
+      && !isShuttingDown && socket === expectedSocket && socket?.readyState === WebSocket.OPEN
+      && secureTransport.isSecureChannelReady());
   }
 
   function rejectDesktopHandoffMutation(message) {

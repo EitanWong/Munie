@@ -126,6 +126,20 @@ test('the phone may start browser login but may not set credential material', ()
   assert.equal(bindNativeRequest(legacy, null), legacy);
 });
 
+test('shared task requests never override the native approval reviewer', () => {
+  const root = fs.realpathSync(os.tmpdir());
+  for (const method of ['thread/start', 'thread/resume', 'turn/start']) {
+    const request = bindNativeRequest({ method, params: {
+      threadId: 'fixture-thread', input: [{ type: 'text', text: 'fixture text' }],
+      approvalsReviewer: 'user', approvals_reviewer: 'user',
+    } }, root, { followCodexAccount: true });
+    assert.equal(Object.hasOwn(request.params, 'approvalsReviewer'), false);
+    assert.equal(Object.hasOwn(request.params, 'approvals_reviewer'), false);
+    assert.deepEqual(request.params.approvalPolicy, SHARED_CODEX_APPROVAL);
+    assert.equal(request.params.permissions, SHARED_CODEX_PERMISSIONS);
+  }
+});
+
 test('the public QR endpoint is independent of the bridge loopback connection', () => {
   const config = readBridgeConfig({ env: { REMODEX_RELAY: 'ws://127.0.0.1:9275/relay',
     REMODEX_PUBLIC_RELAY: 'wss://fixture.invalid:8443/relay' } });

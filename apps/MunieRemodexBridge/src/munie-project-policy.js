@@ -214,7 +214,7 @@ function bindSharedCodexTask(method, params, root) {
   // Project, effective model, and execution policy come from the Mac, not a stale phone selection.
   const bound = {
     cwd: root, approvalPolicy: SHARED_CODEX_APPROVAL,
-    approvalsReviewer: "user", permissions: SHARED_CODEX_PERMISSIONS,
+    permissions: SHARED_CODEX_PERMISSIONS,
   };
   if (method === "thread/start") {
     if (typeof params.ephemeral === "boolean") bound.ephemeral = params.ephemeral;

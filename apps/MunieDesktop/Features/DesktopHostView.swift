@@ -17,6 +17,7 @@ struct DesktopHostView: View {
         projectSection
         pairedPhoneSection
         pairingSection
+        if controller.hasAwayPilot { awaySection }
         if let error = controller.error {
           Label(String(localized: error, table: "Desktop"), systemImage: "exclamationmark.triangle")
             .foregroundStyle(.red)
@@ -42,6 +43,27 @@ struct DesktopHostView: View {
       Text(
         "This removes all current iPhone pairings and disconnects them. The Mac service restarts and active work may stop. Pair again to reconnect.",
         tableName: "Desktop")
+    }
+  }
+
+  private var awaySection: some View {
+    GroupBox {
+      VStack(alignment: .leading, spacing: 10) {
+        Toggle(
+          String(localized: "Allow Connections Away from Home", table: "Desktop"),
+          isOn: Binding(
+            get: { controller.awayState != .stopped },
+            set: { enabled in Task { await controller.setAwayEnabled(enabled) } }
+          )
+        )
+        .disabled(
+          !controller.ready || controller.busy || controller.awayBusy
+            || controller.projectBusy || controller.deviceBusy)
+        Text(String(localized: controller.awayState.title, table: "Desktop"))
+          .font(.caption).foregroundStyle(.secondary)
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .padding(8)
     }
   }
 
@@ -169,11 +191,13 @@ struct DesktopHostView: View {
           }
         } else if !controller.ready || controller.nearbyReady {
           Text("Open Munie on your iPhone near this Mac and choose this Mac.", tableName: "Desktop")
-          Text(
-            "This version connects nearby. Connecting away from home is not ready yet.",
-            tableName: "Desktop"
-          )
-          .font(.caption).foregroundStyle(.secondary)
+          if !controller.hasAwayPilot {
+            Text(
+              "This version connects nearby. Connecting away from home is not ready yet.",
+              tableName: "Desktop"
+            )
+            .font(.caption).foregroundStyle(.secondary)
+          }
         }
         if coordinator.nearbyFailed || nearby.errorMessage != nil {
           Text(

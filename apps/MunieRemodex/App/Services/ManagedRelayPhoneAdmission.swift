@@ -1,7 +1,7 @@
 import CryptoKit
 import Foundation
 
-/// Codec for the reconnect-only loopback pilot. The caller supplies the already selected trust record.
+/// Codec for reconnect-only admission. The caller supplies the already selected trust record.
 nonisolated struct ManagedRelayPhoneAdmission: Sendable {
   static let audience = "munie-loopback.invalid"
   static let maximumChallengeBytes = 1024
@@ -60,6 +60,7 @@ nonisolated struct ManagedRelayPhoneAdmission: Sendable {
   /// Validate immediately before signing. The relay owns single use and generation validity.
   func proof(
     for response: Data,
+    expectedAudience: String = Self.audience,
     nowMilliseconds: Int64 = Int64(Date().timeIntervalSince1970 * 1_000)
   ) throws -> Proof {
     guard response.count <= Self.maximumChallengeBytes,
@@ -69,7 +70,7 @@ nonisolated struct ManagedRelayPhoneAdmission: Sendable {
     else {
       throw ValidationError.malformedChallenge
     }
-    guard challenge.audience == Self.audience, challenge.role == Self.role,
+    guard challenge.audience == expectedAudience, challenge.role == Self.role,
       challenge.macKey == macKey, challenge.phoneKey == phoneKey
     else {
       throw ValidationError.challengeMismatch

@@ -1,6 +1,102 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Allow Connections Away from Home": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow Connections Away from Home"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许离家连接"
+          }
+        }
+      }
+    },
+    "Connected through the managed relay": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connected through the managed relay"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已通过托管中继连接"
+          }
+        }
+      }
+    },
+    "Connected directly to your Mac": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connected directly to your Mac"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已直连你的 Mac"
+          }
+        }
+      }
+    },
+    "Managed relay unavailable. Try reconnecting later.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Managed relay unavailable. Try reconnecting later."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "托管中继不可用。请稍后重连。"
+          }
+        }
+      }
+    },
+    "The managed relay refused a secure connection.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The managed relay refused a secure connection."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "托管中继拒绝建立安全连接。"
+          }
+        }
+      }
+    },
+    "Could not reach the trusted device relay. Check your connection and try again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not reach the trusted device relay. Check your connection and try again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法连接受信任设备的中继。请检查网络连接后重试。"
+          }
+        }
+      }
+    },
     "Working directory: %@": {
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "Working directory: %@" } },

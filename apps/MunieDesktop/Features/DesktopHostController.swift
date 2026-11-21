@@ -65,6 +65,21 @@ struct DesktopPairedDevice: Equatable, Sendable, Identifiable {
   let id: String
 }
 
+enum DesktopAwayState: String {
+  case stopped, waitingForPair, connecting, registered, unavailable, denied
+
+  var title: String.LocalizationValue {
+    switch self {
+    case .stopped: "Away connection is off"
+    case .waitingForPair: "Waiting for a paired iPhone"
+    case .connecting: "Connecting to the managed relay…"
+    case .registered: "Mac registered with the managed relay"
+    case .unavailable: "Managed relay unavailable"
+    case .denied: "Managed relay connection refused"
+    }
+  }
+}
+
 @MainActor @Observable
 final class DesktopHostController {
   typealias RuntimeFactory = @Sendable () async throws -> any DesktopHostRuntime
@@ -86,6 +101,9 @@ final class DesktopHostController {
   private(set) var revokingDeviceID: String?
   private(set) var error: String.LocalizationValue?
   private(set) var projectBusy = false
+  private(set) var awayState: DesktopAwayState = .stopped
+  private(set) var awayBusy = false
+  let hasAwayPilot: Bool
 
   var busy: Bool { starting != nil || stopping != nil }
   var canStart: Bool { runtime == nil && !busy }
@@ -113,9 +131,11 @@ final class DesktopHostController {
   @ObservationIgnored private var statusRevision = UUID()
   @ObservationIgnored private var accountRevision = UUID()
   @ObservationIgnored private var latestLANRevision: UInt64?
+  @ObservationIgnored private var latestAwayRevision: UInt64?
   @ObservationIgnored private var deviceOperation: UUID?
 
   init(
+    hasAwayPilot: Bool = DesktopRuntimeConfiguration.bundledHostedRelayOrigin() != nil,
     makeRuntime: @escaping RuntimeFactory = {
       DesktopPackagedRuntime(configuration: try await .bundled())
     },
@@ -123,6 +143,7 @@ final class DesktopHostController {
       try await DesktopRuntimeConfiguration.bundled().defaultProject
     }
   ) {
+    self.hasAwayPilot = hasAwayPilot
     self.makeRuntime = makeRuntime
     self.defaultProject = defaultProject
   }
@@ -144,6 +165,7 @@ final class DesktopHostController {
       let activeGeneration = UUID()
       generation = activeGeneration
       latestLANRevision = nil
+      latestAwayRevision = nil
       let stream = try await owned.launch()
       eventTask = Task { [weak self] in
         for await event in stream {
@@ -209,6 +231,8 @@ final class DesktopHostController {
     runtime = nil
     serviceState = .stopped
     lanAvailable = false
+    awayState = .stopped
+    awayBusy = false
     accountState = .notChecked
     projectBusy = false
     error = nil
@@ -227,6 +251,25 @@ final class DesktopHostController {
     } catch {
       guard operationGeneration == generation, revision == statusRevision else { return }
       self.error = "Munie could not refresh its status. Try again."
+    }
+  }
+
+  func setAwayEnabled(_ enabled: Bool) async {
+    guard hasAwayPilot, ready, !busy, !awayBusy, !deviceBusy, !projectBusy, let runtime else {
+      return
+    }
+    let operationGeneration = generation
+    awayBusy = true
+    defer { if operationGeneration == generation { awayBusy = false } }
+    do {
+      let status = try await runtime.request(
+        "away/set", params: .object(["enabled": .bool(enabled)]))
+      guard operationGeneration == generation, ready, !busy else { return }
+      applyAwayStatus(status)
+      error = nil
+    } catch {
+      guard operationGeneration == generation, ready, !busy else { return }
+      self.error = "Could not change the away connection. Try again."
     }
   }
 
@@ -377,6 +420,7 @@ final class DesktopHostController {
 
   @discardableResult
   private func apply(_ value: DesktopJSON) -> Bool {
+    applyAwayStatus(value)
     // Replies and events arrive on separate paths even though the helper writes them in order.
     if let available = value["lanAvailable"]?.boolean,
       case .number(let rawRevision)? = value["lanRevision"], rawRevision <= 9_007_199_254_740_991,
@@ -424,5 +468,16 @@ final class DesktopHostController {
       applyAccount(account)
     }
     return true
+  }
+
+  private func applyAwayStatus(_ value: DesktopJSON) {
+    guard case .number(let rawRevision)? = value["awayRevision"],
+      rawRevision <= 9_007_199_254_740_991,
+      let revision = UInt64(exactly: rawRevision),
+      latestAwayRevision.map({ revision > $0 }) ?? true,
+      let state = value["awayState"]?.string.flatMap(DesktopAwayState.init(rawValue:))
+    else { return }
+    latestAwayRevision = revision
+    awayState = state
   }
 }

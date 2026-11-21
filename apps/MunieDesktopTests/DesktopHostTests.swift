@@ -50,6 +50,32 @@ struct DesktopInstanceLockTests {
 
 @MainActor
 struct DesktopHostLifecycleTests {
+  @Test func awayOptInUsesOwnedRuntimeWithoutRestartingIt() async {
+    let runtime = DesktopRuntimeFixture()
+    let controller = DesktopHostController(hasAwayPilot: true, makeRuntime: { runtime })
+    await controller.start()
+    #expect(controller.awayState == .stopped)
+    let startupMethods = await runtime.methods
+    #expect(!startupMethods.contains("away/set"))
+    await controller.setAwayEnabled(true)
+    #expect(controller.awayState == .connecting)
+    await controller.setAwayEnabled(false)
+    #expect(controller.awayState == .stopped)
+    #expect(await runtime.launchCount == 1)
+    #expect(await runtime.stopCount == 0)
+    #expect(await controller.stop())
+  }
+
+  @Test func noPackagedPilotDoesNotForwardAnAwayRequest() async {
+    let runtime = DesktopRuntimeFixture()
+    let controller = DesktopHostController(hasAwayPilot: false, makeRuntime: { runtime })
+    await controller.start()
+    await controller.setAwayEnabled(true)
+    let methods = await runtime.methods
+    #expect(!methods.contains("away/set"))
+    #expect(await controller.stop())
+  }
+
   @Test func controlsObserveBusyClearingAfterStartup() async {
     let runtime = DesktopRuntimeFixture(blockStart: true)
     let controller = makeController(runtime)
@@ -392,6 +418,7 @@ private actor DesktopRuntimeFixture: DesktopHostRuntime {
   private var startRequested = false
   private var startWaiters: [CheckedContinuation<Void, Never>] = []
   private var events: AsyncStream<DesktopHostEvent>.Continuation?
+  private var awayRevision = 0
 
   init(
     stopFailures: Int = 0, failStart: Bool = false, blockStart: Bool = false,
@@ -434,6 +461,13 @@ private actor DesktopRuntimeFixture: DesktopHostRuntime {
     if method == "account/read" {
       if failAccountRead { throw DesktopHostFailure.timedOut }
       return accountResponse
+    }
+    if method == "away/set" {
+      awayRevision += 1
+      return .object([
+        "awayState": .string(params["enabled"]?.boolean == true ? "connecting" : "stopped"),
+        "awayRevision": .number(Double(awayRevision)),
+      ])
     }
     return .object([
       "state": .string(isRunning ? "running" : "stopped"),

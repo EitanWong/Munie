@@ -280,9 +280,13 @@ function prepareSimulatorApprovalFixture(fixture, env, { verify = false } = {}) 
 
 function createDesktopHost({
   env = process.env, emit = () => {}, spawnImpl = spawn, simulatorApprovalFixture = null, lanTaskPreviewProject = null,
+  hostedRelayOrigin = null,
 } = {}) {
   // Only the local signed test driver constructs this option; no env or protocol method enables it.
   const fixture = simulatorApprovalFixture ? prepareSimulatorApprovalFixture(simulatorApprovalFixture, env) : null;
+  const { hostedManagedRelayOrigin } = require("./managed-relay-client");
+  const hostedOrigin = !fixture && !lanTaskPreviewProject && hostedRelayOrigin
+    ? hostedManagedRelayOrigin(hostedRelayOrigin) : null;
   let root;
   try {
     if (!env.MUNIE_HOST_STATE_DIR || !path.isAbsolute(env.MUNIE_HOST_STATE_DIR)) throw new Error();
@@ -315,6 +319,7 @@ function createDesktopHost({
   let bridge = null, account = null, lastError = initialProjectError;
   // The host owns the revision, not any of its replaceable workers.
   let lanAvailable = false, lanRevision = 0;
+  let awayState = "stopped", awayRevision = 0;
   let requestCounter = 0, readyResolve = null, readyReject = null;
   const pending = new Map();
 
@@ -325,12 +330,18 @@ function createDesktopHost({
     }));
   }
   function status() {
-    return { state, project, bridge, account, devices: devices(), lanAvailable, lanRevision,
+    return { state, project, bridge, account, devices: devices(), lanAvailable, lanRevision, awayState, awayRevision,
       pairingAvailable: state === "running" && lanAvailable,
       lastError, cleanupConfirmed: ownedGroup === null,
       ownership: ownedGroup === null ? null : { ownerPid: process.pid, groupId: ownedGroup } };
   }
   function publish() { emit("status", status()); }
+  function updateAwayState(next) {
+    if (awayState === next) return;
+    awayState = next;
+    awayRevision++;
+    publish();
+  }
   function updateLanAvailability(available) {
     if (lanAvailable === available) return false;
     lanAvailable = available;
@@ -356,6 +367,11 @@ function createDesktopHost({
     } else if (frame?.event === "lan") {
       if (typeof frame.data !== "boolean") throw hostError("runtime_failed");
       if (!stopping && updateLanAvailability(frame.data)) publish();
+    } else if (frame?.event === "away") {
+      if (!["waitingForPair", "connecting", "registered", "unavailable", "denied", "stopped"].includes(frame.data)) {
+        throw hostError("runtime_failed");
+      }
+      if (!stopping) updateAwayState(frame.data);
     } else if (frame?.event === "account") {
       account = frame.data;
       emit("account", account);
@@ -368,13 +384,13 @@ function createDesktopHost({
       if (frame.error) entry.reject(hostError(frame.error.code)); else entry.resolve(frame.result);
     }
   }
-  function request(method) {
+  function request(method, params) {
     if (state !== "running" || !worker?.stdin.writable) throw hostError("not_running");
     const id = String(++requestCounter);
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => { pending.delete(id); reject(hostError("runtime_timeout")); }, 12_000);
       pending.set(id, { resolve, reject, timer });
-      try { writeFrame(worker.stdin, { id, method }); }
+      try { writeFrame(worker.stdin, { id, method, params }); }
       catch (error) { clearTimeout(timer); pending.delete(id); reject(error); }
     });
   }
@@ -402,6 +418,7 @@ function createDesktopHost({
       bridge = null;
       account = null;
       state = "stopped";
+      updateAwayState("stopped");
       lastError = null;
     } catch (error) {
       state = "error";
@@ -450,6 +467,7 @@ function createDesktopHost({
     if (pilotOrigin) childEnv.MUNIE_DEVELOPER_MANAGED_RELAY = pilotOrigin;
     const workerArgs = [String(process.pid), process.execPath, __filename, "--worker"];
     if (enableLanTaskExecution) workerArgs.push("--lan-task-execution");
+    if (hostedOrigin && !pilotOrigin) workerArgs.push("--managed-relay-origin", hostedOrigin);
     if (fixture) {
       childEnv.HOME = fixture.directory;
       childEnv.TMPDIR = fixture.directory;
@@ -498,6 +516,13 @@ function createDesktopHost({
       case "start": return start();
       case "stop": return stop();
       case "retry": await stop(); return start();
+      case "away/set": {
+        if (!hostedOrigin || typeof params.enabled !== "boolean" || state !== "running") {
+          throw hostError("invalid_request");
+        }
+        await request(method, { enabled: params.enabled });
+        return status();
+      }
       case "project/set": {
         const selected = projectFolder(params.path);
         const wasRunning = state === "running";
@@ -598,6 +623,7 @@ function monitorLanRelay(loopbackServer, port, onAvailability) {
 
 async function runWorker({
   simulatorApprovalFixture = false, fixtureProviderPort = null, fixtureCertificateHash = null, lanTaskExecution = false,
+  hostedRelayOrigin = null,
 } = {}) {
   // Imported bridge/relay log text may contain paths or upstream details: discard, never forward it.
   for (const key of ["log", "info", "warn", "error", "debug"]) console[key] = () => {};
@@ -605,9 +631,11 @@ async function runWorker({
   const { createRelayServer } = require("../../MunieRemodexRelay/server");
   const { managedAdmissionTranscript } = require("../../MunieRemodexRelay/managed-admission");
   const { MOBILE_ROUTE_FRAME } = require("../../MunieRemodexRelay/relay");
-  const { loopbackManagedRelayOrigin } = require("./managed-relay-client");
+  const { loopbackManagedRelayOrigin, hostedManagedRelayOrigin } = require("./managed-relay-client");
   const { startBridge, readBridgeConfig } = require("./index");
   const pilotOrigin = loopbackManagedRelayOrigin(process.env.MUNIE_DEVELOPER_MANAGED_RELAY);
+  const hostedOrigin = !pilotOrigin && !lanTaskExecution && !simulatorApprovalFixture && hostedRelayOrigin
+    ? hostedManagedRelayOrigin(hostedRelayOrigin) : null;
   if (simulatorApprovalFixture) {
     if (!pilotOrigin || process.env.MUNIE_REQUIRE_CODEX_STDIO_POLICY !== "1") throw hostError("runtime_unavailable");
     prepareSimulatorApprovalFixture({
@@ -638,6 +666,10 @@ async function runWorker({
       origin: pilotOrigin, audience: "munie-loopback.invalid", encodeChallenge: managedAdmissionTranscript,
       attachPhone: relay.attachManagedPhone,
     } : null,
+    desktopHostedRelay: hostedOrigin ? {
+      hostedOrigin, encodeChallenge: managedAdmissionTranscript, attachPhone: relay.attachManagedPhone,
+      onState: (data) => send({ event: "away", data }),
+    } : null,
     onBridgeStatus: (data) => {
       send({ event: "bridge", data: bridgeSnapshot(data) });
       // Native app-server can also close with exit 0 unexpectedly; it is still a host failure.
@@ -661,6 +693,11 @@ async function runWorker({
     pending++;
     Promise.resolve().then(async () => {
       switch (frame.method) {
+        case "away/set": {
+          if (!bridge.localAway || typeof frame.params?.enabled !== "boolean") throw hostError("invalid_request");
+          bridge.localAway.setEnabled(frame.params.enabled);
+          return true;
+        }
         case "pairing/get": {
           if (!lan.address) throw hostError("pairing_unavailable");
           const session = bridge.localPairing.refresh();
@@ -673,7 +710,10 @@ async function runWorker({
         default: throw hostError("method_not_found");
       }
     }).then((result) => send({ id: frame.id, result }), () => send({ id: frame.id,
-      error: publicError(hostError(frame.method === "pairing/get" ? "pairing_unavailable" : "account_unavailable")) }))
+      error: publicError(hostError(
+        frame.method === "pairing/get" ? "pairing_unavailable"
+          : frame.method === "away/set" ? "runtime_unavailable" : "account_unavailable"
+      )) }))
       .finally(() => pending--);
   }, () => { void shutdown(); });
   process.stdin.on("end", shutdown);
@@ -682,10 +722,12 @@ async function runWorker({
   process.stdin.resume();
 }
 
-function runProtocol({ input = process.stdin, output = process.stdout, env = process.env, lanTaskPreviewProject = null } = {}) {
+function runProtocol({
+  input = process.stdin, output = process.stdout, env = process.env, lanTaskPreviewProject = null, hostedRelayOrigin = null,
+} = {}) {
   const send = (value) => writeFrame(output, { v: 1, ...value });
   let host;
-  try { host = createDesktopHost({ env, lanTaskPreviewProject, emit: (event, data) => send({ event, data }) }); }
+  try { host = createDesktopHost({ env, lanTaskPreviewProject, hostedRelayOrigin, emit: (event, data) => send({ event, data }) }); }
   catch (error) {
     const failure = publicError(error);
     const failedStatus = { state: "error", project: null, bridge: null, account: null, devices: [], lanAvailable: false, lanRevision: 0,
@@ -747,6 +789,7 @@ if (require.main === module) {
     lanTaskExecution: process.argv[3] === "--lan-task-execution",
     fixtureProviderPort: Number(process.argv[4]),
     fixtureCertificateHash: process.argv[5],
+    hostedRelayOrigin: process.argv[3] === "--managed-relay-origin" && process.argv.length === 5 ? process.argv[4] : null,
   }).catch((error) => {
     writeFrame(process.stdout, { event: "fatal", data: publicError(hostError(error?.code === "EADDRINUSE" ? "relay_port_unavailable" : "runtime_failed")) });
     process.exit(1);
@@ -754,6 +797,7 @@ if (require.main === module) {
   else runProtocol({
     lanTaskPreviewProject: process.argv[2] === "--lan-task-preview-project" && process.argv.length === 4
       ? process.argv[3] : null,
+    hostedRelayOrigin: process.argv[2] === "--managed-relay-origin" && process.argv.length === 4 ? process.argv[3] : null,
   });
 }
 

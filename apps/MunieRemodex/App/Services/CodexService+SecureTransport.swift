@@ -10,6 +10,16 @@ import CryptoKit
 import Foundation
 import Security
 
+private nonisolated final class NearbyResolveRedirectPolicy: NSObject, URLSessionTaskDelegate {
+    func urlSession(
+        _ session: URLSession, task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest,
+        completionHandler: @escaping @Sendable (URLRequest?) -> Void
+    ) {
+        completionHandler(nil)
+    }
+}
+
 extension CodexService {
     // Completes the secure handshake before any JSON-RPC traffic is sent over the relay.
     func performSecureHandshake(managedSessionID: String? = nil, pinnedMac: CodexTrustedMacRecord? = nil) async throws {
@@ -245,7 +255,6 @@ extension CodexService {
         processIncomingText(text)
     }
 
-    #if DEBUG
     func processManagedRelayWireText(_ text: String) {
         guard let kind = wireMessageKind(from: text) else { return }
         if secureSession != nil {
@@ -258,7 +267,6 @@ extension CodexService {
             bufferSecureControlMessage(kind: kind, rawText: text)
         }
     }
-    #endif
 
     // Encrypts JSON-RPC requests/responses before they leave the iPhone.
     func secureWireText(for plaintext: String) throws -> String {
@@ -369,12 +377,14 @@ extension CodexService {
     }
 
     // Used by: ContentViewModel trusted reconnect path.
-    func resolveTrustedMacSession(deviceId: String? = nil) async throws -> CodexTrustedSessionResolveResponse {
+    func resolveTrustedMacSession(
+        deviceId: String? = nil, applyResult: Bool = true
+    ) async throws -> CodexTrustedSessionResolveResponse {
         let resolver = trustedSessionResolverOverride ?? { [weak self] in
             guard let self else {
                 throw CancellationError()
             }
-            return try await self.resolveTrustedMacSessionImpl(deviceId: deviceId)
+            return try await self.resolveTrustedMacSessionImpl(deviceId: deviceId, applyResult: applyResult)
         }
         let resolveTaskID = UUID()
         let task = Task {
@@ -1080,7 +1090,9 @@ private extension CodexService {
     }
 
     // Resolves the live relay session for the preferred trusted Mac before we reconnect the socket.
-    func resolveTrustedMacSessionImpl(deviceId: String? = nil) async throws -> CodexTrustedSessionResolveResponse {
+    func resolveTrustedMacSessionImpl(
+        deviceId: String? = nil, applyResult: Bool = true
+    ) async throws -> CodexTrustedSessionResolveResponse {
         guard let trustedMac = trustedMacRecord(for: deviceId) ?? currentTrustedMacRecord else {
             throw CodexTrustedSessionResolveError.noTrustedMac
         }
@@ -1093,6 +1105,7 @@ private extension CodexService {
             throw CodexTrustedSessionResolveError.invalidResponse("The trusted device relay URL is invalid.")
         }
 
+        let strict = enabledHostedRelayOrigin != nil && ContentViewModel.isNearbyRelayURL(relayURL)
         var lastRetriableResolveError: CodexTrustedSessionResolveError?
         for (index, resolveURL) in resolveURLs.enumerated() {
             do {
@@ -1100,9 +1113,15 @@ private extension CodexService {
                     makeTrustedSessionResolveRequestBody(for: trustedMac),
                     trustedMac: trustedMac,
                     resolveURL: resolveURL,
-                    relayURL: relayURL
+                    relayURL: relayURL, applyResult: applyResult, strict: strict
                 )
             } catch let error as CodexTrustedSessionResolveError {
+                if strict {
+                    switch error {
+                    case .unsupportedRelay: break
+                    default: throw error
+                    }
+                }
                 guard shouldTryNextTrustedResolveCandidate(after: error),
                       index < resolveURLs.count - 1 else {
                     throw error
@@ -1144,7 +1163,7 @@ private extension CodexService {
 
     private func shouldTryNextTrustedResolveCandidate(after error: CodexTrustedSessionResolveError) -> Bool {
         switch error {
-        case .unsupportedRelay, .invalidResponse, .network:
+        case .unsupportedRelay, .invalidResponse, .network, .transportUnreachable:
             return true
         case .macOffline, .rePairRequired, .noTrustedMac:
             return false
@@ -1155,7 +1174,7 @@ private extension CodexService {
         _ requestBody: CodexTrustedSessionResolveRequest,
         trustedMac: CodexTrustedMacRecord,
         resolveURL: URL,
-        relayURL: String
+        relayURL: String, applyResult: Bool, strict: Bool
     ) async throws -> CodexTrustedSessionResolveResponse {
         var request = URLRequest(url: resolveURL)
         request.httpMethod = "POST"
@@ -1163,7 +1182,7 @@ private extension CodexService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(requestBody)
 
-        let session = trustedSessionResolveURLSession(for: resolveURL)
+        let session = trustedSessionResolveURLSession(for: resolveURL, strict: strict)
         defer { session.invalidateAndCancel() }
 
         let data: Data
@@ -1178,10 +1197,16 @@ private extension CodexService {
                 || (nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled) {
                 throw CancellationError()
             }
+            if strict && Self.isLANTransportUnreachable(error, nearbyHost: resolveURL.host) {
+                throw CodexTrustedSessionResolveError.transportUnreachable
+            }
             throw CodexTrustedSessionResolveError.network("Could not reach the trusted device relay. Check your connection and try again.")
         }
 
         guard let httpResponse = response as? HTTPURLResponse else {
+            throw CodexTrustedSessionResolveError.invalidResponse("The trusted device relay returned an invalid response.")
+        }
+        if strict, httpResponse.url != resolveURL || (300..<400).contains(httpResponse.statusCode) {
             throw CodexTrustedSessionResolveError.invalidResponse("The trusted device relay returned an invalid response.")
         }
 
@@ -1191,17 +1216,27 @@ private extension CodexService {
                 throw CodexTrustedSessionResolveError.invalidResponse("The trusted device relay returned malformed session data.")
             }
             try validateResolvedTrustedSession(resolved, for: trustedMac)
-            applyResolvedTrustedSession(resolved, relayURL: relayURL)
+            if applyResult { applyResolvedTrustedSession(resolved, relayURL: relayURL) }
             return resolved
         }
 
         let errorResponse = try? JSONDecoder().decode(CodexRelayErrorResponse.self, from: data)
+        if strict, [401, 403, 407].contains(httpResponse.statusCode) {
+            if httpResponse.statusCode == 403,
+               ["phone_not_trusted", "invalid_signature"].contains(errorResponse?.code ?? "") {
+                if applyResult { secureConnectionState = .rePairRequired }
+                throw CodexTrustedSessionResolveError.rePairRequired(
+                    "This iPhone is no longer trusted by the paired device. Scan a new QR code to reconnect."
+                )
+            }
+            throw CodexTrustedSessionResolveError.invalidResponse("The trusted device relay refused this connection.")
+        }
         switch errorResponse?.code {
-        case "session_unavailable":
-            secureConnectionState = .liveSessionUnresolved
+        case "session_unavailable" where !strict || httpResponse.statusCode == 404:
+            if applyResult { secureConnectionState = .liveSessionUnresolved }
             throw CodexTrustedSessionResolveError.macOffline("Your trusted device is offline right now.")
         case "phone_not_trusted", "invalid_signature":
-            secureConnectionState = .rePairRequired
+            if applyResult { secureConnectionState = .rePairRequired }
             throw CodexTrustedSessionResolveError.rePairRequired(
                 "This iPhone is no longer trusted by the paired device. Scan a new QR code to reconnect."
             )
@@ -1353,7 +1388,7 @@ private extension CodexService {
 
     // Uses a non-proxying URLSession for local/private-overlay relays so trusted reconnect
     // avoids the same iOS proxy path that can break direct websocket pairing.
-    private func trustedSessionResolveURLSession(for url: URL) -> URLSession {
+    private func trustedSessionResolveURLSession(for url: URL, strict: Bool = false) -> URLSession {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.waitsForConnectivity = false
         configuration.allowsCellularAccess = true
@@ -1364,7 +1399,10 @@ private extension CodexService {
             configuration.connectionProxyDictionary = [:]
         }
 
-        return URLSession(configuration: configuration)
+        return URLSession(
+            configuration: configuration,
+            delegate: strict ? NearbyResolveRedirectPolicy() : nil,
+            delegateQueue: nil)
     }
 
     /// Waits for a serverHello whose echoed clientNonce matches the one we sent.

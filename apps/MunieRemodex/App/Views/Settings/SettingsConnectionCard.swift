@@ -1,3 +1,4 @@
+// Munie modification: add app-managed relay opt-in and authenticated route status.
 // FILE: SettingsConnectionCard.swift
 // Purpose: Presents paired-computer connection state and connection actions.
 // Layer: Settings UI component
@@ -8,6 +9,7 @@ import SwiftUI
 
 struct SettingsConnectionCard: View {
     @Environment(CodexService.self) private var codex
+    @AppStorage(CodexService.hostedRelayPreferenceKey) private var useHostedRelay = false
     @State private var isShowingDisconnectConfirmation = false
     let onEditComputerName: () -> Void
 
@@ -50,6 +52,18 @@ struct SettingsConnectionCard: View {
                     .tint(settingsToggleTintColor)
             }
 
+            if codex.configuredHostedRelayOrigin != nil {
+                Toggle("Allow Connections Away from Home", isOn: $useHostedRelay)
+                    .tint(settingsToggleTintColor)
+                if codex.isConnected {
+                    if codex.isUsingHostedRelay {
+                        Text("Connected through the managed relay")
+                    } else {
+                        Text("Connected directly to your Mac")
+                    }
+                }
+            }
+
             if codex.isConnected {
                 SettingsButton("Disconnect", role: .destructive) {
                     HapticFeedback.shared.triggerImpactFeedback()
@@ -60,6 +74,11 @@ struct SettingsConnectionCard: View {
                     HapticFeedback.shared.triggerImpactFeedback()
                     codex.forgetTrustedMac()
                 }
+            }
+        }
+        .onChange(of: useHostedRelay) { _, enabled in
+            if !enabled, codex.isUsingHostedRelay || codex.managedRelayAttemptID != nil {
+                Task { await codex.disconnect(preserveReconnectIntent: false) }
             }
         }
         .confirmationDialog("Disconnect from this Mac?", isPresented: $isShowingDisconnectConfirmation) {

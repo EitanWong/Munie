@@ -203,11 +203,7 @@ extension CodexService {
             return try await requestTransportOverride(method, params)
         }
 
-        #if DEBUG
         let isManagedInitialize = managedRelayAttemptID != nil && secureSession != nil && method == "initialize"
-        #else
-        let isManagedInitialize = false
-        #endif
         guard isConnected || isManagedInitialize, webSocketConnection != nil || webSocketTask != nil else {
             throw CodexServiceError.disconnected
         }
@@ -666,13 +662,11 @@ extension CodexService {
                     if let decodedPayload {
                         let text = decodedPayload.text
                         let decoded = decodedPayload.classification
-                        #if DEBUG
                         if self.managedRelayAttemptID != nil {
                             self.processManagedRelayWireText(text)
                             self.receiveNextMessage(on: task)
                             return
                         }
-                        #endif
                         if decoded.isSecure {
                             self.processIncomingWireText(text)
                         } else if let rpcResult = decoded.rpcResult {

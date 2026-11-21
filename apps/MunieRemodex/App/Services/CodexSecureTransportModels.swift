@@ -275,6 +275,7 @@ enum CodexTrustedSessionResolveError: LocalizedError {
     case rePairRequired(String)
     case invalidResponse(String)
     case network(String)
+    case transportUnreachable
 
     var errorDescription: String? {
         switch self {
@@ -282,6 +283,8 @@ enum CodexTrustedSessionResolveError: LocalizedError {
             return String(localized: "No trusted device is available to reconnect.")
         case .unsupportedRelay:
             return String(localized: "This relay does not support trusted reconnect yet.")
+        case .transportUnreachable:
+            return String(localized: "Could not reach the trusted device relay. Check your connection and try again.")
         case .macOffline(let message),
              .rePairRequired(let message),
              .invalidResponse(let message),

@@ -29,7 +29,7 @@ const { createCodexTransport } = require("./codex-transport");
 const { createTurnCancellationController } = require("./munie-turn-cancellation");
 const { createOpenCodeRuntime } = require("./opencode-runtime");
 const { createRelayWatchdog } = require("./relay-watchdog");
-const { createManagedRelayClient, MANAGED_RELAY_FRAME_LIMIT } = require("./managed-relay-client");
+const { createManagedRelayClient, createHostedManagedRelayClient, MANAGED_RELAY_FRAME_LIMIT } = require("./managed-relay-client");
 const { createManagedRouteReplies, isManagedRouteRequestId } = require("./managed-route-replies");
 const {
   createThreadRolloutActivityWatcher,
@@ -728,6 +728,7 @@ function startBridge({
   onPairingSession = null,
   onBridgeStatus = null,
   desktopManagedRelay = null,
+  desktopHostedRelay = null,
   desktopMobileRouteFrame = null,
   desktopLanTaskExecution = false,
 } = {}) {
@@ -775,7 +776,7 @@ function startBridge({
   });
   logIOSAppCompatibilityWarning(cachedIOSAppCompatibilityWarning);
   const sessionId = relaySession.sessionId;
-  const managedClient = initializeForLocalAccount && desktopManagedRelay
+  let managedClient = initializeForLocalAccount && desktopManagedRelay
     ? createManagedRelayClient({ ...desktopManagedRelay, sessionId }) : null;
   const mobileRouteFrame = initializeForLocalAccount ? desktopMobileRouteFrame : null;
   const mobileRouteReplies = mobileRouteFrame ? createManagedRouteReplies() : null;
@@ -2901,6 +2902,19 @@ function startBridge({
 
   return {
     stop: stopBridge,
+    localAway: initializeForLocalAccount && desktopHostedRelay && !desktopManagedRelay
+      && !desktopLanTaskExecution && !simulatorApproval ? {
+        setEnabled(enabled) {
+          if (isShuttingDown) throw new Error("The bridge is stopping.");
+          if (enabled && !managedClient) {
+            managedClient = createHostedManagedRelayClient({ ...desktopHostedRelay, sessionId });
+            if (socket?.readyState === WebSocket.OPEN) managedClient.replaceTrust(deviceState);
+          } else if (!enabled && managedClient) {
+            managedClient.stop();
+            managedClient = null;
+          }
+        },
+      } : null,
     localPairing: initializeForLocalAccount ? {
       refresh() {
         if (isShuttingDown) throw new Error("The bridge is stopping.");

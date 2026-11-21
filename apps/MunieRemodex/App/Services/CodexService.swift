@@ -669,11 +669,15 @@ final class CodexService {
     var webSocketSession: URLSession?
     var webSocketSessionDelegate: CodexURLSessionWebSocketDelegate?
     var webSocketTask: URLSessionWebSocketTask?
-    #if DEBUG
     @ObservationIgnored var managedRelayAttemptID: UUID?
     @ObservationIgnored var managedRelayBootstrapTask: Task<ManagedRelayPhoneConnector.Bootstrap, Error>?
     @ObservationIgnored var managedRelayHandshakeControls: Set<String> = []
-    #endif
+    var isUsingHostedRelay = false
+    var hasWiFiNetworkPath = false
+    var mayReturnToNearbyTransport: Bool {
+        isUsingHostedRelay && hasWiFiNetworkPath && isAppInForeground && !isConnecting
+            && !hasAnyRunningTurn && pendingApprovals.isEmpty && pendingRequests.isEmpty
+    }
     var webSocketKeepAliveTask: Task<Void, Never>?
     // Raw frame buffer used when the relay runs over manual TCP websocket framing.
     var manualWebSocketReadBuffer = Data()
@@ -1083,8 +1087,10 @@ final class CodexService {
         networkPathMonitor = monitor
         monitor.pathUpdateHandler = { [weak self] path in
             let constrained = path.isConstrained
+            let hasWiFi = path.status == .satisfied && path.usesInterfaceType(.wifi)
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                self.hasWiFiNetworkPath = hasWiFi
                 if self.isConstrainedNetwork != constrained {
                     self.isConstrainedNetwork = constrained
                     if self.isConnected, self.isInitialized {

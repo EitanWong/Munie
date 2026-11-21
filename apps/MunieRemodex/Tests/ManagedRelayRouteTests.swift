@@ -207,7 +207,8 @@
       service.trustedMacRegistry = CodexTrustedMacRegistry(records: [mac.macDeviceId: mac])
 
       let endpoint = "ws://paired-mac.local:3200/relay/session"
-      XCTAssertTrue(ContentViewModel.isCurrentPairedLANEndpoint(endpoint, codex: service, pinnedMac: mac))
+      XCTAssertTrue(
+        ContentViewModel.isCurrentPairedLANEndpoint(endpoint, codex: service, pinnedMac: mac))
       XCTAssertFalse(
         ContentViewModel.isCurrentPairedLANEndpoint(
           "ws://other-mac.local:3200/relay/session", codex: service, pinnedMac: mac))
